@@ -85,6 +85,22 @@ docker compose down -v
 docker compose down
 ```
 
+## CI gates
+
+`.github/workflows/ci.yml` runs three parallel jobs on every pull request and
+on pushes to `main`:
+
+| Job | What it enforces |
+|---|---|
+| `checks` | frozen-lockfile install, lint, type-check, unit tests, production build |
+| `images` | Docker build of the API and web images, then a Trivy scan (`ignore-unfixed`, failing on HIGH/CRITICAL) |
+| `security` | `pnpm audit --audit-level high` and a Gitleaks secret scan |
+
+Owner action (cannot be expressed in workflow YAML): in GitHub branch
+protection for the default branch, require the `checks`, `images`, and
+`security` status checks, and disallow direct pushes. Agents may push feature
+branches and open pull requests; they never push to or merge the default branch.
+
 ## Notes and deviations
 
 - The object store is **versitygw**, an S3-compatible gateway. The MinIO
