@@ -1,0 +1,64 @@
+openapi: 3.1.0
+info:
+  title: connect operational API
+  version: 0.0.0
+  description: >-
+    Placeholder contract. Product endpoints live under the versioned /v1 base
+    path and are added by later changes. The operational endpoints below are
+    unversioned and unauthenticated by design (docs/api-contracts.md, SEC-INF-8).
+servers: []
+paths:
+  /healthz:
+    get:
+      operationId: getHealthz
+      summary: Liveness probe; reports the API process only
+      security: []
+      responses:
+        "200":
+          description: The API process is running
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [status, service]
+                properties:
+                  status:
+                    type: string
+                    enum: [ok]
+                  service:
+                    type: string
+                    enum: [api]
+  /readyz:
+    get:
+      operationId: getReadyz
+      summary: Readiness probe; reports required dependency availability
+      security: []
+      responses:
+        "200":
+          description: Every checked dependency is available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadinessResponse"
+        "503":
+          description: At least one checked dependency is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadinessResponse"
+components:
+  schemas:
+    ReadinessResponse:
+      type: object
+      additionalProperties: false
+      required: [status, checks]
+      properties:
+        status:
+          type: string
+          enum: [ok, unavailable]
+        checks:
+          type: object
+          additionalProperties:
+            type: string
+            enum: [ok, unavailable]
