@@ -363,7 +363,7 @@ Responses include `"ai_generated": true`. If the AI provider is down, these endp
 
 ```http
 POST /v1/outcomes
-Idempotency-Key: 2f6c0c0e-4b43-4d1f-9d7f-0d3a3f6c1111
+Idempotency-Key: <uuid-v4>
 Content-Type: application/json
 
 {

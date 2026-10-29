@@ -1,0 +1,5 @@
+# Historical false positive: the illustrative Idempotency-Key UUID in the API
+# contract's worked example. The value was replaced with <uuid-v4>; this entry
+# only suppresses the finding recorded in that earlier commit. No other finding
+# is ignored.
+9c1e179dc013c7a0acf5ae41945eea641107db61:docs/api-contracts.md:generic-api-key:366
