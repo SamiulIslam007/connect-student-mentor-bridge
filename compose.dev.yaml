@@ -1,0 +1,41 @@
+# Development overlay (design.md D4): source mounts and reload commands.
+# Usage: docker compose -f compose.yaml -f compose.dev.yaml up -d --build
+services:
+  web:
+    build:
+      target: dev
+    image: connect-web:dev
+    command: ["pnpm", "--filter", "web", "dev"]
+    volumes:
+      - ./apps/web:/app/apps/web
+      # Keep the image's dependency links; the source bind mount would hide them.
+      - /app/apps/web/node_modules
+      - ./packages:/app/packages
+      - /app/packages/contracts/node_modules
+    environment:
+      NODE_ENV: development
+      TURBOPACK_POLL: "true"
+    healthcheck:
+      start_period: 90s
+
+  api:
+    build:
+      target: dev
+    image: connect-api:dev
+    command: ["pnpm", "--filter", "api", "dev"]
+    volumes:
+      - ./services/api:/app/services/api
+      - /app/services/api/node_modules
+      - ./packages:/app/packages
+      - /app/packages/contracts/node_modules
+    healthcheck:
+      start_period: 90s
+
+  worker:
+    image: connect-api:dev
+    command: ["pnpm", "--filter", "api", "dev:worker"]
+    volumes:
+      - ./services/api:/app/services/api
+      - /app/services/api/node_modules
+      - ./packages:/app/packages
+      - /app/packages/contracts/node_modules
