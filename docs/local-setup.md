@@ -96,10 +96,12 @@ on pushes to `main`:
 | `images` | Docker build of the API and web images, then a Trivy scan (`ignore-unfixed`, failing on HIGH/CRITICAL) |
 | `security` | `pnpm audit --audit-level high` and a Gitleaks secret scan |
 
-Owner action (cannot be expressed in workflow YAML): in GitHub branch
-protection for the default branch, require the `checks`, `images`, and
-`security` status checks, and disallow direct pushes. Agents may push feature
-branches and open pull requests; they never push to or merge the default branch.
+Branch protection is a repository ruleset (`protect-main`) on the default
+branch. It requires the `checks`, `images`, and `security` checks on the latest
+commit, requires a pull request before merging (zero approvals needed), and
+blocks branch deletion and non-fast-forward pushes. Nobody pushes directly to
+`main`; work lands through a green pull request. Agents may push feature
+branches and open pull requests; the owner merges.
 
 ## Notes and deviations
 
