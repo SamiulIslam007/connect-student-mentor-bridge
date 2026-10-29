@@ -45,7 +45,7 @@
 ## 7. CI pipeline
 
 - [x] 7.1 Add `.github/workflows/ci.yml` triggered on `pull_request` and default-branch pushes, with cancel-in-progress concurrency and the `checks` job (frozen-lockfile install, lint, typecheck, test, build); verify each command passes locally in the same order
-- [ ] 7.2 Add the `images` job that builds both images with Buildx and scans each with Trivy (`ignore-unfixed`, failing on HIGH/CRITICAL); verify the local image builds pass and the scan command runs against a locally built image
+- [x] 7.2 Add the `images` job that builds both images with Buildx and scans each with Trivy (`ignore-unfixed`, failing on HIGH/CRITICAL); verify the local image builds pass and the scan command runs against a locally built image
 - [x] 7.3 Add the `security` job with a high-severity dependency audit and a Gitleaks secret scan; verify a planted fake credential in a scratch file fails the scan locally, then remove the file
 - [ ] 7.4 Document the required status checks and confirm the owner enables branch protection (required checks, no direct pushes to the default branch); verify GitHub shows the three checks as required and a red run cannot merge
 
