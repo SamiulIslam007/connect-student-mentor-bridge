@@ -1,1 +1,1 @@
-export const unusedProbeValue = 1;
+const unusedProbeValue = 1;
