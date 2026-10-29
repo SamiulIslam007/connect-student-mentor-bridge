@@ -11,6 +11,7 @@ concurrency:
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   checks:
@@ -54,14 +55,14 @@ jobs:
           load: true
           tags: connect-web:ci
       - name: Scan the API image
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: connect-api:ci
           ignore-unfixed: true
           severity: HIGH,CRITICAL
           exit-code: "1"
       - name: Scan the web image
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: connect-web:ci
           ignore-unfixed: true
