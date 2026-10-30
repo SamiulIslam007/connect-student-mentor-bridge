@@ -8,7 +8,7 @@ The MVP is a Pilot build for one partner: about 8 one-week sprints at 3 days per
 
 ## Stack
 
-- TypeScript monorepo: NestJS modular monolith (API + worker), Next.js PWA, PostgreSQL, Prisma.
+- TypeScript monorepo: NestJS modular monolith (API + worker), Next.js PWA, PostgreSQL, Drizzle ORM (schema declared in TypeScript, `drizzle-kit` for migrations).
 - Identity: better-auth behind the `IdentityService` interface.
 - Local development is Docker Compose (Postgres, S3-compatible object store, mail catcher). Hosting is not chosen yet.
 - Jobs: pg-boss (provisional). No Redis, no WebSocket, no Flutter, no Zoom API, no AI in the MVP.

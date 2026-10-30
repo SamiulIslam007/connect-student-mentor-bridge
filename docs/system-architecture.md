@@ -392,7 +392,7 @@ Core Phase 1 endpoints are listed in the research report (about 12 groups) and d
 
 - One primary database, managed, with point-in-time recovery, daily backups, and a periodic logical dump stored elsewhere (NFR-DUR-01 to 05).
 - Schema as in [data-model.md](data-model.md). The NestJS API is the **sole owner of migrations**.
-- **ORM:** **Prisma** (decided, ADR-002). Prisma owns the schema and migrations. The database choice is **hard to reverse**; the ORM is moderate.
+- **ORM:** **Drizzle ORM** (decided, ADR-018, superseding the ORM choice in ADR-002). The schema is declared in TypeScript inside the API service; `drizzle-kit` generates the SQL migration files and the `migrate` container applies them. Triggers, role grants, and ledger immutability are hand-written SQL inside those migrations. The database choice is **hard to reverse**; the ORM is moderate.
 - **Migrations** are forward-only and written to be backward compatible for one release (expand, then contract) so that rolling back the application image is always safe.
 - **Roles:** `migrator`, `app_rw` (no UPDATE or DELETE on ledger tables), `app_ro` (views only), `backup`. Ledger immutability is enforced by the database, not only by code (NFR-INT-01).
 - **Multi-tenancy:** `institution_id` scoping in application code, roles, and suppression views. Row-level security is an ADR candidate.
@@ -583,7 +583,7 @@ The ADR log lives in `architecture-decisions.md`. All entries are **Proposed** u
 | ADR | Decision | Alternatives | Reversibility |
 |---|---|---|---|
 | 001 | Modular monolith in TypeScript (NestJS) | Microservices; Next.js-only full stack | Moderate |
-| 002 | PostgreSQL with one ORM (Prisma default) | Drizzle; a document database | Hard (data) |
+| 002 | PostgreSQL with one ORM (Prisma default; the ORM choice is superseded by 018) | Drizzle; a document database | Hard (data) |
 | 003 | Embedded auth library behind `IdentityService` | Keycloak; Auth0; Clerk | Easy if the seam is honored |
 | 004 | Containerized PaaS now, AWS later | Heroku; AWS from day one | Easy if Dockerized |
 | 005 | PWA first, Flutter later | Flutter in Phase 1 | Easy |
@@ -597,6 +597,7 @@ The ADR log lives in `architecture-decisions.md`. All entries are **Proposed** u
 | 013 | UI strings externalized (English only; no added languages) | Hard-coded text | Costly later |
 | 014 | Monorepo layout from README 7.5, trimmed | Multi-repo | Easy |
 | 015 | `PaymentProvider` interface with SSLCommerz and Stripe adapters, Phase 3 | Single gateway; direct SDK use in domain code | Moderate |
+| 018 | Drizzle ORM: TypeScript schema, `drizzle-kit` migrations | Keep Prisma; hand-written SQL over a driver | Moderate |
 
 **ADR candidates raised by this document (not yet numbered):** job library (pg-boss, Graphile Worker, or in-house poller); row-level security; malware-scanning approach; email provider; hosting provider and region after the one-day test; whether outcome-creating modules call reputation synchronously (section 5.3, recommended).
 
@@ -608,7 +609,7 @@ The ADR log lives in `architecture-decisions.md`. All entries are **Proposed** u
 |---|---|---|
 | 1 | Hosting provider and region (README #14) | After the MVP is ready; **not** a Gate 0 blocker |
 | 2 | Identity provider confirmation and `identity_subject` strategy (README #8, ADR-003) | **Decided:** better-auth; only the subject strategy is settled in Sprint 0 |
-| 3 | ORM confirmation (ADR-002) | **Decided:** Prisma |
+| 3 | ORM confirmation (ADR-018, superseding ADR-002) | **Decided:** Drizzle ORM with `drizzle-kit` |
 | 4 | Job library (ADR candidate) | **Decided, provisional:** pg-boss |
 | 5 | Email provider | Before pilot |
 | 6 | Malware-scanning approach | **Decided:** ClamAV container in Compose (Later: managed service) |
