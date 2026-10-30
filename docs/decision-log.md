@@ -105,7 +105,7 @@ date: 2026-10-29
 - Date: 2026-10-29
 - Decision: Prisma (closes O-1, ADR-002).
 - Reason: Mature migrations, strong agent familiarity.
-- Status: Decided
+- Status: Superseded by D-30 (2026-10-30)
 - Affects: `architecture-decisions.md`, `system-architecture.md`, `data-model.md`
 
 ### D-13: Job runner
@@ -219,3 +219,12 @@ date: 2026-10-29
 - Reason: Remove a stale description that implied a built product.
 - Status: Decided
 - Affects: `README.md`, `system-architecture.md`, `architecture-decisions.md`
+
+## Entries (2026-10-30)
+
+### D-30: ORM changed to Drizzle
+- Date: 2026-10-30
+- Decision: The ORM is **Drizzle ORM**, replacing Prisma (supersedes D-12; re-closes O-1; ADR-018 supersedes ADR-002). The schema is declared in TypeScript (`pgTable` definitions in the API service), `drizzle-kit` generates and runs the SQL migrations, and queries go through the Drizzle query builder. Hand-written SQL inside the same migrations carries triggers, role grants, and ledger immutability.
+- Reason: Closer to raw SQL and more control over constraints, indexes, triggers, and grants; a better fit for learning and for the append-only ledger and state-machine schema. No schema or migration had been written, so nothing had to be migrated.
+- Status: Decided
+- Affects: `architecture-decisions.md`, `system-architecture.md`, `milestones-and-phases.md`, `production-requirements.md`, `README.md`, `AGENTS.md`

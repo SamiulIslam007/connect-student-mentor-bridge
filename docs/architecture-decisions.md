@@ -56,7 +56,7 @@ The project follows an **Agile** software development life cycle (ADR-017). ADRs
 | ADR | Decision | Reversibility | Source of the decision |
 |---|---|---|---|
 | 001 | Modular monolith inside a monorepo (NestJS). Microservices later | Moderate | **Owner decision** (28 Oct 2026) |
-| 002 | PostgreSQL as the only system of record, with one ORM (Prisma default) | Hard | Recommendation |
+| 002 | PostgreSQL as the only system of record, with one ORM (Prisma default; the ORM choice is superseded by 018) | Hard | Recommendation |
 | 003 | Embedded auth library behind an `IdentityService` interface | Easy if the seam is honored | Recommendation |
 | 004 | Containerized PaaS now, AWS later (serverless only when triggered) | Easy if Dockerized | **Owner decision** (hosting path) |
 | 005 | Installable web app (PWA) first, Flutter later | Easy | Recommendation (accepted 16 Oct) |
@@ -72,8 +72,9 @@ The project follows an **Agile** software development life cycle (ADR-017). ADRs
 | 015 | `PaymentProvider` interface, SSLCommerz and Stripe adapters, built in Phase 3 | Moderate | **Owner decision** (both gateways) |
 | 016 | Docker for everything: local, staging, and production run the same images | Easy | **Owner decision** (28 Oct 2026) |
 | 017 | Agile delivery with time-boxed iterations and an explicit Definition of Done | Easy | **Owner decision** (28 Oct 2026) |
+| 018 | Drizzle ORM for the schema and migrations (supersedes the ORM choice in 002) | Moderate | **Owner decision** (30 Oct 2026) |
 
-**Status as of 2026-10-29:** ADR-002 (Prisma), ADR-003 (better-auth), ADR-006 (no Redis/WebSocket, pg-boss), ADR-016 (Docker), and ADR-017 (Agile) are **Approved** by owner decision. All others remain **Proposed** until their trigger or approval.
+**Status as of 2026-10-30:** ADR-002 (PostgreSQL as the system of record) is **Approved** and its ORM choice is **Superseded by ADR-018** (Drizzle ORM, approved 2026-10-30). ADR-003 (better-auth), ADR-006 (no Redis/WebSocket, pg-boss), ADR-016 (Docker), and ADR-017 (Agile) are **Approved** by owner decision. All others remain **Proposed** until their trigger or approval.
 
 ---
 
@@ -82,7 +83,7 @@ The project follows an **Agile** software development life cycle (ADR-017). ADRs
 | Class | Decisions | Why |
 |---|---|---|
 | **Hard** (changing later is expensive or risky) | Database choice and schema conventions (002); ledger design (008); auth subject identifiers (the stable user ID that tokens carry, 003); what personal data we collect (010) | Data migrations, audit history, and legal exposure follow us forever. Decide carefully and early. |
-| **Moderate** (a planned project to change) | Backend framework and module boundaries (001); API style (011); where business rules live (012); payment abstraction (015) | Changing needs coordinated code changes but no data loss. |
+| **Moderate** (a planned project to change) | Backend framework and module boundaries (001); API style (011); where business rules live (012); the ORM tool (018); payment abstraction (015) | Changing needs coordinated code changes but no data loss. |
 | **Easy** (a configuration or adapter change) | Hosting provider (004); email vendor; meeting provider (007); client type PWA vs native (005); Redis and WebSocket (006); repo tooling (014); sprint length (017) | Isolated behind an interface, a container, or a process choice. |
 
 **Rule:** spend design effort in proportion to how hard the decision is to reverse.
@@ -117,7 +118,7 @@ The project follows an **Agile** software development life cycle (ADR-017). ADRs
 - **Consequences:** Schema changes go through reviewed migrations only. Business-critical constraints (unique keys, foreign keys, check constraints) live in the database, not only in code.
 - **Reversibility:** Hard (data).
 - **Revisit trigger:** A measured query or migration limitation Prisma cannot meet; read replicas or partitioning needed.
-- **Status:** **Approved (owner decision, 2026-10-29)**. **Date / Owner:** 2026-10-28 / Owner.
+- **Status:** **Superseded by ADR-018 (ORM changed to Drizzle ORM, 2026-10-30).** The database decision above still stands; only the ORM and migration tool changed. **Date / Owner:** 2026-10-28 / Owner.
 
 ### ADR-003: Embedded auth library (`better-auth`) behind `IdentityService`
 
@@ -291,6 +292,30 @@ connect/
 - **Revisit trigger:** A second engineer joins, or iteration overhead exceeds its value.
 - **Status:** **Approved (owner decision, 2026-10-29)**. **Date / Owner:** 2026-10-28 / Owner.
 
+### ADR-018: Drizzle ORM replaces Prisma (supersedes the ORM choice in ADR-002)
+
+- **Context:** ADR-002 fixed PostgreSQL as the single system of record and named Prisma as the ORM. On 2026-10-30 the owner revisited the ORM **before any schema, migration file, or database client code existed**, so the change costs no data migration. The product needs behind the choice are unchanged: an append-only ledger of outcomes, verification, and reputation (ADR-008), explicit state machines enforced in the database as well as in code, and business rules kept in a pure domain package (ADR-012).
+- **Options:** (a) Keep Prisma (its own schema DSL plus a generated client). (b) **Drizzle ORM** with schema declared in TypeScript, `drizzle-kit` for migrations, and the Drizzle query builder. (c) Hand-written SQL over a driver alone.
+- **Decision:** PostgreSQL stays the system of record. The ORM is **Drizzle ORM**:
+  - The **schema is TypeScript**: tables, columns, indexes, unique keys, and foreign keys are declared with Drizzle's `pgTable` and column builders inside the API service (`services/api`).
+  - **`drizzle-kit` is the migration tool**: `drizzle-kit generate` emits plain SQL migration files from the TypeScript schema, and the `migrate` release step (ADR-016) applies them to the database before a new version starts.
+  - **Triggers, role grants, and ledger immutability live in hand-written SQL inside those same migrations.** `drizzle-kit migrate` runs every `.sql` file in order, so generated and hand-written statements are one reviewed stream.
+  - Queries use the **Drizzle query builder**. Raw SQL through `sql` is allowed where the ledger or a state-machine query reads better as SQL.
+  - Only the NestJS application owns the schema and migrations. There is no `.prisma` schema file and no generated client step.
+- **Reasons:**
+  - **Closer to raw SQL.** Drizzle maps one-to-one onto the SQL it emits, so what runs in production is readable in review. That fits the append-only ledger and the state-transition guards, where the exact statement matters.
+  - **More control.** Partial and unique indexes, check constraints, generated columns, triggers, and per-role grants are expressed directly instead of through an abstraction that may not model them.
+  - **Better fit for learning.** Reading and writing real SQL is a better learning surface for one builder than learning a proprietary schema language on top of it.
+  - **Fewer moving parts.** No separate schema language and no generated client to regenerate on every change; the schema is the same TypeScript the rest of the codebase is written in.
+- **Consequences:**
+  - More SQL-shaped code and a set of reviewed `.sql` migration files to maintain.
+  - No bundled schema browser: inspect the database with `psql` or any SQL client.
+  - `packages/domain` stays free of any database client, which keeps the boundary lint (ADR-012) simple.
+  - `docs/`, sprint plans, and the `migrate` release step now name Drizzle and `drizzle-kit` instead of Prisma.
+- **Reversibility:** Moderate. Nothing is built yet, so the tool can still change cheaply; after the schema ships, a change is a planned project.
+- **Revisit trigger:** A measured schema or query need Drizzle cannot express without hand-maintaining most of the schema; read replicas or partitioning needed; or schema-change velocity drops measurably against this baseline.
+- **Status:** **Approved (owner decision, 2026-10-30)**. **Date / Owner:** 2026-10-30 / Owner.
+
 ---
 
 ## 5. Where these decisions are enforced
@@ -308,7 +333,7 @@ connect/
 
 | # | Question | Status |
 |---|---|---|
-| O-1 | Prisma or Drizzle? | **Closed 2026-10-29: Prisma** |
+| O-1 | Prisma or Drizzle? | **Closed 2026-10-29: Prisma. Reopened and re-closed 2026-10-30: Drizzle ORM** (ADR-018 supersedes ADR-002) |
 | O-2 | Postgres-backed job runner library | **Closed 2026-10-29: pg-boss (provisional)** |
 | O-3 | Add Turborepo now or later? | Later |
 | O-4 | Iteration length? | **Closed 2026-10-29: 1 week until launch, 2 weeks in the pilot** |

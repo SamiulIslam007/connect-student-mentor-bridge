@@ -349,7 +349,7 @@ flowchart TB
 | Web frontend | Next.js (App Router), TypeScript, Tailwind, installable PWA | Section 6.2 |
 | Mobile | None in the MVP | Native app is Later (section 6.3) |
 | Backend | **NestJS** (TypeScript) modular monolith | API and worker from one image |
-| Database | **PostgreSQL** with **Prisma** | Single system of record; Prisma owns migrations |
+| Database | **PostgreSQL** with **Drizzle ORM** | Single system of record; the schema is TypeScript and `drizzle-kit` owns migrations |
 | Jobs | **pg-boss** (Postgres-backed, provisional) | Reminders, expiry, retention sweeps |
 | Object storage | S3-compatible, private bucket | Evidence, export files |
 | Identity | **better-auth**, embedded behind `IdentityService` | Google plus email/password; no SAML in the MVP |
@@ -458,7 +458,7 @@ Recording and transcription are not built. If a later phase adds them, they will
 - Single primary database, managed hosting chosen after the MVP. Use UUID primary keys, `created_at` and `updated_at` on every table, soft delete only where legally required, and **append-only history tables** for verification and reputation changes.
 - Row-level multi-tenancy by `institution_id` where a record belongs to an institution; enforce in application code and consider Postgres row-level security for institutional dashboards (open decision).
 - Reputation is **derived data** and can be recomputed from counted outcomes. Store computed scores, but keep the inputs auditable.
-- **Prisma** owns the schema and migrations.
+- **Drizzle ORM** owns the schema. Tables, columns, indexes, and constraints are declared in TypeScript (Drizzle `pgTable` definitions) inside the API service, and **`drizzle-kit`** generates the SQL migration files. Triggers, role grants, and ledger constraints are hand-written SQL in those same migrations; raw SQL for a query lives in the code that runs it (ADR-018).
 
 ### 10.2 Entity overview (Proposed design, details in `docs/data-model.md`)
 
@@ -639,7 +639,7 @@ Priority: **P0** create before writing production code; **P1** create during Pha
 | Document | Why connect needs it | Priority |
 |---|---|---|
 | `docs/product-vision-and-principles.md` (Planned, not yet created) | Keeps decisions aligned with "outcomes over activity" as the team grows | P0 |
-| `docs/glossary.md` | One definition for Outcome, Verified Outcome, Pending, Match Score, Platform Revenue, Money Processed, and others | P0 |
+| `docs/glossary.md` | One definition for Outcome, Confirmed outcome, Counted outcome, Pending outcome, Match Score, Platform Revenue, Money Processed, and others | P0 |
 | `docs/assumptions-and-open-questions.md` | Tracks every Proposed default and Open decision with an owner and a due gate | P0 |
 | `docs/personas-and-user-journeys.md` | Student, Mentor, Institution Admin, Employer journeys and pain points | P0 |
 | `docs/business-model-and-pricing.md` | Revenue tiers, pricing hypotheses, revenue split, simulator assumptions | P0 |
@@ -664,7 +664,7 @@ Priority: **P0** create before writing production code; **P1** create during Pha
 |---|---|---|
 | `docs/design-system.md` (Planned, not yet created) | Tokens (colors per stakeholder), typography, components, motion rules | P1 |
 | `docs/ux-flows-and-wireframes.md` (Planned, not yet created) | Screens and flows for web and mobile, empty and error states | P1 |
-| `docs/mobile-app-spec.md` (Planned, not yet created) | Flutter architecture, navigation, offline, push, release process | P1 |
+| `docs/mobile-app-spec.md` (Planned, not yet created) | Native app plan (Later, only if a measured need appears): navigation, offline, push, release process | P2 |
 | `docs/notification-and-communication-spec.md` (Planned, not yet created) | Every email, push, and in-app message, triggers, timing, templates | P1 |
 | `docs/accessibility-and-localization.md` (Planned, not yet created) | WCAG checklist, language support, right-to-left and Bangla considerations | P2 |
 
@@ -673,15 +673,15 @@ Priority: **P0** create before writing production code; **P1** create during Pha
 | Document | Why connect needs it | Priority |
 |---|---|---|
 | `docs/auth-and-access-control.md` | Identity provider setup, roles, permissions matrix, SSO onboarding steps | P0 |
-| `docs/realtime-and-calls-spec.md` (Planned, not yet created) | WebSocket events, rooms, Zoom integration, future WebRTC plan | P1 |
-| `docs/integrations.md` (Planned, not yet created) | Zoom, email, push, payment provider, SSO, analytics tools and their contracts | P1 |
+| `docs/realtime-and-calls-spec.md` (Planned, not yet created) | Refetch and email freshness rules, meeting-link handling, future WebRTC direction (Phase 4). No WebSocket, no Zoom integration | P1 |
+| `docs/integrations.md` (Planned, not yet created) | Email, push, payment provider, SSO, and analytics tools and their contracts | P1 |
 | `docs/analytics-and-reporting-spec.md` (Planned, not yet created) | Event taxonomy, dashboards, export formats, aggregation and privacy rules | P1 |
 | `docs/payments-and-billing-spec.md` (Planned, not yet created) | Subscriptions, office-hour payments, splits, refunds, invoicing, tax. Required before money moves | P2 |
 | `docs/ai-features-spec.md` (Planned, not yet created) | AI matching and briefing summaries, data used, consent, evaluation, human oversight | P2 |
 | `docs/testing-strategy.md` (Planned, not yet created) | What is tested at each level, contract tests, test data, release criteria | P1 |
 | `docs/devops-and-deployment.md` (Planned, not yet created) | Environments, CI/CD, infrastructure, backups, rollback | P1 |
 | `docs/observability-and-incident-response.md` (Planned, not yet created) | Logging, alerts, on-call, severity levels, post-incident reviews | P2 |
-| `docs/cost-model-and-infrastructure-budget.md` (Planned, not yet created) | Monthly cost of services at pilot and growth stages; Zoom versus own calls cost | P1 |
+| `docs/cost-model-and-infrastructure-budget.md` (Planned, not yet created) | Monthly cost of services at pilot and growth stages; mentor-provided meeting link versus an own call layer | P1 |
 
 ### 17.5 Legal and data governance
 
@@ -763,7 +763,7 @@ None of the following is policy. Each must be resolved, recorded in `docs/decisi
 
 The **Sprint 0 platform baseline** is implemented: a pnpm workspace (`apps/web`, `services/api`, `packages/{domain,contracts,config}`), a containerized local stack started with one Compose command, the unversioned operational endpoints `GET /healthz` and `GET /readyz`, and GitHub Actions gates for lint, type-check, tests, build, image build, dependency scan, image scan, and secret scan.
 
-**Not built yet:** product capability (auth, profiles, matching, requests, outcomes, reputation, notifications, admin), the Prisma schema and migrations, pg-boss queues, the email adapter, malware-scan integration, and any deployment, staging, or production environment.
+**Not built yet:** product capability (auth, profiles, matching, requests, outcomes, reputation, notifications, admin), the Drizzle schema and `drizzle-kit` migrations, pg-boss queues, the email adapter, malware-scan integration, and any deployment, staging, or production environment.
 
 Local setup: [`docs/local-setup.md`](docs/local-setup.md). The MVP build plan, the sprint sequence, and the first ten OpenSpec change proposals live in [`docs/mvp-build-plan.md`](docs/mvp-build-plan.md). Rules for AI coding agents live in [`AGENTS.md`](AGENTS.md). Decisions taken on 2026-10-29 are recorded in [`docs/decision-log.md`](docs/decision-log.md).
 

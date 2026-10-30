@@ -246,7 +246,7 @@ Owner-set monthly cap is an **Open decision**. Cost components to price (no numb
 |---|---|---|
 | 1 | Hosting provider and region (README #14) | **Open**, after the MVP; not a blocker |
 | 2 | Identity approach ADR (README #8) | **Decided:** better-auth (ADR-003) |
-| 3 | ORM choice | **Decided:** Prisma (ADR-002) |
+| 3 | ORM choice | **Decided:** Drizzle ORM with `drizzle-kit` (ADR-018, superseding ADR-002) |
 | 4 | Monthly infrastructure cost cap | Open; before production |
 | 5 | Trust and safety reviewer and response targets (N7) | **Deferred (owner decision)** until after the pilot |
 | 6 | Recovery time target (4 hours proposed) | Proposed default |
