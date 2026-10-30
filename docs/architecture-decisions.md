@@ -298,7 +298,7 @@ connect/
 - **Options:** (a) Keep Prisma (its own schema DSL plus a generated client). (b) **Drizzle ORM** with schema declared in TypeScript, `drizzle-kit` for migrations, and the Drizzle query builder. (c) Hand-written SQL over a driver alone.
 - **Decision:** PostgreSQL stays the system of record. The ORM is **Drizzle ORM**:
   - The **schema is TypeScript**: tables, columns, indexes, unique keys, and foreign keys are declared with Drizzle's `pgTable` and column builders inside the API service (`services/api`).
-  - **`drizzle-kit` is the migration tool**: `drizzle-kit generate` emits plain SQL migration files from the TypeScript schema, and the migrated database is applied by the `migrate` release step (ADR-016).
+  - **`drizzle-kit` is the migration tool**: `drizzle-kit generate` emits plain SQL migration files from the TypeScript schema, and the `migrate` release step (ADR-016) applies them to the database before a new version starts.
   - **Triggers, role grants, and ledger immutability live in hand-written SQL inside those same migrations.** `drizzle-kit migrate` runs every `.sql` file in order, so generated and hand-written statements are one reviewed stream.
   - Queries use the **Drizzle query builder**. Raw SQL through `sql` is allowed where the ledger or a state-machine query reads better as SQL.
   - Only the NestJS application owns the schema and migrations. There is no `.prisma` schema file and no generated client step.
@@ -311,7 +311,7 @@ connect/
   - More SQL-shaped code and a set of reviewed `.sql` migration files to maintain.
   - No bundled schema browser: inspect the database with `psql` or any SQL client.
   - `packages/domain` stays free of any database client, which keeps the boundary lint (ADR-012) simple.
-  - `docs/`, sprint plans, and the `migrate` release step name Drizzle and `drizzle-kit`, not Prisma.
+  - `docs/`, sprint plans, and the `migrate` release step now name Drizzle and `drizzle-kit` instead of Prisma.
 - **Reversibility:** Moderate. Nothing is built yet, so the tool can still change cheaply; after the schema ships, a change is a planned project.
 - **Revisit trigger:** A measured schema or query need Drizzle cannot express without hand-maintaining most of the schema; read replicas or partitioning needed; or schema-change velocity drops measurably against this baseline.
 - **Status:** **Approved (owner decision, 2026-10-30)**. **Date / Owner:** 2026-10-30 / Owner.

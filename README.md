@@ -458,7 +458,7 @@ Recording and transcription are not built. If a later phase adds them, they will
 - Single primary database, managed hosting chosen after the MVP. Use UUID primary keys, `created_at` and `updated_at` on every table, soft delete only where legally required, and **append-only history tables** for verification and reputation changes.
 - Row-level multi-tenancy by `institution_id` where a record belongs to an institution; enforce in application code and consider Postgres row-level security for institutional dashboards (open decision).
 - Reputation is **derived data** and can be recomputed from counted outcomes. Store computed scores, but keep the inputs auditable.
-- **Drizzle ORM** owns the schema. Tables, columns, indexes, and constraints are declared in TypeScript (Drizzle `pgTable` definitions) inside the API service, and **`drizzle-kit`** generates the SQL migration files. Hand-written SQL goes in the same migrations for triggers, role grants, and any query the builder makes awkward (ADR-018).
+- **Drizzle ORM** owns the schema. Tables, columns, indexes, and constraints are declared in TypeScript (Drizzle `pgTable` definitions) inside the API service, and **`drizzle-kit`** generates the SQL migration files. Triggers, role grants, and ledger constraints are hand-written SQL in those same migrations; raw SQL for a query lives in the code that runs it (ADR-018).
 
 ### 10.2 Entity overview (Proposed design, details in `docs/data-model.md`)
 
