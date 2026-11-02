@@ -22,3 +22,7 @@ Thumbs.db
 # Personal OpenCode instructions
 /AGENTS.local.md
 opencode.json
+.mcp-memory.jsonl
+
+# Local DBHub MCP config (may hold database credentials)
+/dbhub.toml

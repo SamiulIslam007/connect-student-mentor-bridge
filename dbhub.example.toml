@@ -1,0 +1,23 @@
+# Example DBHub config for the local connect PostgreSQL container.
+# Copy to dbhub.toml and fill in the real values from your .env
+# (POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB / POSTGRES_PORT).
+# dbhub.toml is gitignored; never commit real credentials.
+#
+# Schema reference: https://dbhub.ai/config/toml (@bytebase/dbhub@1.4.0).
+
+[[sources]]
+id = "connect"
+description = "connect local development PostgreSQL (Docker compose service 'postgres')"
+dsn = "postgresql://<POSTGRES_USER>:<POSTGRES_PASSWORD>@localhost:<POSTGRES_PORT>/<POSTGRES_DB>"
+connection_timeout = 10
+query_timeout = 30
+
+[[tools]]
+name = "execute_sql"
+source = "connect"
+readonly = true
+max_rows = 200
+
+[[tools]]
+name = "search_objects"
+source = "connect"
