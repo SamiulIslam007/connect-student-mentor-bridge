@@ -9,16 +9,32 @@ import { resolveDatabaseUrl } from "../../src/db/database-url.js";
 /**
  * Integration tests run against the Compose Postgres. They use a dedicated
  * `connect_test` database so they never touch development data, and they skip
- * (loudly) when no database is reachable, which is the CI case.
+ * (loudly) when no database is configured or reachable, which is the CI case.
  */
-export function testDatabaseUrl(): string {
+function deriveTestDatabaseUrl(): string | null {
   const configured = process.env.TEST_DATABASE_URL;
   if (configured) {
     return configured;
   }
-  const url = new URL(resolveDatabaseUrl());
-  url.pathname = "/connect_test";
-  return url.toString();
+
+  try {
+    const url = new URL(resolveDatabaseUrl());
+    url.pathname = "/connect_test";
+    return url.toString();
+  } catch {
+    // No DATABASE_URL anywhere: there is nothing to connect to, so the caller
+    // reports a skip instead of failing the suite.
+    return null;
+  }
+}
+
+const derivedTestDatabaseUrl = deriveTestDatabaseUrl();
+
+export function testDatabaseUrl(): string {
+  if (!derivedTestDatabaseUrl) {
+    throw new Error("DATABASE_URL is not configured (integration tests need the Compose Postgres)");
+  }
+  return derivedTestDatabaseUrl;
 }
 
 export interface TestDatabase {
@@ -30,9 +46,17 @@ export interface TestDatabase {
 
 export async function openTestDatabase(): Promise<TestDatabase> {
   const client = new Client({
-    connectionString: testDatabaseUrl(),
+    connectionString: derivedTestDatabaseUrl ?? "",
     connectionTimeoutMillis: 2_000,
   });
+
+  if (!derivedTestDatabaseUrl) {
+    return {
+      client,
+      skipped: true,
+      reason: "DATABASE_URL is not configured; integration tests need the Compose Postgres",
+    };
+  }
 
   try {
     await client.connect();
