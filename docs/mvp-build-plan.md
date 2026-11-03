@@ -85,16 +85,20 @@ A work item is done when:
 
 ## 5. First 10 OpenSpec change proposals (in order)
 
-1. `bootstrap-monorepo-and-docker` — repository, CI, Docker Compose, base Next.js and NestJS apps, health endpoints.
-2. `identity-better-auth` — `IdentityService`, Google and email/password, verification, forgot-password, sessions, MFA.
-3. `age-gate-and-account-status` — 18+ check without storing date of birth, `account_status`, audit entry.
-4. `profiles-and-dynamic-fields` — student/mentor profiles, `fields` with normalized slug, primary field, availability.
-5. `affiliation-and-mentor-onboarding` — Level 1 registration, admin attestation, onboarding vs operating status.
-6. `matching-and-discovery` — pure match function, weights from config, suggestions with reasons, suggestion log.
-7. `requests-and-capacity` — create/accept/decline/withdraw, capacity lock, 48h expiry and 24h reminder, notifications.
-8. `mentorship-thread-and-sessions` — mentorship on acceptance, agreement, thread, meeting link, held confirmations.
-9. `outcomes-and-verification` — outcome state machine, append-only events, evidence upload and scan, withdraw, conflict declaration.
-10. `reputation-and-platform-review` — counted outcomes, pair factor, snapshots, review queue with written reason, clawback, audit log.
+Status values: `DONE` (archived with evidence), `IN PROGRESS` (proposed or applied, not archived), `PLANNED`, `BLOCKED`.
+
+| # | Change | Scope | Status |
+|---|---|---|---|
+| 1 | `bootstrap-monorepo-and-docker` | Repository, CI, Docker Compose, base Next.js and NestJS apps, health endpoints | `DONE` (archived 2026-10-29; Drizzle schema/migration, outbox + pg-boss + email adapter were deferred by that change and move into change 2 and later) |
+| 2 | `identity-better-auth` | `IdentityService`, email/password sign-up with verification, forgot/reset password, 18+ gate, Postgres session store, consent and audit rows, institution seed. **Google sign-in, MFA, and session list/revoke move to the Sprint 2 change `access-google-mfa-and-sessions`** | `IN PROGRESS` |
+| 3 | `age-gate-and-account-status` | Account-status lifecycle (`PENDING`, `ACTIVE`, suspension, deactivation) and the blocked-signup policy. The 18+ gate and `signup_blocks` ship in change 2 | `PLANNED` |
+| 4 | `profiles-and-dynamic-fields` | Student/mentor profiles, `fields` with normalized slug, primary field, availability | `PLANNED` |
+| 5 | `affiliation-and-mentor-onboarding` | Level 1 registration, admin attestation, onboarding vs operating status | `PLANNED` |
+| 6 | `matching-and-discovery` | Pure match function, weights from config, suggestions with reasons, suggestion log | `PLANNED` |
+| 7 | `requests-and-capacity` | Create/accept/decline/withdraw, capacity lock, 48h expiry and 24h reminder, notifications | `PLANNED` |
+| 8 | `mentorship-thread-and-sessions` | Mentorship on acceptance, agreement, thread, meeting link, held confirmations | `PLANNED` |
+| 9 | `outcomes-and-verification` | Outcome state machine, append-only events, evidence upload and scan, withdraw, conflict declaration | `PLANNED` |
+| 10 | `reputation-and-platform-review` | Counted outcomes, pair factor, snapshots, review queue with written reason, clawback, audit log | `PLANNED` |
 
 After these: privacy export and deletion, institution aggregates with suppression, accessibility and hardening.
 
