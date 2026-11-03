@@ -68,7 +68,7 @@ CREATE TABLE "audit_logs" (
 	"actor_role" text DEFAULT 'ANONYMOUS' NOT NULL,
 	"action" text NOT NULL,
 	"object_type" text NOT NULL,
-	"object_id" text NOT NULL,
+	"object_id" text,
 	"request_id" text NOT NULL,
 	"break_glass" boolean DEFAULT false NOT NULL,
 	"reason" text,

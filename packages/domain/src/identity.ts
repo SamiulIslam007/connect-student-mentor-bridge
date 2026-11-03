@@ -32,15 +32,12 @@ export interface RegisterAccountInput {
 
 export type RegisterAccountResult = {
   status: "VERIFICATION_SENT";
-  userId: string;
 };
 
 export interface SignInInput {
   email: string;
   password: string;
   requestId: string;
-  ipAddress?: string;
-  userAgent?: string;
 }
 
 export interface SignInResult {

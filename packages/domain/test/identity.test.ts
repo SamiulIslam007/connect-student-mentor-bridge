@@ -5,7 +5,6 @@ import {
   IdentityError,
   type AccountSummary,
   type IdentityService,
-  type RegisterAccountInput,
 } from "../src/index.js";
 
 /**
@@ -13,8 +12,8 @@ import {
  * the same interface (spec: "Implementation is replaceable").
  */
 class FakeIdentityService implements IdentityService {
-  async register(input: RegisterAccountInput): Promise<{ status: "VERIFICATION_SENT"; userId: string }> {
-    return { status: "VERIFICATION_SENT", userId: `fake-${input.email}` };
+  async register(): Promise<{ status: "VERIFICATION_SENT" }> {
+    return { status: "VERIFICATION_SENT" };
   }
 
   async verifyEmail(): Promise<void> {}
@@ -47,7 +46,7 @@ test("a second implementation satisfies the identity interface", async () => {
     requestId: "req-1",
   });
 
-  assert.deepEqual(result, { status: "VERIFICATION_SENT", userId: "fake-fake@example.com" });
+  assert.deepEqual(result, { status: "VERIFICATION_SENT" });
   await assert.rejects(service.signIn({ email: "fake@example.com", password: "x", requestId: "req-2" }), {
     name: "IdentityError",
     code: "INVALID_CREDENTIALS",

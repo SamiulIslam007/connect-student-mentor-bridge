@@ -1,5 +1,5 @@
 {
-  "id": "3b785734-e6cf-4555-b33c-4fef4bbc3b68",
+  "id": "793b6b93-dc08-4877-a236-0ec247af5b9e",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -452,7 +452,7 @@
           "name": "object_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "request_id": {
           "name": "request_id",

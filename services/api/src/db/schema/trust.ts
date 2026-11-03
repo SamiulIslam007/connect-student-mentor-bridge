@@ -90,7 +90,8 @@ export const auditLogs = pgTable(
     actorRole: text("actor_role").default("ANONYMOUS").notNull(),
     action: text("action").notNull(),
     objectType: text("object_type").notNull(),
-    objectId: text("object_id").notNull(),
+    /** Null when the attempt has no object yet (for example a failed sign-in). */
+    objectId: text("object_id"),
     requestId: text("request_id").notNull(),
     breakGlass: boolean("break_glass").default(false).notNull(),
     reason: text("reason"),
