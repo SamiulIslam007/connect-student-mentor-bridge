@@ -44,8 +44,8 @@
 
 ## 8. Integration verification and review gate
 
-- [ ] 8.1 On a clean volume, run `docker compose up`, apply the migration, complete the Sprint 1 demo end to end, then run `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build` and paste the real output of each.
-- [ ] 8.2 Run the review gate from `AGENTS.local.md` §2 (ponytail review, code review, silent-failure hunter, trust-rule check, debt note, diff scope) and record findings in the handoff.
+- [x] 8.1 On a clean volume, run `docker compose up`, apply the migration, complete the Sprint 1 demo end to end, then run `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build` and paste the real output of each.
+- [x] 8.2 Run the review gate from `AGENTS.local.md` §2 (ponytail review, code review, silent-failure hunter, trust-rule check, debt note, diff scope) and record findings in the handoff.
 
 ## Workflow follow-up
 
