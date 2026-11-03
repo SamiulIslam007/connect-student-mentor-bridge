@@ -98,6 +98,8 @@ Replace `connect` with `POSTGRES_USER` if it differs. The tests reset the `conne
 
 `BETTER_AUTH_SECRET` has no default: the API refuses to start when it is missing or shorter than 32 characters. Verification links point at `apps/web/api/auth/verify`, and reset links at the `/reset` page.
 
+The `web` container calls the API at `http://api:3001` (`API_INTERNAL_URL` in `compose.yaml`). The browser-facing `NEXT_PUBLIC_API_BASE_URL` is the published port (`http://localhost:3001`); a container must never be pointed at `localhost` for the API, because that resolves to the container itself.
+
 ## Data and reset
 `pgdata`, `objectstoredata`, `mailpitdata`, and `clamavdata` are named volumes,
 so data survives `docker compose down` and `up`. To start from empty:

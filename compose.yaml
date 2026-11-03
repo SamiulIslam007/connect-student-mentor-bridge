@@ -145,6 +145,8 @@ services:
       HOSTNAME: 0.0.0.0
       HEALTHCHECK_PATHS: /healthz
       NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:3001}
+      # The container reaches the API by service name; the browser never does.
+      API_INTERNAL_URL: http://api:3001
     ports:
       - "${WEB_PORT:-3000}:3000"
     healthcheck:

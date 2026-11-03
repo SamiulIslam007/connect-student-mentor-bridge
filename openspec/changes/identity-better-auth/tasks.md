@@ -28,7 +28,7 @@
 ## 5. Transport (BFF and web)
 
 - [x] 5.1 Add the `apps/web` route handlers for register, verify, sign-in, and reset that call the API through `NEXT_PUBLIC_API_BASE_URL` and set an httpOnly, SameSite=Lax cookie (Secure outside development); verify a test asserts the cookie flags and that no handler returns a token in the response body.
-- [ ] 5.2 Add the minimal sign-up, sign-in, verify, and reset pages with labels from the string catalog; verify the pages render and the full flow works against the Compose stack (sign up → Mailpit link → verified account → sign in → sign out everywhere).
+- [x] 5.2 Add the minimal sign-up, sign-in, verify, and reset pages with labels from the string catalog; verify the pages render and the full flow works against the Compose stack (sign up → Mailpit link → verified account → sign in → sign out everywhere).
 
 ## 6. Reference data seed
 

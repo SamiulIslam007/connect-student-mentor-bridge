@@ -35,6 +35,7 @@ FROM deps AS dev
 COPY tsconfig.base.json ./
 COPY services/api services/api
 COPY packages packages
+COPY infra/docker/healthcheck.mjs ./healthcheck.mjs
 CMD ["pnpm", "--filter", "api", "dev"]
 
 # Production dependencies only, hoisted into one runtime node_modules.
