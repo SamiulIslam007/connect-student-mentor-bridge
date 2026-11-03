@@ -22,16 +22,21 @@ The system SHALL create one account record per registered user with a display na
 
 ### Requirement: No role profile at registration
 
-Registration SHALL NOT create a student or mentor profile, and no endpoint SHALL expose profile fields beyond the account record itself until a later capability adds them.
+Registration SHALL NOT create a student or mentor profile. A profile SHALL be created only when its owner saves one, and a profile endpoint SHALL return only the caller's own profile data.
 
 #### Scenario: Registration leaves profiles empty
 
 - **WHEN** a user completes registration
-- **THEN** no student or mentor profile exists for that user and no profile endpoint returns data for them
+- **THEN** no student or mentor profile exists for that user and `GET /v1/me` returns both profile properties as null
+
+#### Scenario: A profile appears only after an explicit save
+
+- **WHEN** the same user signs in and saves a student profile
+- **THEN** that profile is returned by `GET /v1/me`, and no profile for any other account is created or changed
 
 ### Requirement: Account status is readable but not self-assigned
 
-The system SHALL expose the account status to its owner through `GET /v1/me`, and SHALL not let a user set `account_status` except through the deactivation transition in `identity/account-status-lifecycle`.
+The system SHALL expose the account status to its owner through `GET /v1/me`, SHALL not let a user set `account_status` except through the deactivation transition in `identity/account-status-lifecycle`, and SHALL ignore any status value submitted with a profile save.
 
 #### Scenario: Owner reads the account status
 
@@ -45,8 +50,13 @@ The system SHALL expose the account status to its owner through `GET /v1/me`, an
 
 #### Scenario: User attempts to set status
 
-- **WHEN** a request tries to set `account_status` during registration or profile update
+- **WHEN** a request tries to set `account_status` during registration
 - **THEN** the submitted value is ignored, the stored status stays `PENDING`, and no error is raised for the extra field
+
+#### Scenario: User attempts to set status through a profile save
+
+- **WHEN** a signed-in user submits `account_status` with a student or mentor profile save
+- **THEN** the submitted value is ignored, the stored status is unchanged, the profile is saved, and no error is raised for the extra field
 
 #### Scenario: Only the deactivation transition changes status
 
