@@ -7,10 +7,10 @@
 
 ## 2. Database foundation
 
-- [ ] 2.1 Write the Drizzle auth schema in `services/api/src/db/schema/auth.ts` with plural tables (`users`, `sessions`, `accounts`, `verifications`) and the project columns through `additionalFields` (`timezone`, `status`, `age_18_plus`, `age_gate_passed_at`, `age_gate_version`, `last_seen_at`, `anonymized_at`, all `input: false`); verify `pnpm --filter api typecheck` passes.
-- [ ] 2.2 Write the project tables (`institutions`, `institution_domains`, `consent_records`, `audit_logs`, `signup_blocks`) plus the append-only grants that revoke `UPDATE`/`DELETE` on `consent_records` and `audit_logs` from the application role; verify the integration test that attempts an update and a delete on both tables receives a permission error (spec: "Consent records are append-only", "Audit entries are append-only").
-- [ ] 2.3 Add `drizzle.config.ts` and generate the baseline migration under `services/api/drizzle/`; verify the migration applies cleanly to the Compose Postgres with `pnpm --filter api db:migrate` and a second run is a no-op.
-- [ ] 2.4 Add `services/api/src/db/` (pooled `pg` connection, Drizzle instance, Nest provider) and wire it into `app.module.ts`; verify `/readyz` still reports ready with the database reachable and the integration test opens a transaction.
+- [x] 2.1 Write the Drizzle auth schema in `services/api/src/db/schema/auth.ts` with plural tables (`users`, `sessions`, `accounts`, `verifications`) and the project columns through `additionalFields` (`timezone`, `status`, `age_18_plus`, `age_gate_passed_at`, `age_gate_version`, `last_seen_at`, `anonymized_at`, all `input: false`); verify `pnpm --filter api typecheck` passes.
+- [x] 2.2 Write the project tables (`institutions`, `institution_domains`, `consent_records`, `audit_logs`, `signup_blocks`) plus the append-only grants that revoke `UPDATE`/`DELETE` on `consent_records` and `audit_logs` from the application role; verify the integration test that attempts an update and a delete on both tables receives a permission error (spec: "Consent records are append-only", "Audit entries are append-only").
+- [x] 2.3 Add `drizzle.config.ts` and generate the baseline migration under `services/api/drizzle/`; verify the migration applies cleanly to the Compose Postgres with `pnpm --filter api db:migrate` and a second run is a no-op.
+- [x] 2.4 Add `services/api/src/db/` (pooled `pg` connection, Drizzle instance, Nest provider) and wire it into `app.module.ts`; verify `/readyz` still reports ready with the database reachable and the integration test opens a transaction.
 
 ## 3. Domain seam and pure rules
 
