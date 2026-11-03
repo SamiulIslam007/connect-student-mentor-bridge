@@ -25,6 +25,7 @@ import {
 
 import type { Database } from "../db/database.js";
 import { auditLogs, consentRecords, signupBlocks, users } from "../db/schema/index.js";
+import { isClientApiError } from "./api-error.js";
 import type { IdentityAuth } from "./better-auth.js";
 import { appendAuditEntry } from "./audit-log.js";
 import { runWithRequestId } from "./request-context.js";
@@ -188,8 +189,19 @@ export class BetterAuthIdentityService implements IdentityService {
       });
     } catch (error) {
       // The library owns its own transaction, so a failure here would leave an
-      // account without consent records. Remove it rather than keep that state.
-      await this.database.delete(users).where(eq(users.id, userId));
+      // account without consent records. Remove it rather than keep that state,
+      // and keep the original error as the one the caller sees.
+      try {
+        await this.database.delete(users).where(eq(users.id, userId));
+      } catch (cleanupError) {
+        console.error(
+          JSON.stringify({
+            event: "identity.registration_cleanup_failed",
+            user_id: userId,
+            message: cleanupError instanceof Error ? cleanupError.message : "unknown error",
+          }),
+        );
+      }
       throw error;
     }
 
@@ -201,7 +213,12 @@ export class BetterAuthIdentityService implements IdentityService {
       await runWithRequestId(input.requestId, () =>
         this.auth.api.verifyEmail({ query: { token: input.token } }),
       );
-    } catch {
+    } catch (error) {
+      // Only a rejected link is a client error; a database or library fault must
+      // surface as a server error instead of a 400.
+      if (!isClientApiError(error)) {
+        throw error;
+      }
       throw new IdentityError("INVALID_VERIFICATION_LINK", "the verification link is invalid or expired");
     }
   }
@@ -301,7 +318,10 @@ export class BetterAuthIdentityService implements IdentityService {
           body: { newPassword: input.password, token: input.token },
         }),
       );
-    } catch {
+    } catch (error) {
+      if (!isClientApiError(error)) {
+        throw error;
+      }
       throw new IdentityError("INVALID_RESET_TOKEN", "the reset link is invalid or expired");
     }
   }
@@ -316,9 +336,12 @@ export class BetterAuthIdentityService implements IdentityService {
     try {
       const result = await this.auth.api.getSession({ headers: bearerHeaders(sessionToken) });
       return result ? { sessionId: result.session.id, account: toAccount(result.user) } : null;
-    } catch {
-      // An unparseable or rejected token is an authentication outcome, not a
-      // server error.
+    } catch (error) {
+      // A rejected token is an authentication outcome; anything else is a real
+      // fault and must not be reported as "signed out".
+      if (!isClientApiError(error)) {
+        throw error;
+      }
       return null;
     }
   }
