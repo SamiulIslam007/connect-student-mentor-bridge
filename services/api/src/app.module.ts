@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 
+import { DatabaseModule } from "./db/database.module.js";
 import { DATABASE_PROBE, defaultProbe, HealthController } from "./health/health.controller.js";
 
 /**
@@ -8,6 +9,7 @@ import { DATABASE_PROBE, defaultProbe, HealthController } from "./health/health.
  * later changes.
  */
 @Module({
+  imports: [DatabaseModule],
   controllers: [HealthController],
   providers: [{ provide: DATABASE_PROBE, useValue: defaultProbe }],
 })
