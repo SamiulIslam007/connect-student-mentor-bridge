@@ -22,8 +22,10 @@ export function createDefaultProbe(resolveUrl: () => string = () => resolveDatab
       url = resolveUrl();
     } catch (error) {
       console.error(
-        JSON.stringify({ event: "readiness.database_failed", message: "DATABASE_URL is not configured" }),
-        error,
+        JSON.stringify({
+          event: "readiness.database_failed",
+          message: error instanceof Error ? error.message : "the database configuration is unreadable",
+        }),
       );
       return Promise.resolve("unavailable");
     }

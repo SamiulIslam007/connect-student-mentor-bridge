@@ -7,7 +7,9 @@ import { strings } from "../../lib/strings";
 
 /** The success message is the only non-error outcome; everything else is mapped. */
 function messageFor(status: number, code: string | undefined): string {
-  return status === 200 ? strings.signUp.success : signUpErrorMessage(status, code);
+  return status >= 200 && status < 300
+    ? strings.signUp.success
+    : signUpErrorMessage(status, code);
 }
 
 export default function SignUpPage() {
@@ -39,7 +41,8 @@ export default function SignUpPage() {
     }
 
     // The form is uncontrolled, so the non-password values survive a failure.
-    setSuccess(status === 200);
+    const succeeded = status >= 200 && status < 300;
+    setSuccess(succeeded);
     setMessage(messageFor(status, code));
   }
 

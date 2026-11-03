@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { callApi, readJson } from "../../../../lib/api";
-import { unauthenticated } from "../../../../lib/bff";
+import { forwardUpstream, unauthenticated } from "../../../../lib/bff";
 import { readSessionCookie, SESSION_COOKIE_NAME } from "../../../../lib/session-cookie";
 
 export async function POST(request: Request): Promise<NextResponse> {
@@ -10,15 +9,17 @@ export async function POST(request: Request): Promise<NextResponse> {
     return unauthenticated();
   }
 
-  const upstream = await callApi("/v1/auth/sign-out", {
+  const outcome = await forwardUpstream("/v1/auth/sign-out", {
     method: "POST",
     headers: { authorization: `Bearer ${token}` },
   });
-  const payload = await readJson(upstream);
+  if (outcome.kind === "non-json") {
+    return outcome.problem;
+  }
 
-  if (!upstream.ok) {
-    const response = NextResponse.json(payload, { status: upstream.status });
-    if (upstream.status === 401) {
+  if (outcome.status < 200 || outcome.status >= 300) {
+    const response = NextResponse.json(outcome.payload, { status: outcome.status });
+    if (outcome.status === 401) {
       // The session is already gone; do not leave a dead token in the browser.
       response.cookies.delete(SESSION_COOKIE_NAME);
     }

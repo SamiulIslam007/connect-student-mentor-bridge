@@ -22,6 +22,13 @@ const LOOPBACK_ORIGIN = "http://localhost:3000";
 export function appOrigin(): string {
   const configured = process.env.BETTER_AUTH_URL;
   if (!configured) {
+    if (process.env.NODE_ENV === "production") {
+      // The web container sets this; a deployed container without it sends
+      // verification links to a dead localhost page.
+      console.error(
+        JSON.stringify({ event: "web.invalid_app_origin", reason: "BETTER_AUTH_URL is not set" }),
+      );
+    }
     return LOOPBACK_ORIGIN;
   }
   try {
@@ -70,17 +77,5 @@ export async function callApi(path: string, init: RequestInit = {}): Promise<Res
       }),
       { status: 502, headers: { "content-type": "application/problem+json" } },
     );
-  }
-}
-
-export async function readJson(response: Response): Promise<Record<string, unknown>> {
-  const text = await response.text();
-  if (!text) {
-    return {};
-  }
-  try {
-    return JSON.parse(text) as Record<string, unknown>;
-  } catch {
-    return {};
   }
 }

@@ -33,6 +33,18 @@ function validationFailed(): NextResponse {
   );
 }
 
+function invalidRequestBody(): NextResponse {
+  return NextResponse.json(
+    {
+      type: "https://docs.connect.example/problems/invalid-request-body",
+      title: "The request body could not be read",
+      status: 400,
+      code: "INVALID_REQUEST_BODY",
+    },
+    { status: 400 },
+  );
+}
+
 function concat(chunks: Uint8Array[], total: number): Uint8Array {
   const bytes = new Uint8Array(total);
   let offset = 0;
@@ -62,17 +74,29 @@ export async function readJsonBody(request: Request): Promise<BodyResult> {
   const chunks: Uint8Array[] = [];
   let total = 0;
   try {
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) {
-        break;
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) {
+          break;
+        }
+        total += value.byteLength;
+        if (total > BFF_MAX_BODY_BYTES) {
+          await reader.cancel();
+          return { ok: false, response: payloadTooLarge() };
+        }
+        chunks.push(value);
       }
-      total += value.byteLength;
-      if (total > BFF_MAX_BODY_BYTES) {
-        await reader.cancel();
-        return { ok: false, response: payloadTooLarge() };
-      }
-      chunks.push(value);
+    } catch (error) {
+      // A client abort or an already-consumed stream must not become an
+      // unlogged 500 out of the route handler.
+      console.error(
+        JSON.stringify({
+          event: "web.body_read_failed",
+          message: error instanceof Error ? error.message : "unknown error",
+        }),
+      );
+      return { ok: false, response: invalidRequestBody() };
     }
   } finally {
     reader.releaseLock();
@@ -99,6 +123,14 @@ export async function forwardUpstream(path: string, init: RequestInit): Promise<
   const text = await upstream.text();
 
   if (!text) {
+    if (upstream.status >= 200 && upstream.status < 300) {
+      // Every contract endpoint returns JSON; a silent empty success would be
+      // reported to the page as a successful save.
+      console.error(
+        JSON.stringify({ event: "web.upstream_empty_body", path, status: upstream.status }),
+      );
+      return nonJsonProblem(upstream.status);
+    }
     return { kind: "json", status: upstream.status, payload: {} };
   }
 
@@ -108,20 +140,24 @@ export async function forwardUpstream(path: string, init: RequestInit): Promise<
     console.error(
       JSON.stringify({ event: "web.upstream_non_json", path, status: upstream.status }),
     );
-    return {
-      kind: "non-json",
-      status: upstream.status,
-      problem: NextResponse.json(
-        {
-          type: "https://docs.connect.example/problems/internal-error",
-          title: "The API returned an unexpected response",
-          status: 502,
-          code: "INTERNAL_ERROR",
-        },
-        { status: 502 },
-      ),
-    };
+    return nonJsonProblem(upstream.status);
   }
+}
+
+function nonJsonProblem(status: number): UpstreamOutcome {
+  return {
+    kind: "non-json",
+    status,
+    problem: NextResponse.json(
+      {
+        type: "https://docs.connect.example/problems/internal-error",
+        title: "The API returned an unexpected response",
+        status: 502,
+        code: "INTERNAL_ERROR",
+      },
+      { status: 502 },
+    ),
+  };
 }
 
 /**

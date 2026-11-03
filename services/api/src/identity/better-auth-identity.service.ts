@@ -293,23 +293,16 @@ export class BetterAuthIdentityService implements IdentityService {
   }
 
   async signIn(input: SignInInput): Promise<SignInResult> {
-    let account: AccountSummary;
-    let sessionToken: string;
-    let sessionId: string | null;
+    let result: Awaited<ReturnType<IdentityAuth["api"]["signInEmail"]>>;
     try {
       // The session hook activates or resumes the account through
       // `currentRequestId()`, so the sign-in must carry the request context
       // (design D5).
-      const result = await runWithRequestId(input.requestId, () =>
+      result = await runWithRequestId(input.requestId, () =>
         this.auth.api.signInEmail({
           body: { email: input.email.trim().toLowerCase(), password: input.password },
         }),
       );
-      // Always read the account back: the hook may have moved it to `ACTIVE`
-      // after the library read the row, so `result.user` can be stale.
-      account = await this.requireAccount(result.user.id);
-      sessionToken = result.token;
-      sessionId = (await this.readSession(sessionToken))?.sessionId ?? null;
     } catch (error) {
       const refusal = statusRefusal(error);
       if (!refusal && !isInvalidCredentials(error)) {
@@ -337,6 +330,25 @@ export class BetterAuthIdentityService implements IdentityService {
       throw new IdentityError("INVALID_CREDENTIALS", "invalid email or password");
     }
 
+    const sessionToken = result.token;
+    let account: AccountSummary;
+    let sessionId: string;
+    try {
+      // Always read the account back: the hook may have moved it to `ACTIVE`
+      // after the library read the row, so `result.user` can be stale.
+      account = await this.requireAccount(result.user.id);
+      const session = await this.readSession(sessionToken);
+      if (!session) {
+        throw new Error("the new session could not be read back");
+      }
+      sessionId = session.sessionId;
+    } catch (error) {
+      // The library already created the session, so a failure after it must not
+      // leave a usable token behind.
+      await this.revokeSession(sessionToken, input.requestId);
+      throw error;
+    }
+
     try {
       await this.writeAudit({
         action: "SIGN_IN_SUCCEEDED",
@@ -349,21 +361,26 @@ export class BetterAuthIdentityService implements IdentityService {
     } catch (auditError) {
       // Fail closed: the library already created the session, so a response we
       // cannot record must not leave a usable token behind (design D5).
-      try {
-        await this.auth.api.signOut({ headers: bearerHeaders(sessionToken) });
-      } catch (revokeError) {
-        console.error(
-          JSON.stringify({
-            event: "identity.sign_in_audit_revoke_failed",
-            request_id: input.requestId,
-            message: revokeError instanceof Error ? revokeError.message : "unknown error",
-          }),
-        );
-      }
+      await this.revokeSession(sessionToken, input.requestId);
       throw auditError;
     }
 
     return { sessionToken, account };
+  }
+
+  /** Best effort: a failed revocation is logged with the request id, never hidden. */
+  private async revokeSession(sessionToken: string, requestId: string): Promise<void> {
+    try {
+      await this.auth.api.signOut({ headers: bearerHeaders(sessionToken) });
+    } catch (revokeError) {
+      console.error(
+        JSON.stringify({
+          event: "identity.sign_in_audit_revoke_failed",
+          request_id: requestId,
+          message: revokeError instanceof Error ? revokeError.message : "unknown error",
+        }),
+      );
+    }
   }
 
   async signOut(input: SessionInput): Promise<void> {

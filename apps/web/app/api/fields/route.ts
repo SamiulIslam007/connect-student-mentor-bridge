@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { callApi, readJson } from "../../../lib/api";
-import { unauthenticated } from "../../../lib/bff";
+import { forwardUpstream, unauthenticated } from "../../../lib/bff";
 import { readSessionCookie } from "../../../lib/session-cookie";
 
 /** Read-only forward: a GET has no body, so it does not use `proxyJson`. */
@@ -21,9 +20,11 @@ export async function GET(request: Request): Promise<NextResponse> {
   }
   const suffix = query.size > 0 ? `?${query.toString()}` : "";
 
-  const upstream = await callApi(`/v1/fields${suffix}`, {
+  const outcome = await forwardUpstream(`/v1/fields${suffix}`, {
     headers: { authorization: `Bearer ${token}` },
   });
-  const payload = await readJson(upstream);
-  return NextResponse.json(payload, { status: upstream.status });
+  if (outcome.kind === "non-json") {
+    return outcome.problem;
+  }
+  return NextResponse.json(outcome.payload, { status: outcome.status });
 }

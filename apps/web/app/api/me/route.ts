@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { callApi, readJson } from "../../../lib/api";
-import { unauthenticated } from "../../../lib/bff";
+import { forwardUpstream, unauthenticated } from "../../../lib/bff";
 import { readSessionCookie } from "../../../lib/session-cookie";
 
 /** The browser never holds the session token; this handler adds it server-side. */
@@ -11,9 +10,11 @@ export async function GET(request: Request): Promise<NextResponse> {
     return unauthenticated();
   }
 
-  const upstream = await callApi("/v1/me", {
+  const outcome = await forwardUpstream("/v1/me", {
     headers: { authorization: `Bearer ${token}` },
   });
-  const payload = await readJson(upstream);
-  return NextResponse.json(payload, { status: upstream.status });
+  if (outcome.kind === "non-json") {
+    return outcome.problem;
+  }
+  return NextResponse.json(outcome.payload, { status: outcome.status });
 }

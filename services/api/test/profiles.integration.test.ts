@@ -284,6 +284,12 @@ test("GET /v1/fields paginates by slug and refuses an invalid page size", async 
     assert.equal(refused.status, 422, `${query} is refused`);
     assert.equal(refused.body?.code, "VALIDATION_FAILED");
   }
+
+  // A repeated or structured query key must not throw a 500; the first value wins.
+  const repeated = await apiRequest(current, "GET", "/v1/fields?cursor=alpha&cursor=beta", undefined, token);
+  assert.equal(repeated.status, 200, repeated.text);
+  const structured = await apiRequest(current, "GET", "/v1/fields?cursor[x]=1", undefined, token);
+  assert.equal(structured.status, 200, structured.text);
 });
 
 test("a mentor has at most five fields in total and six writes nothing", async (context) => {

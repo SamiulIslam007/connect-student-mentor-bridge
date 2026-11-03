@@ -24,6 +24,12 @@ test("a 5xx and an unknown error stay server errors", () => {
   assert.equal(asValidationFailure(new Error("database connection lost")), null);
 });
 
+test("a non-input 4xx is not relabelled as a bad email", () => {
+  assert.equal(asValidationFailure(libraryError(429)), null);
+  assert.equal(asValidationFailure(libraryError(403)), null);
+  assert.equal(asValidationFailure(libraryError(401)), null);
+});
+
 test("the auth secret boot error names the variable and the generation command", () => {
   assert.throws(
     () => readIdentityConfig({}),

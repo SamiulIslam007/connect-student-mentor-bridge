@@ -65,21 +65,34 @@ function readMentorDraft(body: unknown): MentorProfileDraft {
 /** The taxonomy page size (FR-PROF-01, design D9). */
 const DEFAULT_FIELD_PAGE_SIZE = 100;
 const MAX_FIELD_PAGE_SIZE = 200;
+const MAX_CURSOR_LENGTH = 100;
+
+/** Express can hand back an array or an object for a repeated/structured query key. */
+function firstQueryValue(value: unknown): string | undefined {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (Array.isArray(value) && typeof value[0] === "string") {
+    return value[0];
+  }
+  return undefined;
+}
 
 /** `limit` is validated here, so an invalid page size is a 422 before any query. */
 function fieldPageQuery(
-  limitValue: string | undefined,
-  cursorValue: string | undefined,
+  limitValue: unknown,
+  cursorValue: unknown,
 ): { limit: number; cursor?: string } {
+  const rawLimit = firstQueryValue(limitValue);
   let limit = DEFAULT_FIELD_PAGE_SIZE;
-  if (limitValue !== undefined) {
-    if (!/^\d+$/.test(limitValue)) {
+  if (rawLimit !== undefined) {
+    if (!/^\d+$/.test(rawLimit)) {
       throw new IdentityError(
         "VALIDATION_ERROR",
         `limit must be a whole number from 1 to ${MAX_FIELD_PAGE_SIZE}`,
       );
     }
-    limit = Number(limitValue);
+    limit = Number(rawLimit);
     if (limit < 1 || limit > MAX_FIELD_PAGE_SIZE) {
       throw new IdentityError(
         "VALIDATION_ERROR",
@@ -87,8 +100,14 @@ function fieldPageQuery(
       );
     }
   }
-  const cursor = cursorValue?.trim();
-  return cursor ? { limit, cursor } : { limit };
+  const cursor = firstQueryValue(cursorValue)?.trim();
+  if (!cursor) {
+    return { limit };
+  }
+  if (cursor.length > MAX_CURSOR_LENGTH) {
+    throw new IdentityError("VALIDATION_ERROR", "cursor is not a valid field slug");
+  }
+  return { limit, cursor };
 }
 
 /**
@@ -133,8 +152,8 @@ export class ProfilesController {
 
   @Get("fields")
   async fields(
-    @Query("limit") limit: string | undefined,
-    @Query("cursor") cursor: string | undefined,
+    @Query("limit") limit: unknown,
+    @Query("cursor") cursor: unknown,
     @Req() request: RequestWithId,
   ): Promise<{ fields: FieldSummary[]; next_cursor: string | null }> {
     await this.actingAccount(request);

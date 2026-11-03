@@ -292,3 +292,36 @@ test("a non-JSON upstream error becomes a 502 problem body", async () => {
   assert.equal(payload.code, "INTERNAL_ERROR");
   assert.ok(!text.includes("<html>"), "the HTML is not passed through");
 });
+
+test("an empty successful upstream body is not reported as success", async () => {
+  globalThis.fetch = (async () => new Response("", { status: 200 })) as typeof fetch;
+
+  const response = await register(
+    new Request("http://localhost:3000/api/auth/register", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ display_name: "Student", email: "s@example.com" }),
+    }),
+  );
+
+  assert.equal(response.status, 502);
+  const payload = (await response.json()) as { code?: string };
+  assert.equal(payload.code, "INTERNAL_ERROR");
+});
+
+test("a non-JSON body from the account endpoint is a 502, not an empty account", async () => {
+  globalThis.fetch = (async () =>
+    new Response("<html>gateway</html>", {
+      status: 200,
+      headers: { "content-type": "text/html" },
+    })) as typeof fetch;
+
+  const response = await getMe(
+    new Request("http://localhost:3000/api/me", {
+      headers: { cookie: "connect_session=opaque-session-token" },
+    }),
+  );
+
+  assert.equal(response.status, 502);
+  assert.ok(!(await response.text()).includes("<html>"));
+});
