@@ -164,7 +164,9 @@ Authentication internals are **library-native** better-auth tables in the same s
 | `affiliation_method` | `INSTITUTIONAL_EMAIL`, `ADMIN_ATTESTATION`, `EMPLOYER_EMAIL`, `PROFESSIONAL_LINK` |
 | `affiliation_status` | `PENDING`, `VERIFIED`, `REJECTED`, `REVOKED`, `EXPIRED` |
 | `mentor_onboarding_status` | `APPLIED`, `EMAIL_VERIFIED`, `AFFILIATION_VERIFIED`, `EMPLOYER_CHECKED` (verification progress only) |
-| `mentor_status` | `DRAFT`, `PENDING`, `ACTIVE`, `SUSPENDED`, `REMOVED` (operating status only) |
+| `field_status` | `ACTIVE`, `RETIRED`. Field taxonomy only. Nothing writes `RETIRED` yet: field merge, rename, and retirement are Phase 1b (D-23), and retiring never deletes a field or its historical references |
+| `availability_context` | `STUDENT`, `MENTOR`. The `availability_windows` table is deferred to `profile-availability-and-access-mode`; the enum is documented now so the follow-up needs no enum migration |
+| `mentor_status` | `DRAFT`, `PENDING`, `ACTIVE`, `SUSPENDED`, `REMOVED` (operating status only). Written by `profiles-and-dynamic-fields` with default `DRAFT`; nothing transitions it in that change |
 | `mentor_access_mode` | `OPEN`, `APPLICATION_ONLY`, `PAUSED` (mentor-selected) |
 | `access_state` (derived) | `AVAILABLE`, `FULL`, `APPLICATION_ONLY`, plus hidden when paused or not active |
 | `request_status` | `PENDING`, `ACCEPTED`, `DECLINED`, `REDIRECTED`, `EXPIRED`, `WITHDRAWN` |
@@ -327,7 +329,7 @@ The project columns are declared to the library with `input: false`, so no reque
 
 | Column | Type | Notes |
 |---|---|---|
-| `user_id` | `uuid` FK | |
+| `user_id` | `text` FK | References `users.id` |
 | `institution_id` | `uuid?` FK | |
 | `organization_name`, `organization_domain` | `text?`, `citext?` | For employer-based Level 2 |
 | `kind` | `affiliation_kind` | |
@@ -336,37 +338,41 @@ The project columns are declared to the library with `input: false`, so no reque
 | `level` | `affiliation_level` | |
 | `method` | `affiliation_method` | |
 | `status` | `affiliation_status` | |
-| `decided_by_user_id`, `decision_reason` | `uuid?`, `text?` | For admin attestation |
+| `decided_by_user_id`, `decision_reason` | `text?`, `text?` | For admin attestation |
 | `verified_at`, `revoked_at`, `expires_at` | `timestamptz?` | |
 
 Check: `institution_id IS NOT NULL OR organization_name IS NOT NULL`. Edits to a mentor's affiliation fields suspend Level 1 until re-verified (FR-PROF-05). **No government ID, passport, or tax ID is ever stored.**
 
-**`fields`**: `name`, `normalized_slug citext` unique (created from the name; prevents duplicates), `created_by_user_id?` (null for seeds), `status` (`ACTIVE` or `RETIRED`). Fields are **fully dynamic**: a student or mentor picks an existing field or creates a new one; the normalizer keeps one row per concept. Matching uses `field_id`, never a hard-coded label. An admin merge/rename tool is **Phase 1b** (D-23); retiring never deletes history.
+**`fields`** (**built** by `profiles-and-dynamic-fields`): `id uuid PK`, `name text`, `normalized_slug citext` unique (created from the name; prevents duplicates), `created_by_user_id text?` FK to `users.id` on delete `set null` (null for a seeded field or after its creator's account is removed), `status` (`field_status`, default `ACTIVE`), `created_at`, `updated_at`. Fields are **fully dynamic**: a student or mentor picks an existing field or creates a new one; the normalizer keeps one row per concept. Matching uses `field_id`, never a hard-coded label. An admin merge/rename tool is **Phase 1b** (D-23); retiring never deletes history.
 
 ### 5.2 Profiles and availability
 
-**`student_profiles`**: `user_id` unique FK, `goals text`, `primary_field_id` FK, `languages text[]` (ISO 639-1 codes, mentoring language, independent of the English-only UI), `onboarding_completed_at?`.
-**`student_field_interests`**: (`student_profile_id`, `field_id`) composite key.
+**`student_profiles`** (**built** by `profiles-and-dynamic-fields`): `id uuid PK`, `user_id text` unique FK to `users.id` on delete `cascade`, `goals text`, `primary_field_id uuid` FK to `fields.id` on delete `restrict`, `languages text[]` default `'{}'` (ISO 639-1 codes, mentoring language, independent of the English-only UI), `created_at`, `updated_at`.
+**`student_field_interests`** (**built**): (`student_profile_id uuid` FK on delete `cascade`, `field_id uuid` FK on delete `restrict`) composite key. Interests are additional to the primary field.
 
-**`mentor_profiles`**
+**`mentor_profiles`** (**built** by `profiles-and-dynamic-fields`)
 
 | Column | Type | Notes |
 |---|---|---|
-| `user_id` | `uuid` unique FK | |
-| `primary_field_id` | `uuid` FK | Required; the row is created on demand when the mentor first saves a profile |
-| `onboarding_status` | `mentor_onboarding_status` | `APPLIED` to `EMAIL_VERIFIED` to `AFFILIATION_VERIFIED`, optionally `EMPLOYER_CHECKED` |
-| `headline`, `bio` | `text` | |
-| `expertise_summary`, `scope_statement` | `text` | "What I can and cannot help with" |
-| `current_role_title`, `current_organization` | `text?` | Self-declared; Level 2 verifies |
-| `languages` | `text[]` | |
-| `weekly_capacity` | `smallint` | At least 1; maximum from configuration |
-| `access_mode` | `mentor_access_mode` | |
-| `status` | `mentor_status` | |
-| `orientation_completed_at`, `activated_at` | `timestamptz?` | |
+| `id` | `uuid` PK | |
+| `user_id` | `text` unique FK | References `users.id`; cascade on account removal |
+| `primary_field_id` | `uuid` FK | Required; the single source of truth for the mentor's primary field |
+| `status` | `mentor_status` | Default `DRAFT`; written by this change, transitioned by later ones |
+| `headline`, `bio` | `text` | Required |
+| `expertise_summary`, `scope_statement` | `text` | Required. "What I can and cannot help with" |
+| `languages` | `text[]` | Default `'{}'` |
+| `weekly_capacity` | `smallint` | Check `>= 1` only; the maximum is policy (`MENTOR_WEEKLY_CAPACITY_MAX = 5`, **Proposed default**, D-38) |
+| `created_at`, `updated_at` | `timestamptz` | |
+| `onboarding_status` | `mentor_onboarding_status` | **Not yet created**; owning change #5 (`affiliation-and-mentor-onboarding`) |
+| `current_role_title`, `current_organization` | `text?` | **Not yet created**; owning change #5 |
+| `access_mode` | `mentor_access_mode` | **Not yet created**; owning change `profile-availability-and-access-mode` |
+| `orientation_completed_at`, `activated_at` | `timestamptz?` | **Not yet created**; owning change #5 |
 
-**`mentor_fields`**: (`mentor_profile_id`, `field_id`, `is_primary bool`). Reputation is later keyed by the same `field_id`.
+**`mentor_fields`** (**built**): (`mentor_profile_id uuid` FK on delete `cascade`, `field_id uuid` FK on delete `restrict`) composite key. Holds **additional** fields only; the primary field is `mentor_profiles.primary_field_id`, so one fact has one writer. Reputation is later keyed by the same `field_id`.
 
-**`availability_windows`**: `user_id`, `context` (`STUDENT` or `MENTOR`), `weekday smallint` (1 to 7), `start_minute smallint`, `end_minute smallint`, `timezone text`. Check `end_minute > start_minute`. Generalizes the README's `MentorAvailability` to both sides so the availability-match factor can compare them.
+`student_profiles.onboarding_completed_at` is **not yet created**; owning change #5.
+
+**`availability_windows`** (**not yet created**; owning change `profile-availability-and-access-mode`): `user_id text`, `context` (`availability_context`: `STUDENT` or `MENTOR`), `weekday smallint` (1 to 7), `start_minute smallint`, `end_minute smallint`, `timezone text`. Check `end_minute > start_minute`. Generalizes the README's `MentorAvailability` to both sides so the availability-match factor can compare them.
 
 ### 5.3 Requests, suggestions, mentorships
 
@@ -450,7 +456,7 @@ Constraints: at most one `PENDING` request per (`student_profile_id`, `mentor_pr
 | `outcome_id` | `uuid` FK | |
 | `seq` | `int` | Unique per outcome; gap-free |
 | `event_type` | enum | `REPORTED`, `EVIDENCE_ADDED`, `EVIDENCE_REMOVED`, `REMINDER_D3_SENT`, `REMINDER_D5_SENT`, `ESCALATED_D7`, `CONFIRMED`, `CONTRIBUTION_AMENDED`, `DISPUTED`, `COI_DECLARED`, `CASE_OPENED`, `CASE_RESOLVED`, `TIER_CHANGED`, `COUNTED`, `REJECTED`, `WITHDRAWN`, `REVERSED` (`APPEAL_OPENED` and `APPEAL_RESOLVED` are reserved for Later) |
-| `actor_user_id`, `actor_role` | `uuid?`, `role?` | Null for system |
+| `actor_user_id`, `actor_role` | `text?`, `role?` | Null for system; references `users.id` |
 | `from_status`, `to_status` | `outcome_status?` | |
 | `payload` | `jsonb` | Ids and codes, never free personal text |
 | `request_id` | `text` | Correlates with logs |
@@ -463,7 +469,7 @@ Constraints: at most one `PENDING` request per (`student_profile_id`, `mentor_pr
 | `outcome_id` | `uuid` FK | |
 | `kind` | enum | `MENTOR_CONFIRMATION`, `MENTOR_DISPUTE`, `THIRD_PARTY_CONFIRMATION`, `AUDIT_RESULT`, `PLATFORM_DECISION`, `APPEAL_DECISION` |
 | `decision` | enum | `CONFIRMED`, `DISPUTED`, `VALID`, `NOT_VALID`, `PASSED`, `FAILED` |
-| `attester_user_id` | `uuid?` | Null for an external third party |
+| `attester_user_id` | `text?` | Null for an external third party |
 | `attester_label` | `text?` | For example "Employer HR, example.com" without full contact data |
 | `contribution_level` | `contribution_level?` | On mentor confirmation |
 | `coi_declaration` | `jsonb?` | Relationship kind declared |
@@ -477,7 +483,7 @@ Each insert here is written in the same transaction as the matching `outcome_eve
 
 | Column | Type | Notes |
 |---|---|---|
-| `outcome_id`, `uploaded_by_user_id` | `uuid` FK | |
+| `outcome_id`, `uploaded_by_user_id` | `uuid` FK, `text` FK | `uploaded_by_user_id` references `users.id` |
 | `kind` | enum | `FILE` or `LINK` |
 | `doc_type` | enum | `OFFER_LETTER`, `ADMISSION_LETTER`, `CERTIFICATE`, `PROFILE_LINK`, `OTHER` |
 | `storage_key` | `text?` | Private bucket key; required for `FILE` |
@@ -497,7 +503,7 @@ Original filenames are not stored (they can contain personal data). Limits (**Pr
 | `outcome_id` | `uuid` FK | |
 | `kind`, `status`, `resolution` | enums | Section 4.5 |
 | `trigger_detail` | `jsonb?` | For audits: `RANDOM_SAMPLE`, `HIGH_DIFFICULTY`, `ANOMALY`, `CONFLICT` |
-| `opened_by_user_id` | `uuid?` | Null for system |
+| `opened_by_user_id` | `text?` | Null for system; references `users.id` |
 | `opened_at`, `due_at`, `resolved_at` | `timestamptz` | `due_at` supports review-time targets (**Open**, N7) |
 | `assigned_reviewer_id` | `uuid?` FK | Must be a Platform Admin |
 | `resolution_reason` | `text?` | Required on resolution |

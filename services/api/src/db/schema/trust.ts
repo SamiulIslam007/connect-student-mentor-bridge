@@ -1,7 +1,6 @@
 import {
   boolean,
   char,
-  customType,
   date,
   index,
   jsonb,
@@ -14,6 +13,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { users } from "./auth.js";
+import { citext, timestamps } from "./columns.js";
 import {
   consentAction,
   consentPurpose,
@@ -21,21 +21,6 @@ import {
   institutionStatus,
   signupBlockReason,
 } from "./enums.js";
-
-/** `citext` compares case-insensitively; the extension ships with PostgreSQL. */
-const citext = customType<{ data: string; driverData: string }>({
-  dataType() {
-    return "citext";
-  },
-});
-
-const timestamps = {
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .defaultNow()
-    .$onUpdate(() => new Date())
-    .notNull(),
-};
 
 export const institutions = pgTable("institutions", {
   id: uuid("id").primaryKey().defaultRandom(),
