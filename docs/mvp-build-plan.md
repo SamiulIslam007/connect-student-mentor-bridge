@@ -90,7 +90,7 @@ Status values: `DONE` (archived with evidence), `IN PROGRESS` (proposed or appli
 | # | Change | Scope | Status |
 |---|---|---|---|
 | 1 | `bootstrap-monorepo-and-docker` | Repository, CI, Docker Compose, base Next.js and NestJS apps, health endpoints | `DONE` (archived 2026-10-29; Drizzle schema/migration, outbox + pg-boss + email adapter were deferred by that change and move into change 2 and later) |
-| 2 | `identity-better-auth` | `IdentityService`, email/password sign-up with verification, forgot/reset password, 18+ gate, Postgres session store, consent and audit rows, institution seed. **Google sign-in, MFA, and session list/revoke move to the Sprint 2 change `access-google-mfa-and-sessions`** | `IN PROGRESS` |
+| 2 | `identity-better-auth` | `IdentityService`, email/password sign-up with verification, forgot/reset password, 18+ gate, Postgres session store, consent and audit rows, institution seed. **Google sign-in, MFA, and session list/revoke move to the Sprint 2 change `access-google-mfa-and-sessions`** | `DONE` (archived 2026-11-03; `pnpm lint`, `typecheck`, `test`, `build` green, 52 tests) |
 | 3 | `age-gate-and-account-status` | Account-status lifecycle (`PENDING`, `ACTIVE`, suspension, deactivation) and the blocked-signup policy. The 18+ gate and `signup_blocks` ship in change 2 | `PLANNED` |
 | 4 | `profiles-and-dynamic-fields` | Student/mentor profiles, `fields` with normalized slug, primary field, availability | `PLANNED` |
 | 5 | `affiliation-and-mentor-onboarding` | Level 1 registration, admin attestation, onboarding vs operating status | `PLANNED` |

@@ -5,7 +5,7 @@
 
 | | |
 |---|---|
-| **Status** | **Sprint 1 identity implemented (applied 2026-11-03, not archived).** Sprint 0 baseline plus email/password auth, verification, the 18+ gate, Postgres sessions, consent and audit rows, the database foundation, and the institution seed. Google sign-in, MFA, and the session list move to the Sprint 2 change `access-google-mfa-and-sessions`. No deployment yet |
+| **Status** | **Sprint 1 identity archived (2026-11-03).** Sprint 0 baseline plus email/password auth, verification, the 18+ gate, Postgres sessions, consent and audit rows, the database foundation, and the institution seed. Google sign-in, MFA, and the session list move to the Sprint 2 change `access-google-mfa-and-sessions`. No deployment yet |
 | **Document role** | **Master README, the main source of truth** for the connect project |
 | **Audience** | Builder, future engineers, designers, advisors, pilot institutions, AI coding agents |
 | **Last reviewed** | 2026-11-03 |
@@ -763,7 +763,7 @@ None of the following is policy. Each must be resolved, recorded in `docs/decisi
 
 The **Sprint 0 platform baseline** is implemented: a pnpm workspace (`apps/web`, `services/api`, `packages/{domain,contracts,config}`), a containerized local stack started with one Compose command, the unversioned operational endpoints `GET /healthz` and `GET /readyz`, and GitHub Actions gates for lint, type-check, tests, build, image build, dependency scan, image scan, and secret scan.
 
-The **Sprint 1 identity change** (`identity-better-auth`) is implemented and awaiting archive: better-auth behind `IdentityService`, email/password registration, email verification, the 18+ gate, Postgres-backed sessions, sign-in/out and sign-out-everywhere, password reset, append-only consent and audit rows, the Drizzle schema with the baseline migration and append-only grants, the institution seed, and the `apps/web` auth routes and pages. Test evidence and the exact scope live in `openspec/changes/identity-better-auth/` and `docs/milestones-and-phases.md`.
+The **Sprint 1 identity change** (`identity-better-auth`) is archived (2026-11-03): better-auth behind `IdentityService`, email/password registration, email verification, the 18+ gate, Postgres-backed sessions, sign-in/out and sign-out-everywhere, password reset, append-only consent and audit rows, the Drizzle schema with the baseline migration and append-only grants, the institution seed, and the `apps/web` auth routes and pages. Test evidence and the exact scope live in `openspec/changes/archive/2026-11-03-identity-better-auth/` and `docs/milestones-and-phases.md`.
 
 **Not built yet:** Google sign-in, MFA, the session list and per-session revoke (Sprint 2); profiles, matching, requests, outcomes, reputation, notifications, admin; pg-boss queues; malware-scan integration; and any deployment, staging, or production environment.
 
