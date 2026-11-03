@@ -139,6 +139,24 @@ test("the profile and field endpoints require a session and are documented", () 
   }
 });
 
+test("the field list is keyset-paginated by slug", () => {
+  const document = contract();
+  const fields = document.paths["/v1/fields"].get as Operation & {
+    parameters?: { name: string; in: string }[];
+  };
+
+  assert.deepEqual(
+    (fields.parameters ?? []).map((parameter) => parameter.name).sort(),
+    ["cursor", "limit"],
+  );
+
+  const schema = (
+    fields.responses["200"] as { content: Record<string, { schema: { required?: string[] } }> }
+  ).content["application/json"].schema;
+  assert.deepEqual([...(schema.required ?? [])].sort(), ["fields", "next_cursor"]);
+  assert.ok(fields.responses["422"], "an invalid page size is documented");
+});
+
 test("MeResponse is standalone and both profile properties are nullable", () => {
   const document = contract();
   const me = document.components.schemas.MeResponse;

@@ -20,6 +20,10 @@ README.md
 AGENTS.md
 .claude
 .opencode
+opencode.json
+AGENTS.local.md
+dbhub.toml
+.mcp-memory.jsonl
 
 Dockerfile*
 compose*.yaml

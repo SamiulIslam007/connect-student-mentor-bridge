@@ -454,8 +454,8 @@ This summarizes the controls by layer; the threat model lives in `security-requi
 | **Edge** | TLS everywhere; secure headers and Content Security Policy; CDN or proxy; rate limits on sign-up, sign-in, reset, and request creation |
 | **Web client** | Output encoding; CSRF protection for cookie sessions; no secrets in the client; meeting links displayed as untrusted |
 | **API** | Input validation on every endpoint; role plus object-level authorization; idempotency keys; problem details without stack traces; request IDs |
-| **Identity** | Breached-password check, MFA for privileged roles, short-lived tokens, rotating refresh tokens, session revocation |
-| **Data** | Encryption at rest; least-privilege database roles; append-only ledgers enforced by grants and triggers; no production data in non-production environments |
+| **Identity** | Breached-password check, MFA for privileged roles (`access-google-mfa-and-sessions`), Postgres-backed cookie sessions with session-row revocation; no refresh-token family (D-31) |
+| **Data** | Encryption at rest; least-privilege database roles; append-only ledgers enforced by grants and `ON DELETE RESTRICT`; no production data in non-production environments |
 | **Files** | Private storage, quarantine and scan, type and size limits, signed short-lived URLs |
 | **Secrets** | Platform secret store; never in the repository, logs, prompts, or agent memory (NFR-SEC-07); secret scanning in CI |
 | **Supply chain** | Dependency and container scanning in CI; pinned lockfiles; skills and agent plugins reviewed before install |

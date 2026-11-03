@@ -7,6 +7,10 @@ import { FIELD_NAME_MAX_LENGTH, isAcceptableFieldName, normalizeFieldName } from
  */
 export const MENTOR_WEEKLY_CAPACITY_MAX = 5;
 export const STUDENT_INTEREST_FIELD_MAX = 2;
+/** A mentor's primary field plus up to four additional fields (FR-PROF-02). */
+export const MENTOR_FIELD_TOTAL_MAX = 5;
+/** Mentoring languages, counted after case-folding and de-duplication. */
+export const PROFILE_LANGUAGE_MAX = 5;
 
 /**
  * Field names arriving from a request body. Validation is pure and returns
@@ -122,6 +126,9 @@ export function validateStudentProfileInput(input: StudentProfileDraft): string[
   if (repeatsPrimary(interests, input.primaryField)) {
     problems.push("an interest field cannot repeat the primary field");
   }
+  if (normalizeLanguages(input.languages).length > PROFILE_LANGUAGE_MAX) {
+    problems.push(`at most ${PROFILE_LANGUAGE_MAX} languages are allowed`);
+  }
   return problems;
 }
 
@@ -142,6 +149,16 @@ export function validateMentorProfileInput(input: MentorProfileDraft): string[] 
   problems.push(...fieldNameProblems(additional, "each additional field"));
   if (repeatsPrimary(additional, input.primaryField)) {
     problems.push("an additional field cannot repeat the primary field");
+  }
+  if (additional.length + 1 > MENTOR_FIELD_TOTAL_MAX) {
+    problems.push(
+      `at most ${MENTOR_FIELD_TOTAL_MAX} fields are allowed (the primary field plus ${
+        MENTOR_FIELD_TOTAL_MAX - 1
+      })`,
+    );
+  }
+  if (normalizeLanguages(input.languages).length > PROFILE_LANGUAGE_MAX) {
+    problems.push(`at most ${PROFILE_LANGUAGE_MAX} languages are allowed`);
   }
   if (!isValidWeeklyCapacity(input.weeklyCapacity)) {
     problems.push(

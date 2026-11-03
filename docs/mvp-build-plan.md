@@ -48,10 +48,10 @@ Google and password sign-in, 18+ gate, Level 1 gate, outcome state machine enfor
 
 | Sprint | Theme | Demo goal |
 |---|---|---|
-| 0 | Setup | `docker compose up` starts Postgres, object store, mail catcher, scanner, API, worker, web; CI is green; OpenSpec is initialized; outbox, pg-boss, and the email adapter run end to end on a test event |
-| 1 | Identity and profiles | Email/password sign-up, verification, forgot-password, 18+ gate; student and mentor profiles; a user-created field; institutions and domains seeded; consent records written |
-| 2 | Access and discovery | Google sign-in; MFA enrollment; session list and revoke; Level 1 affiliation by institutional email; mentor activation; suggested mentors with reasons |
-| 3 | Requests | Structured request, accept/decline/withdraw, capacity lock, 48h expiry, 24h reminder email, idempotent retries |
+| 0 | Setup | `docker compose up` starts Postgres, object store, mail catcher, scanner, API, worker, web; CI is green; OpenSpec is initialized; the email adapter delivers a real verification email. The outbox/pg-boss test-event demo moves to `outbox-and-job-runner` (6a, Sprint 3) |
+| 1 | Identity and profiles | Email/password sign-up, verification, forgot-password, 18+ gate; student and mentor profiles; a user-created field; institutions and domains seeded; consent records written. Partials and their homes are listed in `milestones-and-phases.md` §5.2 |
+| 2 | Access and discovery | `access-google-mfa-and-sessions` (4a): Google sign-in, MFA enrollment, session list/revoke, role authorization, profile visibility. `profile-availability-and-access-mode` (4b): availability windows, access mode, pause/resume. Then Level 1 affiliation by institutional email, mentor activation, and suggested mentors with reasons |
+| 3 | Outbox, requests, notifications | `outbox-and-job-runner` (6a): outbox table, pg-boss, worker consumer, email through the queue with retry. Then the structured request, accept/decline/withdraw, capacity lock, 48h expiry, 24h reminder email, idempotent retries |
 | 4 | Mentorship and thread | Agreement, messages, email notifications, meeting link, session held confirmations |
 | 5 | Outcomes | Report, confirm, dispute, withdraw, conflict declaration, evidence upload and scan, evidence tier, day 3/5/7 reminders and escalation |
 | 6 | Reputation | Counted outcomes, pair factor, snapshots, confidence tiers, clawback, counts-only view |
@@ -83,18 +83,24 @@ A work item is done when:
 8. Relevant docs are updated; a changed decision has a `decision-log.md` entry.
 9. The diff is the smallest change that satisfies the requirement.
 
-## 5. First 10 OpenSpec change proposals (in order)
+## 5. Ordered OpenSpec change proposals
 
 Status values: `DONE` (archived with evidence), `IN PROGRESS` (proposed or applied, not archived), `PLANNED`, `BLOCKED`.
 
+The original ten entries keep their numbers. Three rows were inserted without renumbering: **4a** and **4b** in Sprint 2, and **6a** in Sprint 3. Sprint 2 order is 4a → 4b → #5 → #6 (4a must land before #5 because mentor activation needs MFA; 4b must land before discovery). Sprint 3 order is 6a → #7.
+
 | # | Change | Scope | Status |
 |---|---|---|---|
-| 1 | `bootstrap-monorepo-and-docker` | Repository, CI, Docker Compose, base Next.js and NestJS apps, health endpoints | `DONE` (archived 2026-10-29; Drizzle schema/migration, outbox + pg-boss + email adapter were deferred by that change and move into change 2 and later) |
+| 1 | `bootstrap-monorepo-and-docker` | Repository, CI, Docker Compose, base Next.js and NestJS apps, health endpoints | `DONE` (archived 2026-10-29; the Drizzle schema/migration and the email adapter were delivered by change #2; outbox + pg-boss are owned by `outbox-and-job-runner` (6a), Sprint 3) |
 | 2 | `identity-better-auth` | `IdentityService`, email/password sign-up with verification, forgot/reset password, 18+ gate, Postgres session store, consent and audit rows, institution seed. **Google sign-in, MFA, and session list/revoke move to the Sprint 2 change `access-google-mfa-and-sessions`** | `DONE` (archived 2026-11-03; `pnpm lint`, `typecheck`, `test`, `build` green, 52 tests) |
 | 3 | `account-status-lifecycle` | Account-status lifecycle (`PENDING`, `ACTIVE`, suspension, deactivation) and the blocked-signup policy. The 18+ gate and `signup_blocks` ship in change 2 (D-35) | `DONE` (archived 2026-11-03; `pnpm lint`, `typecheck`, `test`, `build` green, 78 tests) |
 | 4 | `profiles-and-dynamic-fields` | Student/mentor profiles, `fields` with normalized slug, primary field, `GET /v1/fields`, and the `/v1/me` profile extension. Availability and access mode move to `profile-availability-and-access-mode` | `DONE` (archived 2026-11-03; `pnpm lint`, `typecheck`, `test`, `build` green, 115 tests) |
+| — | `sprint1-hardening-and-plan-closure` | Closes the independent Sprint 0/1 audit findings: app-role grants, CI database tests, audit FK `RESTRICT`, email/transport hardening, taxonomy bounds and pagination, forgot-password and under-18 UI | `DONE` (archived 2026-11-03; `pnpm lint`, `typecheck`, `test`, `build` green, 147 tests with 0 skipped under `CI=true`) |
+| 4a | `access-google-mfa-and-sessions` | Google sign-in and provider linking, MFA enrollment/verification, session list and per-session revoke, role-based authorization, profile visibility. **Sprint 2, before #5** because mentor activation needs MFA | `PLANNED` |
+| 4b | `profile-availability-and-access-mode` | Availability windows, `access_mode` (Open / Application-only / Paused), pause/resume, availability validation and UI. **Sprint 2, before discovery (#6)** | `PLANNED` |
 | 5 | `affiliation-and-mentor-onboarding` | Level 1 registration, admin attestation, onboarding vs operating status | `PLANNED` |
 | 6 | `matching-and-discovery` | Pure match function, weights from config, suggestions with reasons, suggestion log | `PLANNED` |
+| 6a | `outbox-and-job-runner` | `outbox_events`, pg-boss, the worker consumer, email through the queue with retry, and the outbox test event. **Sprint 3, before #7** | `PLANNED` |
 | 7 | `requests-and-capacity` | Create/accept/decline/withdraw, capacity lock, 48h expiry and 24h reminder, notifications | `PLANNED` |
 | 8 | `mentorship-thread-and-sessions` | Mentorship on acceptance, agreement, thread, meeting link, held confirmations | `PLANNED` |
 | 9 | `outcomes-and-verification` | Outcome state machine, append-only events, evidence upload and scan, withdraw, conflict declaration | `PLANNED` |

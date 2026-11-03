@@ -117,7 +117,7 @@ Detailed controls live in `security-requirements.md`. Launch-blocking minimum:
 
 - [ ] Authentication with email verification; MFA for mentors, institution admins, and platform admins.
 - [ ] Role-based access plus **object-level authorization** on every endpoint (a mentor acts only on their own mentorships). Tests prove it.
-- [ ] Short-lived access tokens, rotating refresh tokens, httpOnly secure cookies on web.
+- [x] Postgres-backed cookie sessions with httpOnly, SameSite=Lax, Secure cookies on web; sign-out, sign-out-everywhere, password reset, suspension, and deactivation revoke session rows (D-31). Admin idle timeouts arrive with `access-google-mfa-and-sessions`.
 - [ ] Rate limits and brute-force protection on sign-up, sign-in, and request creation.
 - [ ] Input validation on every endpoint; output encoding on web.
 - [ ] Secrets in the hosting secret store; never in the repository, logs, or agent prompts.

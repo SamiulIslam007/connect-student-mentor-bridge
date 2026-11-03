@@ -69,7 +69,7 @@ Content type `application/problem+json`. Every error has the same shape:
 }
 ```
 
-- `errors` appears only on validation failures (`422`).
+- `errors` is reserved for field-level validation details. The current authentication and profile endpoints do not emit it; they carry `detail` and `code`. Field errors arrive with the SEC-API-1 strict-validation work (owner: Sprint 7).
 - `code` is a stable machine-readable value from the error catalog (section 10). Clients branch on `code`, never on `title` or `detail`.
 - Errors never contain stack traces, SQL, internal paths, or personal data of other users (security requirement SEC-API-6).
 - The `type` URL is a placeholder until a public domain exists (**Open decision**).
@@ -88,9 +88,12 @@ Content type `application/problem+json`. Every error has the same shape:
 | `404` | Not found, **or not visible to the caller** (avoids leaking which IDs exist) |
 | `409` | State conflict (the state machine does not allow the action now) or idempotency key reuse with a different body |
 | `412` | `If-Match` failed (stale edit). No endpoint emits it yet; profile saves are last write wins (D-39) |
+| `413` | Request body too large (the API body limit is enforced by the body parser) |
 | `422` | Validation failed |
 | `429` | Rate limit exceeded |
 | `5xx` | Server fault. Never used for client mistakes |
+
+Malformed JSON returns `400 VALIDATION_FAILED`; an oversized body returns `413 VALIDATION_FAILED`. Both are produced before `RequestIdMiddleware` runs, so their problem body can carry `request_id: "unattributed"`. That is documented behaviour, not a correlation guarantee.
 
 ## 2. Authentication endpoints
 
@@ -119,7 +122,7 @@ A `403` on sign-in is returned only after the password was accepted, so it never
 
 `GET /v1/auth/verify` returns `4xx` only for a missing, invalid, or expired token; an already-verified address is not an error.
 
-**Deferred to Sprint 2 (change `access-google-mfa-and-sessions`) and not implemented:** Google sign-in and provider account linking, `POST /v1/auth/sign-in/provider`, MFA enrollment and verification (`POST /v1/auth/mfa/enroll`, `/v1/auth/mfa/verify`), the session list and per-session revoke (`GET /v1/me/sessions`, `DELETE /v1/me/sessions/{id}`), role-based authorization beyond the session guard, and refresh-token rotation. The better-auth cookie session replaced the earlier 15-minute access token plus rotating refresh token design (D-31); HTTP 401 and session-row revocation are the equivalent guarantees.
+**Deferred to Sprint 2 (change `access-google-mfa-and-sessions`) and not implemented:** Google sign-in and provider account linking, `POST /v1/auth/sign-in/provider`, MFA enrollment and verification (`POST /v1/auth/mfa/enroll`, `/v1/auth/mfa/verify`), the session list and per-session revoke (`GET /v1/me/sessions`, `DELETE /v1/me/sessions/{id}`), and role-based authorization beyond the session guard. There is no refresh-token family: the better-auth cookie session replaced the earlier 15-minute access token plus rotating refresh token design (D-31), and HTTP 401 plus session-row revocation are the equivalent guarantees.
 
 ## 3. Idempotency
 
@@ -249,9 +252,10 @@ Roles: **S** Student, **M** Mentor, **IA** Institution Admin, **PA** Platform Ad
 
 - Both saves are **full replaces**: interest or additional fields absent from the submission are removed.
 - `primary_field`, `fields`, and `interest_fields` carry **display names, not ids**. An unknown name creates exactly one field inside the same transaction; there is no `POST /v1/fields`.
+- A mentor profile has at most **5 fields in total** (the primary field plus up to 4 additional fields), and a student or mentor profile has at most **5 languages** after case-folding and de-duplication. A save above either bound is `422` and writes nothing.
 - `weekly_capacity` is an integer from 1 to 5 in this change (a **Proposed default**, D-38). `0`, `6`, `2.5`, and `"3"` are refused.
 - `200` returns the saved profile. `401 UNAUTHENTICATED` when the session is absent or revoked. `422 VALIDATION_FAILED` for any invalid value, with nothing written (no profile, no join row, no new field).
-- `account_status`, `display_name`, `email`, and any other account-level property in the body are **accepted and ignored**, never applied to the account. Strict unknown-key rejection is a pre-existing API-wide gap (`SEC-API-1`), not added here.
+- `account_status`, `display_name`, `email`, and any other account-level property in the body are **accepted and ignored**, never applied to the account. Strict unknown-key rejection is a pre-existing API-wide gap (`SEC-API-1`, owner: Sprint 7 hardening), not added here.
 - There is no `If-Match`, no `ETag`, and no version column: one owner edits one profile from one browser (D-39).
 
 `PUT /v1/me/mentor-profile` rejects a capacity cap below the number of active mentorships with code `CAPACITY_BELOW_ACTIVE`. **That check belongs to change #7** and does not ship with this version of the endpoint.
@@ -272,7 +276,7 @@ Roles: **S** Student, **M** Mentor, **IA** Institution Admin, **PA** Platform Ad
 | `GET /v1/mentors?field=&language=&access_state=&cursor=&limit=` | S | Mentor discovery with rule-based suggestions and a plain-language reason. Full mentors appear with the request action disabled; paused mentors are hidden. Sort by suggestion rank, ties broken by mentor ID for stable pages |
 | `GET /v1/mentors/{id}` | all | Public profile |
 | `GET /v1/mentors/{id}/impact` | all | Counted outcomes by field and difficulty, response reliability, confidence tier. Only **counted** outcomes appear |
-| `GET /v1/fields` | all | Field taxonomy: active fields only, sorted by display name, each as `{ id, name }`, unpaginated at pilot scale. **Ships with `profiles-and-dynamic-fields`**; the list is created by profile saves and is never seeded |
+| `GET /v1/fields?limit=&cursor=` | all | Field taxonomy: active fields only, ordered by normalized slug, each as `{ id, name }` plus a `next_cursor`. `limit` defaults to 100 (maximum 200) and `cursor` is the last slug of the previous page; `next_cursor` is null on the last page. **Ships with `profiles-and-dynamic-fields`**; the list is created by profile saves and is never seeded |
 
 The Match Score is a **sort aid, never a predictor of success** (README 5.2). The response exposes `reasons` as text and never exposes sensitive attributes.
 
@@ -495,7 +499,7 @@ Default limits are configuration, not code (SEC-ABUSE-4). Endpoints with stricte
 2. CI checks the spec, diffs it against the last release for breaking changes, and regenerates the TypeScript client.
 3. Contract tests run the API against the spec. A mismatch fails the build.
 4. The matrix test checks that each operation's declared roles agree with `docs/auth-and-access-control.md`.
-5. NestJS handlers validate input against the schema and reject unknown fields.
+5. NestJS handlers validate the named fields in the schema. Unknown-key rejection is **not implemented** (SEC-API-1, owner: Sprint 7 hardening); the `account_status` no-op in the profile body depends on this leniency.
 
 ## 12. Versioning and deprecation
 

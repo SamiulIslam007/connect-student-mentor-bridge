@@ -20,9 +20,12 @@ layer; the development overlay enables polling so edits still reload.
 
 ```bash
 cp .env.example .env      # PowerShell: Copy-Item .env.example .env
+openssl rand -base64 32   # paste the output after BETTER_AUTH_SECRET= in .env
 docker compose up -d --build
 docker compose ps
 ```
+
+`BETTER_AUTH_SECRET` has no default. A clean copy of `.env.example` leaves it empty and the API refuses to start; set it to at least 32 characters before the first `up`. In PowerShell, run `(openssl rand -base64 32)` and paste the printed value into `.env`.
 
 Every service must report `healthy`:
 
@@ -81,13 +84,15 @@ pnpm --filter api db:seed      # idempotent institution and domain reference dat
 
 When they run on the host, `DATABASE_URL` must point at the published port (`localhost:55432`); inside a container, Compose builds the `postgres:5432` URL. Migrations are owned by the owner/script and are never applied through the read-only `postgresql` MCP.
 
+The append-only grants create `connect_app` with `NOLOGIN`; local development connects as the database owner. A deployed environment creates a login role (for example `connect_login`), grants `connect_app` to it, and points the API and worker DSN at that login role. Never use the database owner for the app outside local development.
+
 Integration tests use a separate `connect_test` database. Create it once:
 
 ```bash
 docker compose exec postgres psql -U connect -d postgres -c "CREATE DATABASE connect_test"
 ```
 
-Replace `connect` with `POSTGRES_USER` if it differs. The tests reset the `connect_test` schema on every run, print a skip reason when the database is unreachable (the CI case), and never touch the development database.
+Replace `connect` with `POSTGRES_USER` if it differs. The tests reset the `connect_test` schema on every run and never touch the development database. Outside CI they print a skip reason when the database is unreachable; with `CI` set they fail instead, so a green required check means the integration suite really ran.
 
 ## Auth configuration
 

@@ -2,7 +2,15 @@
 
 import { useState, type FormEvent } from "react";
 
+import { NETWORK_ERROR_STATUS, signUpErrorMessage } from "../../lib/sign-up-errors";
 import { strings } from "../../lib/strings";
+
+/** The success message is the only non-error outcome; everything else is mapped. */
+function messageFor(status: number, code: string | undefined): string {
+  return status >= 200 && status < 300
+    ? strings.signUp.success
+    : signUpErrorMessage(status, code);
+}
 
 export default function SignUpPage() {
   const [message, setMessage] = useState<string | null>(null);
@@ -11,19 +19,31 @@ export default function SignUpPage() {
   async function onSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const response = await fetch("/api/auth/register", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        display_name: form.get("display_name"),
-        email: form.get("email"),
-        password: form.get("password"),
-        date_of_birth: form.get("date_of_birth"),
-      }),
-    });
 
-    setSuccess(response.ok);
-    setMessage(response.ok ? strings.signUp.success : strings.signUp.error);
+    let status: number;
+    let code: string | undefined;
+    try {
+      const response = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          display_name: form.get("display_name"),
+          email: form.get("email"),
+          password: form.get("password"),
+          date_of_birth: form.get("date_of_birth"),
+        }),
+      });
+      status = response.status;
+      const body = (await response.json().catch(() => ({}))) as { code?: string };
+      code = body.code;
+    } catch {
+      status = NETWORK_ERROR_STATUS;
+    }
+
+    // The form is uncontrolled, so the non-password values survive a failure.
+    const succeeded = status >= 200 && status < 300;
+    setSuccess(succeeded);
+    setMessage(messageFor(status, code));
   }
 
   return (

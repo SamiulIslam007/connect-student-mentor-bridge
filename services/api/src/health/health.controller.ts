@@ -4,13 +4,36 @@ import type { Response } from "express";
 import { READINESS_TIMEOUT_MS } from "@connect/config";
 import type { HealthResponse, ReadinessResponse } from "@connect/contracts";
 
+import { resolveDatabaseUrl } from "../db/database-url.js";
 import { probeDatabase, type DatabaseProbe } from "./database-probe.js";
 
 /** Injection token for the readiness check (explicit, no reflection needed). */
 export const DATABASE_PROBE = "DATABASE_PROBE";
 
-export const defaultProbe: DatabaseProbe = () =>
-  probeDatabase(process.env.DATABASE_URL, { timeoutMs: READINESS_TIMEOUT_MS });
+/**
+ * Resolve the URL the same way the database module does (environment, then the
+ * repository-root `.env`), so readiness reports the database the API actually
+ * uses. A missing configuration is `unavailable`, never a thrown 500 (design D13).
+ */
+export function createDefaultProbe(resolveUrl: () => string = () => resolveDatabaseUrl()): DatabaseProbe {
+  return () => {
+    let url: string;
+    try {
+      url = resolveUrl();
+    } catch (error) {
+      console.error(
+        JSON.stringify({
+          event: "readiness.database_failed",
+          message: error instanceof Error ? error.message : "the database configuration is unreadable",
+        }),
+      );
+      return Promise.resolve("unavailable");
+    }
+    return probeDatabase(url, { timeoutMs: READINESS_TIMEOUT_MS });
+  };
+}
+
+export const defaultProbe: DatabaseProbe = createDefaultProbe();
 
 /**
  * Operational endpoints (docs/api-contracts.md section 1, SEC-INF-8).

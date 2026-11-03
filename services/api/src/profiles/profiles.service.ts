@@ -39,6 +39,18 @@ export interface SaveMentorProfileInput {
   draft: MentorProfileDraft;
 }
 
+export interface ListFieldsInput {
+  /** Page size: 1 to 200, defaulting to 100. */
+  limit: number;
+  /** The last slug of the previous page. */
+  cursor?: string;
+}
+
+export interface FieldPage {
+  fields: FieldSummary[];
+  nextCursor: string | null;
+}
+
 /** Wire shapes: snake_case, and no profile id or timestamp is exposed (design D4). */
 export function studentProfilePayload(profile: StudentProfileRecord): Record<string, unknown> {
   return {
@@ -69,6 +81,6 @@ export function mentorProfilePayload(profile: MentorProfileRecord): Record<strin
 export interface ProfilesService {
   saveStudentProfile(input: SaveStudentProfileInput): Promise<StudentProfileRecord>;
   saveMentorProfile(input: SaveMentorProfileInput): Promise<MentorProfileRecord>;
-  listFields(): Promise<FieldSummary[]>;
+  listFields(input: ListFieldsInput): Promise<FieldPage>;
   readProfiles(userId: string): Promise<OwnProfiles>;
 }

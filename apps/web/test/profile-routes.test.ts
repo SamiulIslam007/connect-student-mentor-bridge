@@ -111,6 +111,21 @@ test("GET /api/fields forwards the cookie and returns the taxonomy", async () =>
   });
 });
 
+test("GET /api/fields forwards limit and cursor to the API", async () => {
+  const calls: UpstreamCall[] = [];
+  stubFetch({ fields: [], next_cursor: null }, 200, calls);
+
+  const response = await getFields(
+    new Request("http://localhost:3000/api/fields?limit=2&cursor=beta", {
+      headers: { cookie: "connect_session=opaque-session-token" },
+    }),
+  );
+
+  assert.equal(response.status, 200);
+  assert.match(calls[0].url, /\/v1\/fields\?limit=2&cursor=beta$/);
+  assert.deepEqual(await response.json(), { fields: [], next_cursor: null });
+});
+
 test("GET /api/fields without a session is 401 and calls nothing", async () => {
   const calls: UpstreamCall[] = [];
   stubFetch({ fields: [] }, 200, calls);

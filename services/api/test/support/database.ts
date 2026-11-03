@@ -9,8 +9,11 @@ import { resolveDatabaseUrl } from "../../src/db/database-url.js";
 /**
  * Integration tests run against the Compose Postgres. They use a dedicated
  * `connect_test` database so they never touch development data, and they skip
- * (loudly) when no database is configured or reachable, which is the CI case.
+ * (loudly) when no database is configured or reachable. In CI they fail instead:
+ * a green required check must mean the integration suite really ran.
  */
+const isCi = (): boolean => Boolean(process.env.CI && process.env.CI !== "false");
+
 function deriveTestDatabaseUrl(): string | null {
   const configured = process.env.TEST_DATABASE_URL;
   if (configured) {
@@ -45,23 +48,32 @@ export interface TestDatabase {
 }
 
 export async function openTestDatabase(): Promise<TestDatabase> {
-  const client = new Client({
-    connectionString: derivedTestDatabaseUrl ?? "",
-    connectionTimeoutMillis: 2_000,
-  });
-
   if (!derivedTestDatabaseUrl) {
+    if (isCi()) {
+      throw new Error(
+        "DATABASE_URL is not configured: CI requires the postgres service and a test database",
+      );
+    }
     return {
-      client,
+      client: new Client({ connectionString: "", connectionTimeoutMillis: 2_000 }),
       skipped: true,
       reason: "DATABASE_URL is not configured; integration tests need the Compose Postgres",
     };
   }
 
+  const client = new Client({
+    connectionString: derivedTestDatabaseUrl,
+    connectionTimeoutMillis: 2_000,
+  });
+
   try {
     await client.connect();
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown connection error";
+    if (isCi()) {
+      // CI must never go green by skipping the integration suite.
+      throw new Error(`connect_test is not reachable in CI: ${message}`, { cause: error });
+    }
     return { client, skipped: true, reason: `connect_test is not reachable: ${message}` };
   }
 

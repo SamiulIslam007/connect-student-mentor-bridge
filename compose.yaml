@@ -147,6 +147,8 @@ services:
       NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:3001}
       # The container reaches the API by service name; the browser never does.
       API_INTERNAL_URL: http://api:3001
+      # The verify redirect is built from this origin, never from a request header.
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
     ports:
       - "${WEB_PORT:-3000}:3000"
     healthcheck:

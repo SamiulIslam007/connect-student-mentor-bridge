@@ -8,25 +8,33 @@
 export const FIELD_NAME_MAX_LENGTH = 100;
 
 /**
- * NFKC folds compatibility forms, separators collapse to one space, and
+ * NFKC folds compatibility forms, Unicode `Cf` format characters (zero-width
+ * space, bidi marks) are removed, separators collapse to one space, and
  * case-folding is locale-independent so Bangla (which has no case) survives
  * intact. Punctuation is not a separator: `C++` and `C` stay distinct.
  */
 export function normalizeFieldName(input: string): string {
   return input
     .normalize("NFKC")
+    .replace(/[\p{Cf}]/gu, "")
     .trim()
     .replace(/[\s_-]+/gu, " ")
     .toLowerCase()
     .trim();
 }
 
-/** True when a submitted name is a usable display name and has a non-empty slug. */
+/**
+ * True when a submitted name is a usable display name and its normalized slug
+ * contains at least one letter or number. A symbol-only or format-character-only
+ * name would otherwise create an invisible or unfindable taxonomy row.
+ */
 export function isAcceptableFieldName(name: string): boolean {
   const trimmed = name.trim();
+  const slug = normalizeFieldName(name);
   return (
     trimmed.length >= 1 &&
     trimmed.length <= FIELD_NAME_MAX_LENGTH &&
-    normalizeFieldName(name).length > 0
+    slug.length > 0 &&
+    /[\p{L}\p{N}]/u.test(slug)
   );
 }

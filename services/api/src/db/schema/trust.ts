@@ -78,7 +78,7 @@ export const auditLogs = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     occurredAt: timestamp("occurred_at", { withTimezone: true }).defaultNow().notNull(),
-    actorUserId: text("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+    actorUserId: text("actor_user_id").references(() => users.id, { onDelete: "restrict" }),
     actorRole: text("actor_role").default("ANONYMOUS").notNull(),
     action: text("action").notNull(),
     objectType: text("object_type").notNull(),

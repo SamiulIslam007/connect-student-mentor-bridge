@@ -11,6 +11,40 @@ export function apiBaseUrl(): string {
   );
 }
 
+const LOOPBACK_ORIGIN = "http://localhost:3000";
+
+/**
+ * Browser-facing origin for redirects (design D7). It comes from configuration,
+ * never from the request, so a spoofed `Host` or `x-forwarded-proto` cannot move
+ * the redirect. Only `http` and `https` are accepted; anything else falls back to
+ * the local development origin.
+ */
+export function appOrigin(): string {
+  const configured = process.env.BETTER_AUTH_URL;
+  if (!configured) {
+    if (process.env.NODE_ENV === "production") {
+      // The web container sets this; a deployed container without it sends
+      // verification links to a dead localhost page.
+      console.error(
+        JSON.stringify({ event: "web.invalid_app_origin", reason: "BETTER_AUTH_URL is not set" }),
+      );
+    }
+    return LOOPBACK_ORIGIN;
+  }
+  try {
+    const url = new URL(configured);
+    if (url.protocol === "http:" || url.protocol === "https:") {
+      return url.origin;
+    }
+  } catch {
+    // Fall through to the documented error below.
+  }
+  console.error(
+    JSON.stringify({ event: "web.invalid_app_origin", reason: "BETTER_AUTH_URL is not an http(s) URL" }),
+  );
+  return LOOPBACK_ORIGIN;
+}
+
 /**
  * A bounded call. When the API is unreachable or too slow, the caller gets a
  * problem response instead of an unhandled rejection (the log keeps the cause).
@@ -43,17 +77,5 @@ export async function callApi(path: string, init: RequestInit = {}): Promise<Res
       }),
       { status: 502, headers: { "content-type": "application/problem+json" } },
     );
-  }
-}
-
-export async function readJson(response: Response): Promise<Record<string, unknown>> {
-  const text = await response.text();
-  if (!text) {
-    return {};
-  }
-  try {
-    return JSON.parse(text) as Record<string, unknown>;
-  } catch {
-    return {};
   }
 }

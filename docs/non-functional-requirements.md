@@ -107,7 +107,7 @@ The outcome and reputation ledgers are the product's credibility. These requirem
 
 | ID | Requirement | Target | Label | Verification |
 |---|---|---|---|---|
-| NFR-INT-01 | Append-only ledgers | `outcome_event`, `verification_record`, `reputation_event`, `consent_record`, and `audit_log` accept inserts only. The application database role has no UPDATE or DELETE privilege on them, and a trigger rejects both | **Recommendation** (ADR-008) | Migration test that attempts UPDATE and DELETE and expects failure |
+| NFR-INT-01 | Append-only ledgers | `outcome_event`, `verification_record`, `reputation_event`, `consent_record`, and `audit_log` accept inserts only. The application database role has no UPDATE or DELETE privilege on them, and every ledger foreign key to `users` is `ON DELETE RESTRICT`; no trigger enforces the same rule (D-42) | **Recommendation** (ADR-008) | Migration test that attempts UPDATE and DELETE and expects failure |
 | NFR-INT-02 | Projection consistency | `outcome.status` always equals the result of replaying that outcome's events | **Recommendation** | Property test plus a nightly consistency job with an alert |
 | NFR-INT-03 | Deterministic recompute | Recomputing a mentor's snapshot from the ledger yields the stored snapshot exactly, for a given configuration version | **Recommendation** | Unit test on pure functions; nightly check |
 | NFR-INT-04 | Pure business rules | Match score, reputation points, state transitions, confidence tier, and suppression logic are pure functions in `packages/domain` with no I/O | **Recommendation** (ADR-012) | Dependency-rule check; unit tests |
@@ -125,7 +125,7 @@ This is the engineering baseline, **not legal advice** and not the full threat m
 |---|---|---|---|---|
 | NFR-SEC-01 | Standard | OWASP ASVS as the baseline. Aim for Level 2 on authentication, authorization, file handling, and the ledger; Level 1 elsewhere | README, **Proposed default** (level split) | ASVS checklist before pilot |
 | NFR-SEC-02 | Passwords | Minimum length **12** (owner decision; `auth-and-access-control.md` section 4.3), check against known-breached passwords, no arbitrary composition rules, hashing with a modern memory-hard algorithm | **Proposed default** | Auth test suite |
-| NFR-SEC-03 | Sessions | Access tokens about 15 minutes; rotating refresh tokens; idle session limit 7 days and absolute limit 30 days for users; shorter limits for admins; httpOnly, Secure cookies on web | **Proposed default** | Auth test suite |
+| NFR-SEC-03 | Sessions | Postgres-backed better-auth cookie session: 30-day lifetime, refreshed at most once a day, no access/refresh token pair; httpOnly, SameSite=Lax, Secure cookies on web; a revoked session row fails the next request. Admin idle timeouts (30 minutes / 8 hours) are deferred to `access-google-mfa-and-sessions` (D-31) | **Proposed default** | Auth test suite |
 | NFR-SEC-04 | MFA | Required for Mentors, Institution Admins, Platform Admins (TOTP first) | README, **Recommendation** | Auth test |
 | NFR-SEC-05 | Authorization | Role-based plus object-level checks on every endpoint; permission-matrix tests | README | Generated tests |
 | NFR-SEC-06 | Transport and storage encryption | TLS everywhere; encryption at rest for the database and object storage | **Recommendation** | Provider configuration check |

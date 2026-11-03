@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, gt, sql } from "drizzle-orm";
 
 import {
   IdentityError,
@@ -20,7 +20,9 @@ import {
   studentProfiles,
 } from "../db/schema/index.js";
 import type {
+  FieldPage,
   FieldSummary,
+  ListFieldsInput,
   MentorProfileRecord,
   OwnProfiles,
   ProfilesService,
@@ -207,12 +209,23 @@ export class DrizzleProfilesService implements ProfilesService {
     });
   }
 
-  async listFields(): Promise<FieldSummary[]> {
-    return await this.db
-      .select({ id: fields.id, name: fields.name })
+  async listFields({ limit, cursor }: ListFieldsInput): Promise<FieldPage> {
+    // Keyset pagination by slug: stable while fields are created, and bounded
+    // even though the taxonomy is user-created (design D9).
+    const active = eq(fields.status, "ACTIVE");
+    const rows = await this.db
+      .select({ id: fields.id, name: fields.name, slug: fields.normalizedSlug })
       .from(fields)
-      .where(eq(fields.status, "ACTIVE"))
-      .orderBy(asc(fields.name));
+      .where(cursor ? and(active, gt(fields.normalizedSlug, cursor)) : active)
+      .orderBy(asc(fields.normalizedSlug))
+      .limit(limit + 1);
+
+    const hasMore = rows.length > limit;
+    const page = hasMore ? rows.slice(0, limit) : rows;
+    return {
+      fields: page.map((row) => ({ id: row.id, name: row.name })),
+      nextCursor: hasMore ? page[page.length - 1].slug : null,
+    };
   }
 
   async readProfiles(userId: string): Promise<OwnProfiles> {

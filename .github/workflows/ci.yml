@@ -17,6 +17,20 @@ jobs:
   checks:
     name: checks
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: connect
+          POSTGRES_PASSWORD: connect
+          POSTGRES_DB: connect
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U connect -d connect"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -29,7 +43,14 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm typecheck
+      - name: Create the test database
+        run: psql -h localhost -U connect -d connect -c "CREATE DATABASE connect_test"
+        env:
+          PGPASSWORD: connect
       - run: pnpm test
+        env:
+          # The suite derives `connect_test` from this URL's path.
+          DATABASE_URL: postgresql://connect:connect@localhost:5432/connect
       - run: pnpm build
 
   images:

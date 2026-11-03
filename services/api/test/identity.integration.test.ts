@@ -7,6 +7,7 @@ import { NestFactory } from "@nestjs/core";
 import { createEmailVerificationToken } from "better-auth/api";
 
 import { createIdentityAuth } from "../src/identity/better-auth.js";
+import { appendAuditEntry } from "../src/identity/audit-log.js";
 import { BetterAuthIdentityService } from "../src/identity/better-auth-identity.service.js";
 import { AuthController } from "../src/identity/auth.controller.js";
 import { IDENTITY_SERVICE } from "../src/identity/identity.tokens.js";
@@ -53,6 +54,7 @@ let app: INestApplication | undefined;
 let baseUrl = "";
 let sender: RecordingEmailSender | undefined;
 let identity: BetterAuthIdentityService | undefined;
+let authInstance: ReturnType<typeof createIdentityAuth> | undefined;
 
 before(async () => {
   database = await openTestDatabase();
@@ -70,6 +72,7 @@ before(async () => {
     secret: TEST_AUTH_SECRET,
     baseUrl: APP_ORIGIN,
   });
+  authInstance = auth;
   const service = new BetterAuthIdentityService({
     auth,
     database: connection.db,
@@ -125,6 +128,7 @@ interface HttpResult {
   status: number;
   body: Record<string, unknown> | undefined;
   text: string;
+  headers: Headers;
 }
 
 async function request(
@@ -151,6 +155,7 @@ async function request(
     status: response.status,
     body: text ? (JSON.parse(text) as Record<string, unknown>) : undefined,
     text,
+    headers: response.headers,
   };
 }
 
@@ -836,11 +841,25 @@ test("a verified account whose activation write failed repairs itself at sign-in
 
   const signedIn = await signIn("repair@example.com");
   assert.equal(signedIn.status, 200, "the account is not locked out");
+  assert.equal(
+    (signedIn.body?.account as Record<string, unknown> | undefined)?.account_status,
+    "active",
+    "the response reports the post-transition status",
+  );
   const users = await client.query<{ status: string }>("SELECT status FROM users WHERE email = $1", [
     "repair@example.com",
   ]);
   assert.equal(users.rows[0].status, "ACTIVE");
   assert.equal(await sessionCount(client, "repair@example.com"), 1);
+
+  const activation = await client.query<{ request_id: string }>(
+    "SELECT request_id FROM audit_logs WHERE action = 'ACCOUNT_ACTIVATED' ORDER BY occurred_at DESC LIMIT 1",
+  );
+  assert.equal(
+    activation.rows[0].request_id,
+    signedIn.headers.get("x-request-id"),
+    "the repair activation carries the sign-in request id",
+  );
 });
 
 test("unknown email and wrong password return the same 401 body", async (context) => {
@@ -1019,4 +1038,163 @@ test("a short password is rejected at registration and at reset", async (context
   });
   assert.equal(missingField.status, 422);
   assert.equal(missingField.body?.code, "VALIDATION_FAILED");
+});
+
+test("registration ignores account-level keys in the body", async (context) => {
+  const stack = requireStack(context);
+  if (!stack) {
+    return;
+  }
+  const { client } = stack;
+
+  const response = await request("POST", "/v1/auth/register", {
+    display_name: "Privilege Attempt",
+    email: "extra-keys@example.com",
+    password: PASSWORD,
+    date_of_birth: "2000-01-01",
+    account_status: "ACTIVE",
+    accountStatus: "ACTIVE",
+    email_verified: true,
+    emailVerified: true,
+    status: "ACTIVE",
+    role: "ADMIN",
+    actor_role: "PLATFORM_ADMIN",
+  });
+  assert.equal(response.status, 200, response.text);
+
+  const users = await client.query<{ status: string; email_verified: boolean }>(
+    "SELECT status, email_verified FROM users WHERE email = $1",
+    ["extra-keys@example.com"],
+  );
+  assert.deepEqual(users.rows[0], { status: "PENDING", email_verified: false });
+
+  const audit = await client.query<{ actor_role: string }>(
+    "SELECT actor_role FROM audit_logs WHERE action = 'USER_REGISTERED'",
+  );
+  assert.deepEqual(audit.rows.map((row) => row.actor_role), ["USER"], "no role change");
+});
+
+test("an expired session is rejected and an expired reset token is refused", async (context) => {
+  const stack = requireStack(context);
+  if (!stack) {
+    return;
+  }
+  const { client } = stack;
+  assert.ok(sender);
+
+  await registerAndVerify("expired-session@example.com");
+  const token = String((await signIn("expired-session@example.com")).body?.session_token);
+  await client.query("UPDATE sessions SET expires_at = now() - interval '1 minute'");
+
+  const expiredSession = await request("GET", "/v1/me", undefined, token);
+  assert.equal(expiredSession.status, 401);
+  assert.equal(expiredSession.body?.code, "UNAUTHENTICATED");
+
+  await registerAndVerify("expired-reset@example.com");
+  await request("POST", "/v1/auth/forgot-password", { email: "expired-reset@example.com" });
+  const staleToken = tokenFromEmail(await sender.last("reset-password"), "/reset");
+  await client.query("UPDATE verifications SET expires_at = now() - interval '1 minute'");
+
+  const expiredReset = await request("POST", "/v1/auth/reset-password", {
+    token: staleToken,
+    new_password: "another long passphrase for reset",
+  });
+  assert.equal(expiredReset.status, 400);
+  assert.equal(expiredReset.body?.code, "INVALID_RESET_TOKEN");
+
+  // An unexpired token still works.
+  await registerAndVerify("fresh-reset@example.com");
+  await request("POST", "/v1/auth/forgot-password", { email: "fresh-reset@example.com" });
+  const freshToken = tokenFromEmail(await sender.last("reset-password"), "/reset");
+  const reset = await request("POST", "/v1/auth/reset-password", {
+    token: freshToken,
+    new_password: "a fresh long passphrase for reset",
+  });
+  assert.equal(reset.status, 200);
+  assert.deepEqual(reset.body, { status: "password_reset" });
+});
+
+test("a malformed email is a 422 on register, forgot-password, and sign-in", async (context) => {
+  const stack = requireStack(context);
+  if (!stack) {
+    return;
+  }
+  const { client } = stack;
+  assert.ok(sender);
+
+  const malformed = "a@b..c";
+  const registration = await register(malformed);
+  assert.equal(registration.status, 422);
+  assert.equal(registration.body?.code, "VALIDATION_FAILED");
+
+  const forgot = await request("POST", "/v1/auth/forgot-password", { email: malformed });
+  assert.equal(forgot.status, 422);
+  assert.equal(forgot.body?.code, "VALIDATION_FAILED");
+
+  const signInResponse = await signIn(malformed);
+  assert.equal(signInResponse.status, 422);
+  assert.equal(signInResponse.body?.code, "VALIDATION_FAILED");
+
+  assert.equal((await client.query("SELECT id FROM users")).rowCount, 0, "no account is created");
+  assert.equal((await client.query("SELECT id FROM sessions")).rowCount, 0, "no session is created");
+  assert.equal(sender.messages.length, 0, "no email is sent");
+});
+
+test("an unrecordable sign-in is refused and leaves no live session", async (context) => {
+  const stack = requireStack(context);
+  if (!stack) {
+    return;
+  }
+  const { database: connection } = stack;
+  assert.ok(authInstance, "the identity stack must be started");
+
+  await registerAndVerify("audit-fault@example.com");
+
+  // A writer that fails only on the success entry: registration and
+  // verification still audit normally.
+  const failing = new BetterAuthIdentityService({
+    auth: authInstance,
+    database: connection.db,
+    secret: TEST_AUTH_SECRET,
+    auditWriter: (db, entry) =>
+      entry.action === "SIGN_IN_SUCCEEDED"
+        ? Promise.reject(new Error("audit store unavailable"))
+        : appendAuditEntry(db, entry),
+  });
+
+  @Module({
+    controllers: [AuthController],
+    providers: [{ provide: IDENTITY_SERVICE, useValue: failing }],
+  })
+  class FaultInjectionModule implements NestModule {
+    configure(consumer: MiddlewareConsumer): void {
+      consumer.apply(RequestIdMiddleware).forRoutes(AuthController);
+    }
+  }
+
+  const faultApp = await NestFactory.create(FaultInjectionModule, { logger: false });
+  faultApp.useGlobalFilters(new ProblemDetailsFilter());
+  try {
+    await faultApp.listen(0, "127.0.0.1");
+    const faultUrl = await faultApp.getUrl();
+    const response = await fetch(`${faultUrl}/v1/auth/sign-in`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "audit-fault@example.com", password: PASSWORD }),
+    });
+    const body = (await response.json()) as Record<string, unknown>;
+
+    assert.equal(response.status, 500, "a failed audit is a server error");
+    assert.equal(body.code, "INTERNAL_ERROR");
+    assert.ok(body.request_id, "the error carries a request id");
+    assert.ok(response.headers.get("x-request-id"));
+  } finally {
+    await faultApp.close();
+  }
+
+  assert.equal(await sessionCount(stack.client, "audit-fault@example.com"), 0, "the session was revoked");
+  const succeeded = await stack.client.query(
+    "SELECT id FROM audit_logs WHERE action = 'SIGN_IN_SUCCEEDED'",
+  );
+  assert.equal(succeeded.rowCount, 0, "no success entry is written");
 });

@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { callApi, readJson } from "../../../../lib/api";
-import { unauthenticated } from "../../../../lib/bff";
+import { forwardUpstream, unauthenticated } from "../../../../lib/bff";
 import { readSessionCookie, SESSION_COOKIE_NAME } from "../../../../lib/session-cookie";
 
 export async function POST(request: Request): Promise<NextResponse> {
@@ -10,15 +9,19 @@ export async function POST(request: Request): Promise<NextResponse> {
     return unauthenticated();
   }
 
-  const upstream = await callApi("/v1/me/deactivate", {
+  const outcome = await forwardUpstream("/v1/me/deactivate", {
     method: "POST",
     headers: { authorization: `Bearer ${token}` },
   });
-  const payload = await readJson(upstream);
-  const response = NextResponse.json(payload, { status: upstream.status });
+  if (outcome.kind === "non-json") {
+    return outcome.problem;
+  }
+
+  const response = NextResponse.json(outcome.payload, { status: outcome.status });
 
   // Every session is revoked server-side; drop the dead cookie either way.
-  if (upstream.ok || upstream.status === 401) {
+  const ok = outcome.status >= 200 && outcome.status < 300;
+  if (ok || outcome.status === 401) {
     response.cookies.delete(SESSION_COOKIE_NAME);
   }
   return response;
