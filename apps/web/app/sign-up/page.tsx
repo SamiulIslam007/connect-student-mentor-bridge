@@ -18,7 +18,7 @@ export default function SignUpPage() {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
 
-    let status = NETWORK_ERROR_STATUS;
+    let status: number;
     let code: string | undefined;
     try {
       const response = await fetch("/api/auth/register", {
