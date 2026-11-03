@@ -100,13 +100,22 @@ Identity is implemented with better-auth behind `IdentityService` (ADR-003) and 
 
 | Method and path | Auth | Purpose | Success | Errors |
 |---|---|---|---|---|
-| `POST /v1/auth/register` | none | Create an account. A date of birth is accepted **only** to check the 18+ gate and is **not stored**. The response does not reveal whether the address already exists, and no session is returned | `200` `{ "status": "verification_sent" }` | `422 VALIDATION_FAILED`, `422 UNDER_MINIMUM_AGE` |
-| `GET /v1/auth/verify?token=` | none | Confirm the email token (24-hour lifetime). Opening the link twice succeeds and sends no second email | `200` `{ "status": "verified" }` | `400 INVALID_VERIFICATION_LINK`, `422 VALIDATION_FAILED` |
-| `POST /v1/auth/sign-in` | none | Email and password. A wrong password and an unknown email return the same `401` body | `200` `{ "session_token", "account" }` | `401 UNAUTHENTICATED`, `422 VALIDATION_FAILED` |
+| `POST /v1/auth/register` | none | Create an account. A date of birth is accepted **only** to check the 18+ gate and is **not stored**. The response does not reveal whether the address already exists, and no session is returned. An email with a live `signup_blocks` entry is refused before the age gate is evaluated | `200` `{ "status": "verification_sent" }` | `422 VALIDATION_FAILED`, `422 UNDER_MINIMUM_AGE` |
+| `GET /v1/auth/verify?token=` | none | Confirm the email token (24-hour lifetime) and move the account from `pending` to `active`. Opening the link twice succeeds, sends no second email, and records no second activation | `200` `{ "status": "verified" }` | `400 INVALID_VERIFICATION_LINK`, `422 VALIDATION_FAILED` |
+| `POST /v1/auth/sign-in` | none | Email and password. A wrong password and an unknown email return the same `401` body; the account status is evaluated only after the password is accepted. The response includes `account_status`, so the client never guesses it | `200` `{ "session_token", "account" }` | `401 UNAUTHENTICATED`, `403 EMAIL_NOT_VERIFIED`, `403 ACCOUNT_SUSPENDED`, `403 FORBIDDEN`, `422 VALIDATION_FAILED` |
 | `POST /v1/auth/sign-out` | bearer | Revoke the current session | `200` `{ "status": "signed_out" }` | `401 UNAUTHENTICATED` |
 | `POST /v1/auth/sign-out-everywhere` | bearer | Revoke every session for the account | `200` `{ "status": "signed_out_everywhere" }` | `401 UNAUTHENTICATED` |
 | `POST /v1/auth/forgot-password` | none | Send a reset link (30-minute lifetime). Same response whether or not the address exists; no email for an unknown address | `200` `{ "status": "reset_email_sent_if_account_exists" }` | `422 VALIDATION_FAILED` |
 | `POST /v1/auth/reset-password` | none | Set a new password with a single-use token; every existing session is revoked | `200` `{ "status": "password_reset" }` | `400 INVALID_RESET_TOKEN`, `422 VALIDATION_FAILED` |
+
+**Implemented in change `account-status-lifecycle`:**
+
+| Method and path | Auth | Purpose | Success | Errors |
+|---|---|---|---|---|
+| `GET /v1/me` | bearer | The signed-in account's own record only: `id`, `display_name`, `email`, `email_verified`, `account_status`, `timezone`. No profile fields and no other user's data. The account comes from the session token | `200` account summary | `401 UNAUTHENTICATED` |
+| `POST /v1/me/deactivate` | bearer | Set the account to `deactivated` and revoke every session for it, including the caller's. Signing in again with the correct password returns the account to `active` | `200` `{ "status": "deactivated" }` | `401 UNAUTHENTICATED` |
+
+A `403` on sign-in is returned only after the password was accepted, so it never reveals whether an address exists. `EMAIL_NOT_VERIFIED` means the account has not opened its verification link; `ACCOUNT_SUSPENDED` means a sanction is in force; `FORBIDDEN` covers the remaining non-active states (`deletion_pending`, `anonymized`).
 
 `GET /v1/auth/verify` returns `4xx` only for a missing, invalid, or expired token; an already-verified address is not an error.
 
@@ -204,7 +213,7 @@ Roles: **S** Student, **M** Mentor, **IA** Institution Admin, **PA** Platform Ad
 
 | Method and path | Roles | Idem | Purpose | Success |
 |---|---|---|---|---|
-| `GET /v1/me` | all | no | Current user, roles, consent state, mentor status | `200` |
+| `GET /v1/me` | all | no | The signed-in account record only: id, display name, email, verification state, `account_status`, timezone. No profile fields | `200` |
 | `PUT /v1/me/student-profile` | S | no (uses `If-Match`) | Goals, field, availability | `200` |
 | `PUT /v1/me/mentor-profile` | M | no (uses `If-Match`) | Fields, scope, weekly capacity cap, availability | `200` |
 | `POST /v1/me/mentor-profile/pause` | M | yes | Set access mode to `PAUSED` (hidden from discovery, no new requests) | `200` |
@@ -429,6 +438,7 @@ Default limits are configuration, not code (SEC-ABUSE-4). Endpoints with stricte
 | `VALIDATION_FAILED` | 422 | Field errors in `errors` |
 | `UNDER_MINIMUM_AGE` | 422 | Under 18 at sign-up |
 | `EMAIL_NOT_VERIFIED` | 403 | Verification required for this action |
+| `ACCOUNT_SUSPENDED` | 403 | The account is suspended; every session was revoked |
 | `MFA_REQUIRED` | 403 | MFA needed for this role or action |
 | `REAUTH_REQUIRED` | 403 | Recent re-authentication needed |
 | `MENTOR_NOT_VERIFIED` | 409 | Mentor is below affiliation Level 1 |
