@@ -14,9 +14,9 @@
 
 ## 2. Pure Domain Rules
 
-- [ ] 2.1 Add `packages/domain/src/fields.ts` with `normalizeFieldName` per design D2 and `FIELD_NAME_MAX_LENGTH = 100`, plus `packages/domain/test/fields.test.ts` covering case and separator collisions, separator runs, Bangla input staying non-empty, NFKC full-width folding, punctuation staying significant (`C++` ≠ `C`), and empty input normalizing to an empty string. Verify: `pnpm --filter @connect/domain test` passes.
+- [x] 2.1 Add `packages/domain/src/fields.ts` with `normalizeFieldName` per design D2 and `FIELD_NAME_MAX_LENGTH = 100`, plus `packages/domain/test/fields.test.ts` covering case and separator collisions, separator runs, Bangla input staying non-empty, NFKC full-width folding, punctuation staying significant (`C++` ≠ `C`), and empty input normalizing to an empty string. Verify: `pnpm --filter @connect/domain test` passes.
 
-- [ ] 2.2 Add `packages/domain/src/profiles.ts` with `MENTOR_WEEKLY_CAPACITY_MAX = 5`, `STUDENT_INTEREST_FIELD_MAX = 2`, `validateStudentProfileInput` and `validateMentorProfileInput` returning a list of problems (empty means valid), export both new modules from `packages/domain/src/index.ts`, and add `packages/domain/test/profiles.test.ts` covering required text, capacity 1/5/0/6/2.5/`"3"`, more than two interests, an interest equal to the primary field, duplicate interests collapsing, and language codes being case-folded and deduplicated. Verify: `pnpm --filter @connect/domain test` passes.
+- [x] 2.2 Add `packages/domain/src/profiles.ts` with `MENTOR_WEEKLY_CAPACITY_MAX = 5`, `STUDENT_INTEREST_FIELD_MAX = 2`, `validateStudentProfileInput` and `validateMentorProfileInput` returning a list of problems (empty means valid), export both new modules from `packages/domain/src/index.ts`, and add `packages/domain/test/profiles.test.ts` covering required text, capacity 1/5/0/6/2.5/`"3"`, more than two interests, an interest equal to the primary field, duplicate interests collapsing, and language codes being case-folded and deduplicated. Verify: `pnpm --filter @connect/domain test` passes.
 
 ## 3. API
 
