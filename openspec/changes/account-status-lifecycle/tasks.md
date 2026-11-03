@@ -24,9 +24,9 @@
 
 ## 5. Blocked sign-up and the backfill migration
 
-- [ ] 5.1 Add the blocked-email lookup to registration: hash the submitted email with the existing key, find an unexpired `signup_blocks` row before the age gate runs, and refuse with `422 UNDER_MINIMUM_AGE` writing no user, consent, or audit row. Verify integration tests cover a blocked email refused whatever date of birth is submitted, an expired block allowing registration, and that no plaintext address is stored or logged.
-- [ ] 5.2 Add the forward-only data migration that sets `status = 'ACTIVE'` where `status = 'PENDING' AND email_verified = true`, registered so `pnpm --filter api db:migrate` applies it. Verify on the local Compose database that the query returns zero remaining rows and that a second run is a no-op.
-- [ ] 5.3 Update `docs/data-model.md` so the `account_status` note states the activation, suspension, and deactivation transitions and their session effects, and so the `signup_blocks` note says the block is now read at registration. Verify the documented transitions match the implemented ones and the enum still has exactly six values.
+- [x] 5.1 Add the blocked-email lookup to registration: hash the submitted email with the existing key, find an unexpired `signup_blocks` row before the age gate runs, and refuse with `422 UNDER_MINIMUM_AGE` writing no user, consent, or audit row. Verify integration tests cover a blocked email refused whatever date of birth is submitted, an expired block allowing registration, and that no plaintext address is stored or logged.
+- [x] 5.2 Add the forward-only data migration that sets `status = 'ACTIVE'` where `status = 'PENDING' AND email_verified = true`, registered so `pnpm --filter api db:migrate` applies it. Verify on the local Compose database that the query returns zero remaining rows and that a second run is a no-op.
+- [x] 5.3 Update `docs/data-model.md` so the `account_status` note states the activation, suspension, and deactivation transitions and their session effects, and so the `signup_blocks` note says the block is now read at registration. Verify the documented transitions match the implemented ones and the enum still has exactly six values.
 
 ## 6. Web surfaces
 
@@ -42,7 +42,7 @@
 ## 8. Integration verification and review gate
 
 - [x] 8.1 On a clean volume, run `docker compose up`, apply the migrations, and complete the demo end to end: register, hit sign-in before verifying (`403`), verify, sign in, read `GET /v1/me`, deactivate, sign in again, and register a blocked email. Then run `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build` and paste the real output of each.
-- [ ] 8.2 Run the review gate from `AGENTS.local.md` §2 (ponytail review, code review, silent-failure hunter, trust-rule check, debt note, diff scope) and record the findings in the handoff.
+- [x] 8.2 Run the review gate from `AGENTS.local.md` §2 (ponytail review, code review, silent-failure hunter, trust-rule check, debt note, diff scope) and record the findings in the handoff. *(Applied 2026-11-03: the silent-failure hunter reported seven findings; five are fixed in `fc4bf22` (deactivation can no longer overwrite a suspension, a verified-but-`PENDING` account repairs itself at sign-in, activation entries carry `from_status`, the account page catches a failed deactivation, an unexpected `403` is logged rather than only relabelled). Two are recorded debt: the backfill writes no audit rows, and the status read and session insert are not one transaction.)*
 
 ## Workflow follow-up
 
