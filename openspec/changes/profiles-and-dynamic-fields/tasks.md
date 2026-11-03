@@ -46,9 +46,9 @@
 
 - [x] 6.2 Update the trackers in the same branch: add `FR-PROF-01, 02` to Sprint 1's Requirements column in `docs/milestones-and-phases.md:103`, refresh the "Current state" block, add `GET /v1/fields` and the `/v1/me` extension to change #4's row in `docs/mvp-build-plan.md:95` and mark it `IN PROGRESS`, and update the status line in `README.md`. Verify: no document still calls #4 `PLANNED` or omits the profile FRs from Sprint 1.
 
-- [ ] 6.3 Run the four project gates from the repository root with Compose Postgres running: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`. Verify: all four exit 0, and paste the real output in the handoff; a skipped integration suite counts as UNVERIFIED, not as a pass.
+- [x] 6.3 Run the four project gates from the repository root with Compose Postgres running: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`. Verify: all four exit 0, and paste the real output in the handoff; a skipped integration suite counts as UNVERIFIED, not as a pass.
 
-- [ ] 6.4 Run the review gate on the diff: `/ponytail-review`, `/ce-code-review`, the `silent-failure-hunter` subagent, the trust-rule check (unconfirmed never counts, neutrality firewall, append-only ledger, object-level authorization, audit log, consent records, erasure design), `/ponytail-debt`, and `review-diff`. Verify: every finding is either fixed in scope or reported in the handoff with a reason it was not.
+- [x] 6.4 Run the review gate on the diff: `/ponytail-review`, `/ce-code-review`, the `silent-failure-hunter` subagent, the trust-rule check (unconfirmed never counts, neutrality firewall, append-only ledger, object-level authorization, audit log, consent records, erasure design), `/ponytail-debt`, and `review-diff`. Verify: every finding is either fixed in scope or reported in the handoff with a reason it was not.
 
 - [ ] 6.5 Write the handoff report: what changed, docs updated, stale docs found but not fixed, the `SEC-API-1` unknown-field gap recorded as debt, the exact gate output, and the branch commit list. Verify: every claim traces to a command that was run in this session.
 

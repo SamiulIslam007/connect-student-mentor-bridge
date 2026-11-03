@@ -44,7 +44,7 @@ async function upsertField(
   tx: Transaction,
   name: string,
   userId: string,
-): Promise<string> {
+): Promise<FieldSummary> {
   const [row] = await tx
     .insert(fields)
     .values({
@@ -56,26 +56,28 @@ async function upsertField(
       target: fields.normalizedSlug,
       set: { normalizedSlug: sql`excluded.normalized_slug` },
     })
-    .returning({ id: fields.id });
+    .returning({ id: fields.id, name: fields.name });
   if (!row) {
     throw new Error("the field upsert returned no row");
   }
-  return row.id;
+  return row;
 }
 
 async function upsertFields(
   tx: Transaction,
   names: string[],
   userId: string,
-): Promise<string[]> {
-  const ids: string[] = [];
+): Promise<FieldSummary[]> {
+  const result: FieldSummary[] = [];
+  const seen = new Set<string>();
   for (const name of distinctFieldNames(names)) {
-    const id = await upsertField(tx, name, userId);
-    if (!ids.includes(id)) {
-      ids.push(id);
+    const field = await upsertField(tx, name, userId);
+    if (!seen.has(field.id)) {
+      seen.add(field.id);
+      result.push(field);
     }
   }
-  return ids;
+  return result;
 }
 
 function fieldSummary(id: string, name: string): FieldSummary {
@@ -103,15 +105,15 @@ export class DrizzleProfilesService implements ProfilesService {
     const languages = normalizeLanguages(draft.languages);
 
     return await this.db.transaction(async (tx) => {
-      const primaryFieldId = await upsertField(tx, draft.primaryField, userId);
-      const interestIds = await upsertFields(tx, draft.interestFields, userId);
+      const primaryField = await upsertField(tx, draft.primaryField, userId);
+      const interestFields = await upsertFields(tx, draft.interestFields, userId);
 
       const [profile] = await tx
         .insert(studentProfiles)
-        .values({ userId, goals, primaryFieldId, languages })
+        .values({ userId, goals, primaryFieldId: primaryField.id, languages })
         .onConflictDoUpdate({
           target: studentProfiles.userId,
-          set: { goals, primaryFieldId, languages, updatedAt: new Date() },
+          set: { goals, primaryFieldId: primaryField.id, languages, updatedAt: new Date() },
         })
         .returning({ id: studentProfiles.id });
       if (!profile) {
@@ -122,20 +124,14 @@ export class DrizzleProfilesService implements ProfilesService {
       await tx
         .delete(studentFieldInterests)
         .where(eq(studentFieldInterests.studentProfileId, profile.id));
-      if (interestIds.length > 0) {
+      if (interestFields.length > 0) {
         await tx.insert(studentFieldInterests).values(
-          interestIds.map((fieldId) => ({ studentProfileId: profile.id, fieldId })),
+          interestFields.map((field) => ({
+            studentProfileId: profile.id,
+            fieldId: field.id,
+          })),
         );
       }
-
-      const [primaryField] = await tx
-        .select({ id: fields.id, name: fields.name })
-        .from(fields)
-        .where(eq(fields.id, primaryFieldId));
-      if (!primaryField) {
-        throw new Error("the primary field disappeared inside its own transaction");
-      }
-      const interestFields = await this.readJoinFields(tx, "student", profile.id);
 
       return { goals, primaryField, interestFields, languages };
     });
@@ -149,20 +145,20 @@ export class DrizzleProfilesService implements ProfilesService {
 
     const weeklyCapacity = draft.weeklyCapacity;
     if (typeof weeklyCapacity !== "number") {
-      // Unreachable after validation; keeps the domain rule as the only guard.
+      // Unreachable after validation; validation stays the single rule.
       throw new IdentityError("VALIDATION_ERROR", "weekly_capacity must be a number");
     }
     const languages = normalizeLanguages(draft.languages);
 
     return await this.db.transaction(async (tx) => {
-      const primaryFieldId = await upsertField(tx, draft.primaryField, userId);
-      const additionalFieldIds = await upsertFields(tx, draft.additionalFields, userId);
+      const primaryField = await upsertField(tx, draft.primaryField, userId);
+      const additionalFields = await upsertFields(tx, draft.additionalFields, userId);
 
       const [profile] = await tx
         .insert(mentorProfiles)
         .values({
           userId,
-          primaryFieldId,
+          primaryFieldId: primaryField.id,
           headline: draft.headline,
           bio: draft.bio,
           expertiseSummary: draft.expertiseSummary,
@@ -173,7 +169,7 @@ export class DrizzleProfilesService implements ProfilesService {
         .onConflictDoUpdate({
           target: mentorProfiles.userId,
           set: {
-            primaryFieldId,
+            primaryFieldId: primaryField.id,
             headline: draft.headline,
             bio: draft.bio,
             expertiseSummary: draft.expertiseSummary,
@@ -189,20 +185,14 @@ export class DrizzleProfilesService implements ProfilesService {
       }
 
       await tx.delete(mentorFields).where(eq(mentorFields.mentorProfileId, profile.id));
-      if (additionalFieldIds.length > 0) {
+      if (additionalFields.length > 0) {
         await tx.insert(mentorFields).values(
-          additionalFieldIds.map((fieldId) => ({ mentorProfileId: profile.id, fieldId })),
+          additionalFields.map((field) => ({
+            mentorProfileId: profile.id,
+            fieldId: field.id,
+          })),
         );
       }
-
-      const [primaryField] = await tx
-        .select({ id: fields.id, name: fields.name })
-        .from(fields)
-        .where(eq(fields.id, primaryFieldId));
-      if (!primaryField) {
-        throw new Error("the primary field disappeared inside its own transaction");
-      }
-      const additionalFields = await this.readJoinFields(tx, "mentor", profile.id);
 
       return {
         headline: draft.headline,
@@ -243,7 +233,7 @@ export class DrizzleProfilesService implements ProfilesService {
       ? {
           goals: student.goals,
           primaryField: fieldSummary(student.primaryFieldId, student.primaryFieldName),
-          interestFields: await this.readJoinFieldsForUser("student", student.id),
+          interestFields: await this.readJoinFields(this.db, "student", student.id),
           languages: student.languages,
         }
       : null;
@@ -272,7 +262,7 @@ export class DrizzleProfilesService implements ProfilesService {
           expertiseSummary: mentor.expertiseSummary,
           scopeStatement: mentor.scopeStatement,
           primaryField: fieldSummary(mentor.primaryFieldId, mentor.primaryFieldName),
-          fields: await this.readJoinFieldsForUser("mentor", mentor.id),
+          fields: await this.readJoinFields(this.db, "mentor", mentor.id),
           languages: mentor.languages,
           weeklyCapacity: mentor.weeklyCapacity,
         }
@@ -281,7 +271,7 @@ export class DrizzleProfilesService implements ProfilesService {
     return { studentProfile, mentorProfile };
   }
 
-  /** Field rows of a join table, inside the save transaction or for `GET /v1/me`. */
+  /** The field rows of a profile's join table, sorted by display name. */
   private async readJoinFields(
     executor: SelectExecutor,
     role: "student" | "mentor",
@@ -301,13 +291,5 @@ export class DrizzleProfilesService implements ProfilesService {
       .innerJoin(fields, eq(fields.id, mentorFields.fieldId))
       .where(eq(mentorFields.mentorProfileId, profileId))
       .orderBy(asc(fields.name));
-  }
-
-  /** The same read outside a transaction, for `GET /v1/me`. */
-  private async readJoinFieldsForUser(
-    role: "student" | "mentor",
-    profileId: string,
-  ): Promise<FieldSummary[]> {
-    return await this.readJoinFields(this.db, role, profileId);
   }
 }

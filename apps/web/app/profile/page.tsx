@@ -45,6 +45,26 @@ function splitList(value: string): string[] {
     .filter((entry) => entry.length > 0);
 }
 
+/**
+ * Saved fields are rendered one per line, so the round-trip cannot split a name
+ * that contains a comma (a single-line input cannot hold a newline).
+ */
+function splitLines(value: string): string[] {
+  return value
+    .split(/\r?\n/)
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+}
+
+function logFailure(event: string, error: unknown): void {
+  console.error(
+    JSON.stringify({
+      event,
+      message: error instanceof Error ? error.message : "unknown error",
+    }),
+  );
+}
+
 function savedMessage(ok: boolean, payload: Problem | undefined): string | null {
   if (ok) {
     return null;
@@ -110,7 +130,7 @@ export default function ProfilePage() {
           setMentorExpertise(me.mentor_profile.expertise_summary);
           setMentorScope(me.mentor_profile.scope_statement);
           setMentorPrimary(me.mentor_profile.primary_field.name);
-          setMentorAdditional(me.mentor_profile.fields.map((field) => field.name).join(", "));
+          setMentorAdditional(me.mentor_profile.fields.map((field) => field.name).join("\n"));
           setMentorLanguages(me.mentor_profile.languages.join(", "));
           setMentorCapacity(String(me.mentor_profile.weekly_capacity));
         }
@@ -118,8 +138,14 @@ export default function ProfilePage() {
         if (fieldsResponse.ok) {
           const taxonomy = (await fieldsResponse.json()) as { fields?: FieldSummary[] };
           setFields(taxonomy.fields ?? []);
+        } else {
+          console.error(
+            JSON.stringify({ event: "web.fields_fetch_failed", status: fieldsResponse.status }),
+          );
+          setMessage(strings.profile.fieldsUnavailable);
         }
-      } catch {
+      } catch (error) {
+        logFailure("web.profile_load_failed", error);
         if (active) {
           setMessage(strings.profile.loadError);
         }
@@ -152,7 +178,8 @@ export default function ProfilePage() {
       setStudentStatus(
         response.ok ? strings.profile.studentSaved : savedMessage(false, payload),
       );
-    } catch {
+    } catch (error) {
+      logFailure("web.student_profile_save_failed", error);
       setStudentStatus(strings.profile.saveError);
     }
   }
@@ -170,14 +197,15 @@ export default function ProfilePage() {
           expertise_summary: mentorExpertise,
           scope_statement: mentorScope,
           primary_field: mentorPrimary,
-          fields: splitList(mentorAdditional),
+          fields: splitLines(mentorAdditional),
           languages: splitList(mentorLanguages),
           weekly_capacity: mentorCapacity === "" ? null : Number(mentorCapacity),
         }),
       });
       const payload = (await response.json().catch(() => ({}))) as Problem;
       setMentorStatus(response.ok ? strings.profile.mentorSaved : savedMessage(false, payload));
-    } catch {
+    } catch (error) {
+      logFailure("web.mentor_profile_save_failed", error);
       setMentorStatus(strings.profile.saveError);
     }
   }
@@ -291,7 +319,8 @@ export default function ProfilePage() {
               </label>
               <label>
                 {strings.profile.additionalFields}
-                <input
+                <textarea
+                  rows={3}
                   value={mentorAdditional}
                   onChange={(event) => setMentorAdditional(event.target.value)}
                 />

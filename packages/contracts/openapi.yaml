@@ -511,7 +511,9 @@ components:
           type: array
           items:
             type: string
-            description: ISO 639-1 code, lowercased.
+            description: >-
+              Mentoring language, lowercased. The code format is not validated in
+              this change.
     MentorProfile:
       type: object
       additionalProperties: false
