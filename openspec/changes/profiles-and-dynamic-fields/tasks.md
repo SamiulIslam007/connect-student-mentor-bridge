@@ -30,9 +30,9 @@
 
 ## 4. Contract
 
-- [ ] 4.1 Add the three paths and the `MeResponse`, student-profile, mentor-profile, and field schemas to `packages/contracts/openapi.yaml`, with `MeResponse` declared standalone rather than composed from `AccountSummary` (design D4), and `account_status` documented as an accepted no-op property. Extend `packages/contracts/test/openapi.test.ts` to assert the new paths, that `MeResponse` is not an `allOf` over `AccountSummary`, and that both profile properties are nullable. Verify: `pnpm --filter @connect/contracts test` passes.
+- [x] 4.1 Add the three paths and the `MeResponse`, student-profile, mentor-profile, and field schemas to `packages/contracts/openapi.yaml`, with `MeResponse` declared standalone rather than composed from `AccountSummary` (design D4), and `account_status` documented as an accepted no-op property. Extend `packages/contracts/test/openapi.test.ts` to assert the new paths, that `MeResponse` is not an `allOf` over `AccountSummary`, and that both profile properties are nullable. Verify: `pnpm --filter @connect/contracts test` passes.
 
-- [ ] 4.2 Update `docs/api-contracts.md`: §5.1 gains the two PUTs without `If-Match` and documents the body shape and `200/401/422` responses; §5.3 notes that `GET /v1/fields` ships with this change. Verify: every path, status code, and schema name in §5.1/§5.3 matches `openapi.yaml`, checked by reading both side by side.
+- [x] 4.2 Update `docs/api-contracts.md`: §5.1 gains the two PUTs without `If-Match` and documents the body shape and `200/401/422` responses; §5.3 notes that `GET /v1/fields` ships with this change. Verify: every path, status code, and schema name in §5.1/§5.3 matches `openapi.yaml`, checked by reading both side by side.
 
 ## 5. Web
 

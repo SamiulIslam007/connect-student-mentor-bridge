@@ -16,6 +16,15 @@ interface Operation {
 interface Contract {
   openapi: string;
   paths: Record<string, Record<string, Operation>>;
+  components: {
+    schemas: Record<
+      string,
+      {
+        allOf?: unknown;
+        properties?: Record<string, Record<string, unknown>>;
+      }
+    >;
+  };
 }
 
 function contract(): Contract {
@@ -93,5 +102,86 @@ test("every self-service account route implemented by the controller appears in 
     assert.ok(document.paths[route], `${route} is implemented but missing from openapi.yaml`);
     const operation = Object.values(document.paths[route])[0];
     assert.deepEqual(operation.security, [{ bearerAuth: [] }], `${route} must require a session`);
+  }
+});
+
+test("the profile and field endpoints require a session and are documented", () => {
+  const document = contract();
+
+  const studentProfile = document.paths["/v1/me/student-profile"].put;
+  const mentorProfile = document.paths["/v1/me/mentor-profile"].put;
+  const fields = document.paths["/v1/fields"].get;
+
+  for (const [route, operation] of [
+    ["/v1/me/student-profile", studentProfile],
+    ["/v1/me/mentor-profile", mentorProfile],
+    ["/v1/fields", fields],
+  ] as const) {
+    assert.deepEqual(operation.security, [{ bearerAuth: [] }], `${route} must require a session`);
+    assert.ok(operation.responses["401"], `${route} must document the unauthenticated response`);
+  }
+  assert.deepEqual(studentProfile.responses["422"], {
+    $ref: "#/components/responses/Problem",
+  });
+  assert.deepEqual(mentorProfile.responses["422"], {
+    $ref: "#/components/responses/Problem",
+  });
+
+  const me = document.paths["/v1/me"].get;
+  const meContent = (me.responses["200"] as {
+    content: Record<string, { schema: unknown }>;
+  }).content;
+  assert.deepEqual(meContent["application/json"].schema, {
+    $ref: "#/components/schemas/MeResponse",
+  });
+  for (const schema of ["MeResponse", "StudentProfile", "MentorProfile", "FieldSummary"]) {
+    assert.ok(document.components.schemas[schema], `${schema} must be documented`);
+  }
+});
+
+test("MeResponse is standalone and both profile properties are nullable", () => {
+  const document = contract();
+  const me = document.components.schemas.MeResponse;
+
+  assert.equal(me.allOf, undefined, "AccountSummary declares additionalProperties false; allOf cannot extend it");
+  assert.deepEqual(Object.keys(me.properties ?? {}).sort(), [
+    "account_status",
+    "display_name",
+    "email",
+    "email_verified",
+    "id",
+    "mentor_profile",
+    "student_profile",
+    "timezone",
+  ]);
+
+  for (const property of ["student_profile", "mentor_profile"]) {
+    const anyOf = me.properties?.[property].anyOf as { type?: string }[] | undefined;
+    assert.ok(anyOf, `${property} must be an anyOf so it can be null`);
+    assert.ok(
+      anyOf.some((entry) => entry.type === "null"),
+      `${property} must be nullable`,
+    );
+  }
+
+  // The sign-in response must not gain profile properties.
+  assert.deepEqual(Object.keys(document.components.schemas.AccountSummary.properties ?? {}).sort(), [
+    "account_status",
+    "display_name",
+    "email",
+    "email_verified",
+    "id",
+    "timezone",
+  ]);
+});
+
+test("profile request bodies document account_status as an accepted no-op", () => {
+  const document = contract();
+
+  for (const schema of ["StudentProfileRequest", "MentorProfileRequest"]) {
+    const definition = document.components.schemas[schema];
+    const property = definition.properties?.account_status;
+    assert.ok(property, `${schema} must document account_status`);
+    assert.match(String(property.description), /ignored/i);
   }
 });
