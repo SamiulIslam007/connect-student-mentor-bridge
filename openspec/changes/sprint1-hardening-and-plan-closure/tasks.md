@@ -35,10 +35,10 @@
 
 ## 5. Test quality and edge cases
 
-- [ ] 5.1 Add the missing registration test with extra keys (`account_status`, `email_verified`, `status`, camelCase variants) and assert the DB stays `PENDING`/unverified with no role change. Verify: the test passes and no account-level value is applied.
-- [ ] 5.2 Add session-expiry and reset-token-expiry tests using DB rows with past `expires_at` (or an injected clock where the seam allows). Verify: an expired session returns `401`; an expired reset token returns `400 INVALID_RESET_TOKEN`; an unexpired token still works.
-- [ ] 5.3 Remove the tautological `packages/config/test/constants.test.ts` and its now-empty test script; strengthen `services/api/test/workspace-packages.test.ts` into a resolution/export smoke test. Verify: `pnpm test` passes with the updated package count, and the workspace packages still resolve.
-- [ ] 5.4 Add the remaining security tests: malformed cookie, spoofed Host/XFP, BFF body cap (both headers), `connect_app` positive grants, zero-width/NFKC field names, and the audit-failure fail-closed path. Verify: each test fails on the old behaviour and passes on the new one.
+- [x] 5.1 Add the missing registration test with extra keys (`account_status`, `email_verified`, `status`, camelCase variants) and assert the DB stays `PENDING`/unverified with no role change. Verify: the test passes and no account-level value is applied.
+- [x] 5.2 Add session-expiry and reset-token-expiry tests using DB rows with past `expires_at` (or an injected clock where the seam allows). Verify: an expired session returns `401`; an expired reset token returns `400 INVALID_RESET_TOKEN`; an unexpired token still works.
+- [x] 5.3 Remove the tautological `packages/config/test/constants.test.ts` and its now-empty test script; strengthen `services/api/test/workspace-packages.test.ts` into a resolution/export smoke test. Verify: `pnpm test` passes with the updated package count, and the workspace packages still resolve.
+- [x] 5.4 Add the remaining security tests: malformed cookie, spoofed Host/XFP, BFF body cap (both headers), `connect_app` positive grants, zero-width/NFKC field names, and the audit-failure fail-closed path. Verify: each test fails on the old behaviour and passes on the new one.
 
 ## 6. Documentation and hygiene
 

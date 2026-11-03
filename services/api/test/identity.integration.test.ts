@@ -1040,6 +1040,80 @@ test("a short password is rejected at registration and at reset", async (context
   assert.equal(missingField.body?.code, "VALIDATION_FAILED");
 });
 
+test("registration ignores account-level keys in the body", async (context) => {
+  const stack = requireStack(context);
+  if (!stack) {
+    return;
+  }
+  const { client } = stack;
+
+  const response = await request("POST", "/v1/auth/register", {
+    display_name: "Privilege Attempt",
+    email: "extra-keys@example.com",
+    password: PASSWORD,
+    date_of_birth: "2000-01-01",
+    account_status: "ACTIVE",
+    accountStatus: "ACTIVE",
+    email_verified: true,
+    emailVerified: true,
+    status: "ACTIVE",
+    role: "ADMIN",
+    actor_role: "PLATFORM_ADMIN",
+  });
+  assert.equal(response.status, 200, response.text);
+
+  const users = await client.query<{ status: string; email_verified: boolean }>(
+    "SELECT status, email_verified FROM users WHERE email = $1",
+    ["extra-keys@example.com"],
+  );
+  assert.deepEqual(users.rows[0], { status: "PENDING", email_verified: false });
+
+  const audit = await client.query<{ actor_role: string }>(
+    "SELECT actor_role FROM audit_logs WHERE action = 'USER_REGISTERED'",
+  );
+  assert.deepEqual(audit.rows.map((row) => row.actor_role), ["USER"], "no role change");
+});
+
+test("an expired session is rejected and an expired reset token is refused", async (context) => {
+  const stack = requireStack(context);
+  if (!stack) {
+    return;
+  }
+  const { client } = stack;
+  assert.ok(sender);
+
+  await registerAndVerify("expired-session@example.com");
+  const token = String((await signIn("expired-session@example.com")).body?.session_token);
+  await client.query("UPDATE sessions SET expires_at = now() - interval '1 minute'");
+
+  const expiredSession = await request("GET", "/v1/me", undefined, token);
+  assert.equal(expiredSession.status, 401);
+  assert.equal(expiredSession.body?.code, "UNAUTHENTICATED");
+
+  await registerAndVerify("expired-reset@example.com");
+  await request("POST", "/v1/auth/forgot-password", { email: "expired-reset@example.com" });
+  const staleToken = tokenFromEmail(await sender.last("reset-password"), "/reset");
+  await client.query("UPDATE verifications SET expires_at = now() - interval '1 minute'");
+
+  const expiredReset = await request("POST", "/v1/auth/reset-password", {
+    token: staleToken,
+    new_password: "another long passphrase for reset",
+  });
+  assert.equal(expiredReset.status, 400);
+  assert.equal(expiredReset.body?.code, "INVALID_RESET_TOKEN");
+
+  // An unexpired token still works.
+  await registerAndVerify("fresh-reset@example.com");
+  await request("POST", "/v1/auth/forgot-password", { email: "fresh-reset@example.com" });
+  const freshToken = tokenFromEmail(await sender.last("reset-password"), "/reset");
+  const reset = await request("POST", "/v1/auth/reset-password", {
+    token: freshToken,
+    new_password: "a fresh long passphrase for reset",
+  });
+  assert.equal(reset.status, 200);
+  assert.deepEqual(reset.body, { status: "password_reset" });
+});
+
 test("a malformed email is a 422 on register, forgot-password, and sign-in", async (context) => {
   const stack = requireStack(context);
   if (!stack) {
