@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
+  MENTOR_FIELD_TOTAL_MAX,
   MENTOR_WEEKLY_CAPACITY_MAX,
+  PROFILE_LANGUAGE_MAX,
   STUDENT_INTEREST_FIELD_MAX,
   distinctFieldNames,
   isValidWeeklyCapacity,
@@ -118,4 +120,50 @@ test("an additional field may not repeat the primary field", () => {
 
 test("language codes are case-folded and deduplicated", () => {
   assert.deepEqual(normalizeLanguages(["EN", "bn", "en", "  ", "Bn"]), ["en", "bn"]);
+});
+
+test("a mentor has at most five fields in total", () => {
+  assert.equal(MENTOR_FIELD_TOTAL_MAX, 5);
+  assert.deepEqual(
+    validateMentorProfileInput({ ...mentor, additionalFields: ["A", "B", "C", "D"] }),
+    [],
+    "one primary plus four additional fields is accepted",
+  );
+
+  const refused = validateMentorProfileInput({
+    ...mentor,
+    additionalFields: ["A", "B", "C", "D", "E"],
+  });
+  assert.ok(refused.some((problem) => problem.includes("at most 5 fields")));
+
+  assert.deepEqual(
+    validateMentorProfileInput({ ...mentor, additionalFields: ["A", "a", "B", "C", "D"] }),
+    [],
+    "spellings of one field count once",
+  );
+});
+
+test("languages are capped at five for both roles", () => {
+  assert.equal(PROFILE_LANGUAGE_MAX, 5);
+  const five = ["en", "bn", "hi", "ur", "fr"];
+  assert.deepEqual(validateStudentProfileInput({ ...student, languages: five }), []);
+  assert.deepEqual(validateMentorProfileInput({ ...mentor, languages: five }), []);
+
+  const six = [...five, "de"];
+  assert.ok(
+    validateStudentProfileInput({ ...student, languages: six }).some((problem) =>
+      problem.includes("at most 5 languages"),
+    ),
+  );
+  assert.ok(
+    validateMentorProfileInput({ ...mentor, languages: six }).some((problem) =>
+      problem.includes("at most 5 languages"),
+    ),
+  );
+
+  assert.deepEqual(
+    validateStudentProfileInput({ ...student, languages: ["EN", "en", "bn"] }),
+    [],
+    "duplicates count once",
+  );
 });

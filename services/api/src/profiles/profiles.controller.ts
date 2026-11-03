@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Inject, Put, Req } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Put, Query, Req } from "@nestjs/common";
 
 import {
   IdentityError,
@@ -62,6 +62,35 @@ function readMentorDraft(body: unknown): MentorProfileDraft {
   };
 }
 
+/** The taxonomy page size (FR-PROF-01, design D9). */
+const DEFAULT_FIELD_PAGE_SIZE = 100;
+const MAX_FIELD_PAGE_SIZE = 200;
+
+/** `limit` is validated here, so an invalid page size is a 422 before any query. */
+function fieldPageQuery(
+  limitValue: string | undefined,
+  cursorValue: string | undefined,
+): { limit: number; cursor?: string } {
+  let limit = DEFAULT_FIELD_PAGE_SIZE;
+  if (limitValue !== undefined) {
+    if (!/^\d+$/.test(limitValue)) {
+      throw new IdentityError(
+        "VALIDATION_ERROR",
+        `limit must be a whole number from 1 to ${MAX_FIELD_PAGE_SIZE}`,
+      );
+    }
+    limit = Number(limitValue);
+    if (limit < 1 || limit > MAX_FIELD_PAGE_SIZE) {
+      throw new IdentityError(
+        "VALIDATION_ERROR",
+        `limit must be a whole number from 1 to ${MAX_FIELD_PAGE_SIZE}`,
+      );
+    }
+  }
+  const cursor = cursorValue?.trim();
+  return cursor ? { limit, cursor } : { limit };
+}
+
 /**
  * Profile saving (docs/api-contracts.md §5.1) and the field taxonomy.
  *
@@ -103,9 +132,14 @@ export class ProfilesController {
   }
 
   @Get("fields")
-  async fields(@Req() request: RequestWithId): Promise<{ fields: FieldSummary[] }> {
+  async fields(
+    @Query("limit") limit: string | undefined,
+    @Query("cursor") cursor: string | undefined,
+    @Req() request: RequestWithId,
+  ): Promise<{ fields: FieldSummary[]; next_cursor: string | null }> {
     await this.actingAccount(request);
-    return { fields: await this.profiles.listFields() };
+    const page = await this.profiles.listFields(fieldPageQuery(limit, cursor));
+    return { fields: page.fields, next_cursor: page.nextCursor };
   }
 
   /**

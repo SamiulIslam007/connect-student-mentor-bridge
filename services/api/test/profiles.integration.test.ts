@@ -201,7 +201,7 @@ test("GET /v1/fields lists active fields only, sorted, and needs a session", asy
 
   const empty = await apiRequest(current, "GET", "/v1/fields", undefined, token);
   assert.equal(empty.status, 200);
-  assert.deepEqual(empty.body, { fields: [] });
+  assert.deepEqual(empty.body, { fields: [], next_cursor: null });
 
   const withoutSession = await apiRequest(current, "GET", "/v1/fields");
   assert.equal(withoutSession.status, 401);
@@ -237,6 +237,182 @@ test("GET /v1/fields lists active fields only, sorted, and needs a session", asy
     ["AI"],
     "the retired field is still readable through the profile",
   );
+});
+
+test("GET /v1/fields paginates by slug and refuses an invalid page size", async (context) => {
+  const current = requireStack(context);
+  if (!current) {
+    return;
+  }
+  const token = await tokenFor(current, "pages@example.com");
+
+  for (const name of ["Alpha", "Beta", "Gamma"]) {
+    const saved = await apiRequest(
+      current,
+      "PUT",
+      "/v1/me/student-profile",
+      { ...validStudent, primary_field: name, interest_fields: [] },
+      token,
+    );
+    assert.equal(saved.status, 200, saved.text);
+  }
+
+  const first = await apiRequest(current, "GET", "/v1/fields?limit=2", undefined, token);
+  assert.equal(first.status, 200, first.text);
+  assert.deepEqual(
+    (first.body?.fields as { name: string }[]).map((field) => field.name),
+    ["Alpha", "Beta"],
+  );
+  assert.equal(first.body?.next_cursor, "beta");
+
+  const second = await apiRequest(
+    current,
+    "GET",
+    `/v1/fields?limit=2&cursor=${String(first.body?.next_cursor)}`,
+    undefined,
+    token,
+  );
+  assert.equal(second.status, 200, second.text);
+  assert.deepEqual(
+    (second.body?.fields as { name: string }[]).map((field) => field.name),
+    ["Gamma"],
+  );
+  assert.equal(second.body?.next_cursor, null, "the last page has no cursor");
+
+  for (const query of ["limit=201", "limit=0", "limit=abc", "limit=1.5"]) {
+    const refused = await apiRequest(current, "GET", `/v1/fields?${query}`, undefined, token);
+    assert.equal(refused.status, 422, `${query} is refused`);
+    assert.equal(refused.body?.code, "VALIDATION_FAILED");
+  }
+});
+
+test("a mentor has at most five fields in total and six writes nothing", async (context) => {
+  const current = requireStack(context);
+  if (!current) {
+    return;
+  }
+  const token = await tokenFor(current, "sixfields@example.com");
+
+  const five = await apiRequest(
+    current,
+    "PUT",
+    "/v1/me/mentor-profile",
+    { ...validMentor, fields: ["A", "B", "C", "D"] },
+    token,
+  );
+  assert.equal(five.status, 200, five.text);
+  assert.equal((five.body?.fields as unknown[]).length, 4, "the primary field plus four");
+
+  const refused = await apiRequest(
+    current,
+    "PUT",
+    "/v1/me/mentor-profile",
+    { ...validMentor, fields: ["A", "B", "C", "D", "E"] },
+    token,
+  );
+  assert.equal(refused.status, 422);
+  assert.match(String(refused.body?.detail), /at most 5 fields/);
+
+  const counts = await current.client.query<{ fields: number; links: number }>(
+    "SELECT (SELECT count(*) FROM fields)::int AS fields, (SELECT count(*) FROM mentor_fields)::int AS links",
+  );
+  assert.deepEqual(counts.rows[0], { fields: 5, links: 4 }, "the refused save wrote nothing");
+});
+
+test("languages are capped at five and a refused save keeps the previous profile", async (context) => {
+  const current = requireStack(context);
+  if (!current) {
+    return;
+  }
+  const token = await tokenFor(current, "languages@example.com");
+  const five = ["en", "bn", "hi", "ur", "fr"];
+
+  const student = await apiRequest(
+    current,
+    "PUT",
+    "/v1/me/student-profile",
+    { ...validStudent, languages: five },
+    token,
+  );
+  assert.equal(student.status, 200, student.text);
+  assert.deepEqual(student.body?.languages, five);
+
+  const refusedStudent = await apiRequest(
+    current,
+    "PUT",
+    "/v1/me/student-profile",
+    { ...validStudent, languages: [...five, "de"] },
+    token,
+  );
+  assert.equal(refusedStudent.status, 422);
+  assert.match(String(refusedStudent.body?.detail), /at most 5 languages/);
+
+  const stored = await current.client.query<{ languages: string[] }>(
+    "SELECT languages FROM student_profiles",
+  );
+  assert.deepEqual(stored.rows[0].languages, five, "the previous profile is unchanged");
+
+  const refusedMentor = await apiRequest(
+    current,
+    "PUT",
+    "/v1/me/mentor-profile",
+    { ...validMentor, languages: [...five, "de"] },
+    token,
+  );
+  assert.equal(refusedMentor.status, 422);
+  assert.match(String(refusedMentor.body?.detail), /at most 5 languages/);
+  assert.equal((await current.client.query("SELECT id FROM mentor_profiles")).rowCount, 0);
+});
+
+test("a zero-width-only field name is refused and creates no field", async (context) => {
+  const current = requireStack(context);
+  if (!current) {
+    return;
+  }
+  const token = await tokenFor(current, "zero-width@example.com");
+
+  const refused = await apiRequest(
+    current,
+    "PUT",
+    "/v1/me/student-profile",
+    { ...validStudent, primary_field: "\u200B\u200B", interest_fields: [] },
+    token,
+  );
+  assert.equal(refused.status, 422);
+  assert.equal(refused.body?.code, "VALIDATION_FAILED");
+  assert.equal((await current.client.query("SELECT id FROM fields")).rowCount, 0);
+});
+
+test("a field name with zero-width characters reuses the same row", async (context) => {
+  const current = requireStack(context);
+  if (!current) {
+    return;
+  }
+  const token = await tokenFor(current, "zero-width-reuse@example.com");
+
+  const saved = await apiRequest(
+    current,
+    "PUT",
+    "/v1/me/student-profile",
+    { ...validStudent, primary_field: "A\u200BI", interest_fields: [] },
+    token,
+  );
+  assert.equal(saved.status, 200, saved.text);
+
+  const fields = await current.client.query<{ name: string; normalized_slug: string }>(
+    "SELECT name, normalized_slug FROM fields",
+  );
+  assert.deepEqual(fields.rows, [{ name: "A\u200BI", normalized_slug: "ai" }]);
+
+  const again = await apiRequest(
+    current,
+    "PUT",
+    "/v1/me/student-profile",
+    { ...validStudent, primary_field: "AI", interest_fields: [] },
+    token,
+  );
+  assert.equal(again.status, 200, again.text);
+  assert.equal((await current.client.query("SELECT id FROM fields")).rowCount, 1);
 });
 
 test("GET /v1/me returns both profiles and ignores account-level body properties", async (context) => {

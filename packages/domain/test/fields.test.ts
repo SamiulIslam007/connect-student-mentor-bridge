@@ -30,6 +30,20 @@ test("NFKC folds full-width compatibility forms", () => {
   assert.equal(normalizeFieldName("ＡＩ"), normalizeFieldName("AI"));
 });
 
+test("format characters are stripped after NFKC", () => {
+  assert.equal(normalizeFieldName("A\u200BI"), "ai");
+  assert.equal(normalizeFieldName("A\u200BI"), normalizeFieldName("AI"));
+  assert.equal(normalizeFieldName("\u200B"), "");
+  assert.equal(isAcceptableFieldName("\u200B\u200B"), false, "a zero-width-only name is refused");
+});
+
+test("a name needs a letter or number", () => {
+  assert.equal(isAcceptableFieldName("+++"), false);
+  assert.equal(isAcceptableFieldName("😀😀"), false);
+  assert.equal(isAcceptableFieldName("C++"), true, "punctuation with a letter stays valid");
+  assert.equal(isAcceptableFieldName("1"), true);
+});
+
 test("punctuation stays significant", () => {
   assert.notEqual(normalizeFieldName("C++"), normalizeFieldName("C"));
   assert.equal(normalizeFieldName("C++"), "c++");

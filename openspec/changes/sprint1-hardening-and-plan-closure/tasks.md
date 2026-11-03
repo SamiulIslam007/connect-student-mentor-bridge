@@ -23,9 +23,9 @@
 
 ## 3. Taxonomy bounds and pagination
 
-- [ ] 3.1 In `packages/domain/src/fields.ts`, strip `/[\p{Cf}]/gu` after NFKC and require `/\p{L}|\p{N}/u` after normalization; add unit tests for zero-width-only, NFKC plus format characters, symbol-only, and `C++`. Verify: `pnpm --filter @connect/domain test` passes and a zero-width-only name is refused.
-- [ ] 3.2 Add `MENTOR_FIELD_TOTAL_MAX = 5` and `PROFILE_LANGUAGE_MAX = 5`; enforce them after de-duplication in the student and mentor validators; add unit and API integration tests for 5-accepted and 6-refused. Verify: the tests pass and a refused save writes nothing.
-- [ ] 3.3 Add `/v1/fields` `limit` (default 100, max 200) and `cursor` (last slug), order by `normalized_slug`, return `{ fields, next_cursor }`, and forward the query params through the BFF. Update `packages/contracts/openapi.yaml` and `docs/api-contracts.md` in the same task. Verify: the contract tests pass, the cursor returns the next page without duplicates, `limit=201` returns `422`, and the UI still loads the first page.
+- [x] 3.1 In `packages/domain/src/fields.ts`, strip `/[\p{Cf}]/gu` after NFKC and require `/\p{L}|\p{N}/u` after normalization; add unit tests for zero-width-only, NFKC plus format characters, symbol-only, and `C++`. Verify: `pnpm --filter @connect/domain test` passes and a zero-width-only name is refused.
+- [x] 3.2 Add `MENTOR_FIELD_TOTAL_MAX = 5` and `PROFILE_LANGUAGE_MAX = 5`; enforce them after de-duplication in the student and mentor validators; add unit and API integration tests for 5-accepted and 6-refused. Verify: the tests pass and a refused save writes nothing.
+- [x] 3.3 Add `/v1/fields` `limit` (default 100, max 200) and `cursor` (last slug), order by `normalized_slug`, return `{ fields, next_cursor }`, and forward the query params through the BFF. Update `packages/contracts/openapi.yaml` and `docs/api-contracts.md` in the same task. Verify: the contract tests pass, the cursor returns the next page without duplicates, `limit=201` returns `422`, and the UI still loads the first page.
 
 ## 4. UI completeness (Stitch reference)
 

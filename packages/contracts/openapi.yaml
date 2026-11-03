@@ -284,28 +284,50 @@ paths:
       operationId: listFields
       summary: List the active field taxonomy
       description: >-
-        Active fields only, sorted by display name, each as an id and a display
-        name. The list is created by profile saves, never seeded, and is
-        unpaginated at pilot scale (pagination is Phase 1b if the list grows).
-        A retired field is omitted here while existing profile references to it
-        stay readable.
+        Active fields only, ordered by normalized slug, each as an id and a
+        display name. The list is created by profile saves, never seeded. It is
+        keyset-paginated: `limit` (default 100, maximum 200) sets the page size
+        and `cursor` is the last slug of the previous page. `next_cursor` is
+        null on the last page. A retired field is omitted here while existing
+        profile references to it stay readable.
       security:
         - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          description: Page size, 1 to 200. Defaults to 100.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 100
+        - name: cursor
+          in: query
+          required: false
+          description: The `next_cursor` value from the previous page (a slug).
+          schema:
+            type: string
       responses:
         "200":
-          description: The active field taxonomy
+          description: One page of the active field taxonomy
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: false
-                required: [fields]
+                required: [fields, next_cursor]
                 properties:
                   fields:
                     type: array
                     items:
                       $ref: "#/components/schemas/FieldSummary"
+                  next_cursor:
+                    type: [string, "null"]
+                    description: The last returned slug when more fields exist, otherwise null.
         "401":
+          $ref: "#/components/responses/Problem"
+        "422":
           $ref: "#/components/responses/Problem"
   /v1/me/deactivate:
     post:

@@ -252,6 +252,7 @@ Roles: **S** Student, **M** Mentor, **IA** Institution Admin, **PA** Platform Ad
 
 - Both saves are **full replaces**: interest or additional fields absent from the submission are removed.
 - `primary_field`, `fields`, and `interest_fields` carry **display names, not ids**. An unknown name creates exactly one field inside the same transaction; there is no `POST /v1/fields`.
+- A mentor profile has at most **5 fields in total** (the primary field plus up to 4 additional fields), and a student or mentor profile has at most **5 languages** after case-folding and de-duplication. A save above either bound is `422` and writes nothing.
 - `weekly_capacity` is an integer from 1 to 5 in this change (a **Proposed default**, D-38). `0`, `6`, `2.5`, and `"3"` are refused.
 - `200` returns the saved profile. `401 UNAUTHENTICATED` when the session is absent or revoked. `422 VALIDATION_FAILED` for any invalid value, with nothing written (no profile, no join row, no new field).
 - `account_status`, `display_name`, `email`, and any other account-level property in the body are **accepted and ignored**, never applied to the account. Strict unknown-key rejection is a pre-existing API-wide gap (`SEC-API-1`, owner: Sprint 7 hardening), not added here.
@@ -275,7 +276,7 @@ Roles: **S** Student, **M** Mentor, **IA** Institution Admin, **PA** Platform Ad
 | `GET /v1/mentors?field=&language=&access_state=&cursor=&limit=` | S | Mentor discovery with rule-based suggestions and a plain-language reason. Full mentors appear with the request action disabled; paused mentors are hidden. Sort by suggestion rank, ties broken by mentor ID for stable pages |
 | `GET /v1/mentors/{id}` | all | Public profile |
 | `GET /v1/mentors/{id}/impact` | all | Counted outcomes by field and difficulty, response reliability, confidence tier. Only **counted** outcomes appear |
-| `GET /v1/fields` | all | Field taxonomy: active fields only, sorted by display name, each as `{ id, name }`, unpaginated at pilot scale. **Ships with `profiles-and-dynamic-fields`**; the list is created by profile saves and is never seeded |
+| `GET /v1/fields?limit=&cursor=` | all | Field taxonomy: active fields only, ordered by normalized slug, each as `{ id, name }` plus a `next_cursor`. `limit` defaults to 100 (maximum 200) and `cursor` is the last slug of the previous page; `next_cursor` is null on the last page. **Ships with `profiles-and-dynamic-fields`**; the list is created by profile saves and is never seeded |
 
 The Match Score is a **sort aid, never a predictor of success** (README 5.2). The response exposes `reasons` as text and never exposes sensitive attributes.
 

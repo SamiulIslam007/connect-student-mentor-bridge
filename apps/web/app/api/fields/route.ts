@@ -11,7 +11,17 @@ export async function GET(request: Request): Promise<NextResponse> {
     return unauthenticated();
   }
 
-  const upstream = await callApi("/v1/fields", {
+  const incoming = new URL(request.url).searchParams;
+  const query = new URLSearchParams();
+  for (const key of ["limit", "cursor"]) {
+    const value = incoming.get(key);
+    if (value !== null) {
+      query.set(key, value);
+    }
+  }
+  const suffix = query.size > 0 ? `?${query.toString()}` : "";
+
+  const upstream = await callApi(`/v1/fields${suffix}`, {
     headers: { authorization: `Bearer ${token}` },
   });
   const payload = await readJson(upstream);
