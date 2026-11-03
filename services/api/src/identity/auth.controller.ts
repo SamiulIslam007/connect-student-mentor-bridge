@@ -8,6 +8,29 @@ import { IDENTITY_SERVICE } from "./identity.tokens.js";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/**
+ * The library rejects an address the API lets through with a `500`, so the shape
+ * check here is deliberately stricter than the old regex: no whitespace, one
+ * `@`, no empty label, no leading/trailing dot, and no consecutive dots.
+ */
+function isValidEmailShape(value: string): boolean {
+  if (/\s/.test(value) || value.includes("..")) {
+    return false;
+  }
+  const parts = value.split("@");
+  if (parts.length !== 2) {
+    return false;
+  }
+  const [local, domain] = parts;
+  if (!local || !domain || local.startsWith(".") || local.endsWith(".")) {
+    return false;
+  }
+  if (domain.startsWith(".") || domain.endsWith(".") || !domain.includes(".")) {
+    return false;
+  }
+  return EMAIL_PATTERN.test(value);
+}
+
 function bodyRecord(body: unknown): Record<string, unknown> {
   return typeof body === "object" && body !== null ? (body as Record<string, unknown>) : {};
 }
@@ -27,7 +50,7 @@ function optionalTextField(body: unknown, field: string): string | undefined {
 
 function emailField(body: unknown): string {
   const value = textField(body, "email").trim().toLowerCase();
-  if (!EMAIL_PATTERN.test(value)) {
+  if (!isValidEmailShape(value)) {
     throw new IdentityError("VALIDATION_ERROR", "email must be a valid email address");
   }
   return value;

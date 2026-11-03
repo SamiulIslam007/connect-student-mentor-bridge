@@ -31,7 +31,13 @@ export function readSessionCookie(cookieHeader: string | null): string | null {
   for (const part of cookieHeader.split(";")) {
     const [name, ...rest] = part.trim().split("=");
     if (name === SESSION_COOKIE_NAME && rest.length > 0) {
-      return decodeURIComponent(rest.join("="));
+      try {
+        return decodeURIComponent(rest.join("="));
+      } catch {
+        // A malformed cookie is not a session: treat it as absent (design D8)
+        // instead of throwing a 500 out of the route handler.
+        return null;
+      }
     }
   }
   return null;

@@ -1,28 +1,28 @@
 import { NextResponse } from "next/server";
 
-import { callApi, readJson } from "../../../../lib/api";
+import { forwardUpstream, readJsonBody } from "../../../../lib/bff";
 import { SESSION_COOKIE_NAME, sessionCookieOptions } from "../../../../lib/session-cookie";
 
 export async function POST(request: Request): Promise<NextResponse> {
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ code: "VALIDATION_FAILED" }, { status: 422 });
+  const parsed = await readJsonBody(request);
+  if (!parsed.ok) {
+    return parsed.response;
   }
 
-  const upstream = await callApi("/v1/auth/sign-in", {
+  const outcome = await forwardUpstream("/v1/auth/sign-in", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify(parsed.value),
   });
-  const payload = await readJson(upstream);
-
-  if (!upstream.ok) {
-    return NextResponse.json(payload, { status: upstream.status });
+  if (outcome.kind === "non-json") {
+    return outcome.problem;
   }
 
-  const token = payload.session_token;
+  if (outcome.status < 200 || outcome.status >= 300) {
+    return NextResponse.json(outcome.payload, { status: outcome.status });
+  }
+
+  const token = outcome.payload.session_token;
   if (typeof token !== "string" || token.length === 0) {
     return NextResponse.json({ code: "INTERNAL_ERROR" }, { status: 500 });
   }

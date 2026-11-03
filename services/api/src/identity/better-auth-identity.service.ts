@@ -1,6 +1,7 @@
 import { createHmac } from "node:crypto";
 
 import { and, eq, gt } from "drizzle-orm";
+import { hashPassword } from "better-auth/crypto";
 
 import {
   AGE_GATE_VERSION,
@@ -29,10 +30,10 @@ import {
 
 import type { Database } from "../db/database.js";
 import { auditLogs, consentRecords, sessions, signupBlocks, users } from "../db/schema/index.js";
-import { isClientApiError } from "./api-error.js";
+import { asValidationFailure, isClientApiError } from "./api-error.js";
 import { activatePendingAccount } from "./account-activation.js";
 import type { IdentityAuth } from "./better-auth.js";
-import { appendAuditEntry } from "./audit-log.js";
+import { appendAuditEntry, type AuditEntry } from "./audit-log.js";
 import { runWithRequestId } from "./request-context.js";
 
 /** Version of the terms and privacy notice shown at registration (Proposed). */
@@ -129,7 +130,15 @@ export interface BetterAuthIdentityServiceOptions {
   database: Database;
   secret: string;
   now?: () => Date;
+  /**
+   * Test seam: the append-only writer. Production leaves it unset, so entries
+   * go to `appendAuditEntry`; a fault-injection test can fail one action.
+   */
+  auditWriter?: (database: Database, entry: AuditEntry) => Promise<void>;
 }
+
+/** Audit writes go through one seam so a test can fault-inject a single action. */
+type AuditWriter = (database: Database, entry: AuditEntry) => Promise<void>;
 
 /**
  * The only place identity operations touch the library. Every method returns
@@ -140,12 +149,18 @@ export class BetterAuthIdentityService implements IdentityService {
   private readonly database: Database;
   private readonly secret: string;
   private readonly now: () => Date;
+  private readonly auditWriter: AuditWriter;
 
-  constructor({ auth, database, secret, now }: BetterAuthIdentityServiceOptions) {
+  constructor({ auth, database, secret, now, auditWriter }: BetterAuthIdentityServiceOptions) {
     this.auth = auth;
     this.database = database;
     this.secret = secret;
     this.now = now ?? (() => new Date());
+    this.auditWriter = auditWriter ?? appendAuditEntry;
+  }
+
+  private writeAudit(entry: AuditEntry): Promise<void> {
+    return this.auditWriter(this.database, entry);
   }
 
   async register(input: RegisterAccountInput): Promise<RegisterAccountResult> {
@@ -183,6 +198,10 @@ export class BetterAuthIdentityService implements IdentityService {
       .where(eq(users.email, email))
       .limit(1);
     if (existing.length > 0) {
+      // Same password-hashing cost as the fresh path, which hashes inside
+      // `signUpEmail`; the result is discarded so the response and its timing do
+      // not reveal that the address already has an account (design D4).
+      await hashPassword(input.password);
       return { status: "VERIFICATION_SENT" };
     }
 
@@ -195,6 +214,10 @@ export class BetterAuthIdentityService implements IdentityService {
     } catch (error) {
       if (isDuplicateEmail(error)) {
         return { status: "VERIFICATION_SENT" };
+      }
+      const invalid = asValidationFailure(error);
+      if (invalid) {
+        throw invalid;
       }
       throw error;
     }
@@ -274,23 +297,29 @@ export class BetterAuthIdentityService implements IdentityService {
     let sessionToken: string;
     let sessionId: string | null;
     try {
-      const result = await this.auth.api.signInEmail({
-        body: { email: input.email.trim().toLowerCase(), password: input.password },
-      });
-      account = toAccount(result.user);
-      if (account.accountStatus === "DEACTIVATED") {
-        // The session hook resumed the account, but the library read the user
-        // before that write; report the post-transition state (D-36).
-        account = await this.requireAccount(account.id);
-      }
+      // The session hook activates or resumes the account through
+      // `currentRequestId()`, so the sign-in must carry the request context
+      // (design D5).
+      const result = await runWithRequestId(input.requestId, () =>
+        this.auth.api.signInEmail({
+          body: { email: input.email.trim().toLowerCase(), password: input.password },
+        }),
+      );
+      // Always read the account back: the hook may have moved it to `ACTIVE`
+      // after the library read the row, so `result.user` can be stale.
+      account = await this.requireAccount(result.user.id);
       sessionToken = result.token;
       sessionId = (await this.readSession(sessionToken))?.sessionId ?? null;
     } catch (error) {
       const refusal = statusRefusal(error);
       if (!refusal && !isInvalidCredentials(error)) {
+        const invalid = asValidationFailure(error);
+        if (invalid) {
+          throw invalid;
+        }
         throw error;
       }
-      await appendAuditEntry(this.database, {
+      await this.writeAudit({
         action: "SIGN_IN_FAILED",
         actorUserId: null,
         actorRole: "ANONYMOUS",
@@ -308,14 +337,31 @@ export class BetterAuthIdentityService implements IdentityService {
       throw new IdentityError("INVALID_CREDENTIALS", "invalid email or password");
     }
 
-    await appendAuditEntry(this.database, {
-      action: "SIGN_IN_SUCCEEDED",
-      actorUserId: account.id,
-      actorRole: "USER",
-      objectType: "sessions",
-      objectId: sessionId,
-      requestId: input.requestId,
-    });
+    try {
+      await this.writeAudit({
+        action: "SIGN_IN_SUCCEEDED",
+        actorUserId: account.id,
+        actorRole: "USER",
+        objectType: "sessions",
+        objectId: sessionId,
+        requestId: input.requestId,
+      });
+    } catch (auditError) {
+      // Fail closed: the library already created the session, so a response we
+      // cannot record must not leave a usable token behind (design D5).
+      try {
+        await this.auth.api.signOut({ headers: bearerHeaders(sessionToken) });
+      } catch (revokeError) {
+        console.error(
+          JSON.stringify({
+            event: "identity.sign_in_audit_revoke_failed",
+            request_id: input.requestId,
+            message: revokeError instanceof Error ? revokeError.message : "unknown error",
+          }),
+        );
+      }
+      throw auditError;
+    }
 
     return { sessionToken, account };
   }
@@ -323,7 +369,7 @@ export class BetterAuthIdentityService implements IdentityService {
   async signOut(input: SessionInput): Promise<void> {
     const session = await this.requireSession(input.sessionToken);
     await this.auth.api.signOut({ headers: bearerHeaders(input.sessionToken) });
-    await appendAuditEntry(this.database, {
+    await this.writeAudit({
       action: "SIGNED_OUT",
       actorUserId: session.account.id,
       actorRole: "USER",
@@ -336,7 +382,7 @@ export class BetterAuthIdentityService implements IdentityService {
   async signOutEverywhere(input: SessionInput): Promise<void> {
     const session = await this.requireSession(input.sessionToken);
     await this.auth.api.revokeSessions({ headers: bearerHeaders(input.sessionToken) });
-    await appendAuditEntry(this.database, {
+    await this.writeAudit({
       action: "SIGNED_OUT_EVERYWHERE",
       actorUserId: session.account.id,
       actorRole: "USER",
@@ -347,10 +393,18 @@ export class BetterAuthIdentityService implements IdentityService {
   }
 
   async requestPasswordReset(input: PasswordResetRequestInput): Promise<void> {
-    await this.auth.api.requestPasswordReset({
-      body: { email: input.email.trim().toLowerCase() },
-    });
-    await appendAuditEntry(this.database, {
+    try {
+      await this.auth.api.requestPasswordReset({
+        body: { email: input.email.trim().toLowerCase() },
+      });
+    } catch (error) {
+      const invalid = asValidationFailure(error);
+      if (invalid) {
+        throw invalid;
+      }
+      throw error;
+    }
+    await this.writeAudit({
       action: "PASSWORD_RESET_REQUESTED",
       actorUserId: null,
       actorRole: "ANONYMOUS",
