@@ -35,8 +35,8 @@
 
 ## 7. Planning documents
 
-- [ ] 7.1 Rename change #3 to `account-status-lifecycle` and set its status in `docs/mvp-build-plan.md` §5, refresh the "Current state" block in `docs/milestones-and-phases.md`, and update the status line in `README.md`. Verify no doc still names `age-gate-and-account-status`, and that the current-state block stays within 12 lines.
-- [ ] 7.2 Add decision-log rows for the activation trigger, the deactivation-reversal default, and the change rename with its narrowed scope; update `docs/architecture-decisions.md` only if the activation rule counts as architectural. Verify each new `D-xx` row is referenced from the documents it affects.
+- [ ] 7.1 Refresh the "Current state" block in `docs/milestones-and-phases.md` and the status line in `README.md` to match what shipped, and set the change #3 row in `docs/mvp-build-plan.md` §5 to `DONE` with the archive date. Verify the current-state block stays within 12 lines and that no live document names `age-gate-and-account-status` (the decision log keeps the old name inside D-33 and D-35 as history, which is intended).
+- [ ] 7.2 Add a decision-log row for the deactivation-reversal rule only if the owner changes it from the Proposed default, and update `docs/architecture-decisions.md` only if the session invariant counts as architectural. Verify each new `D-xx` row is referenced from the documents it affects.
 - [ ] 7.3 Re-read the propose-time edits this branch already carries — FR-AUTH-08 to FR-AUTH-10 in `docs/functional-requirements.md`, the `PENDING` value in `docs/glossary.md` §8, and the lifecycle diagram in `docs/auth-and-access-control.md` §13 — and confirm each matches what was actually built. Verify with a grep that the glossary enum equals `docs/data-model.md` §4.1 and that no requirement ID is claimed but unimplemented.
 
 ## 8. Integration verification and review gate

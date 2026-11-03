@@ -258,3 +258,11 @@ date: 2026-10-29
 - Reason: D-29 described the state before any application code existed and is stale.
 - Status: Decided
 - Affects: `README.md`, `system-architecture.md`
+
+### D-35: Account status activates on email verification
+- Date: 2026-11-03
+- Decision: Change #3 is renamed `account-status-lifecycle` (was `age-gate-and-account-status`), because the 18+ gate shipped in `identity-better-auth` and the remaining scope is the account-status lifecycle plus the blocked-signup policy. Activation happens on email verification: opening the verification link moves `PENDING` to `ACTIVE`, only an `ACTIVE` account can sign in, and the status is evaluated only after the password is accepted.
+- Reason: `PENDING` needs a reachable exit, otherwise every later capability gates on a value that is never true. Email verification is the only state an account can reach inside this change, it already exists as `email_verified`, and FR-AUTH-01 already uses verified/unverified as the permission boundary, so activation is a mechanical consequence of an existing rule rather than a new policy.
+- Status: Decided
+- Affects: `mvp-build-plan.md`, `milestones-and-phases.md`, `functional-requirements.md`, `auth-and-access-control.md`, `api-contracts.md`, `data-model.md`
+

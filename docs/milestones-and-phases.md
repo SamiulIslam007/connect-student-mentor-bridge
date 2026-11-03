@@ -18,8 +18,8 @@ sources: [README.md, connect-research-report.md (Sections 5, 6, 7, 9, 10)]
 | Phase | 1a — MVP build (about 8 sprints, 1 week each, 3 working days) |
 | Current sprint | **Sprint 1** - Identity core. The profile half of this sprint is carried by change #4 |
 | Last archived change | `identity-better-auth` (2026-11-03) - `DONE`: email/password auth, verification, 18+ gate, Postgres sessions, consent and audit rows, DB foundation, institution seed. Main specs created for 4 capabilities |
-| In flight | None |
-| Next change | `account-status-lifecycle` - account-status lifecycle (activation, suspension, self-deactivation) and the blocked-signup policy; the 18+ gate shipped inside `identity-better-auth` |
+| In flight | `account-status-lifecycle` - proposed 2026-11-03 on `feat/account-status-lifecycle`; awaiting review, not applied |
+| Next change | `profiles-and-dynamic-fields` (change #4) - student and mentor profiles, `fields` with normalized slug, availability |
 | Open blockers | None |
 
 ## 1. Purpose and scope
