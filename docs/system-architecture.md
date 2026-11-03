@@ -171,7 +171,7 @@ The API is one NestJS application organized into modules. A module owns its tabl
 | `profiles` | Student and mentor profiles, fields, availability, capacity settings | `student_profiles`, `mentor_profiles`, `fields`, `availability_windows`, `*_fields` | `MentorActivated` | `AffiliationVerified` |
 | `matching` | Discovery, rule-based suggestions, suggestion logging | `suggestion_logs` | | |
 | `requests` | Structured requests, decisions, redirects, expiry, capacity | `mentorship_requests`, `request_alternatives` | `RequestCreated`, `RequestDecided`, `RequestExpired` | |
-| `mentorships` | Mentorships, agreements, threads, sessions, private feedback | `mentorships`, `thread_messages`, `thread_read_states`, `sessions`, `private_feedback` | `MentorshipStarted`, `MessagePosted` | `RequestDecided` |
+| `mentorships` | Mentorships, agreements, threads, sessions, private feedback | `mentorships`, `thread_messages`, `thread_read_states`, `mentorship_sessions`, `private_feedback` | `MentorshipStarted`, `MessagePosted` | `RequestDecided` |
 | `outcomes` | Outcome state machine, evidence, third-party confirmation | `outcomes`, `outcome_events`, `verification_records`, `evidence_items`, `third_party_confirmations` | `OutcomeReported`, `OutcomeConfirmed`, `OutcomeCounted`, `OutcomeReversed` | |
 | `trust` | Disputes and audits, moderation, sanctions, break-glass access | `disputes`, `abuse_reports`, `account_sanctions` | `CaseOpened`, `CaseResolved` | `OutcomeDisputed` and others |
 | `reputation` | Ledger, snapshots, response reliability | `reputation_events`, `field_impact_snapshots` | | Called by `outcomes` (section 5.3) |
@@ -371,8 +371,8 @@ Core Phase 1 endpoints are listed in the research report (about 12 groups) and d
 
 - **`IdentityService` interface** hides the vendor. Domain code depends on the interface, never on the library.
 - **Phase 1:** an embedded TypeScript auth library, **better-auth**, mounted in the API behind the `IdentityService` interface (ADR-003, **Approved**). Keycloak, WorkOS, or Auth0 are the fallback only if SAML is ever needed.
-- Credentials, sessions, and MFA secrets live in a **separate database schema owned by the library**. `users.identity_subject` links to it and is **hard to change**, so the ADR must settle it before the first migration.
-- Tokens follow OIDC conventions so any future identity provider is a configuration change: access tokens about 15 minutes, rotating refresh tokens, httpOnly Secure cookies on web (NFR-SEC-03).
+- Credentials, sessions, and verification tokens live in **library-native tables** (`users`, `sessions`, `accounts`, `verifications`) in the application schema, owned by the library and behind `IdentityService`. `users.id` is the opaque subject; there is no separate `identity_subject` column.
+- Sessions are Postgres-backed cookie sessions (30-day lifetime, refreshed at most daily) validated by the API on every request. The earlier 15-minute access token plus rotating refresh token design is not used (D-31); httpOnly, SameSite=Lax cookies and session-row revocation provide the same guarantees (NFR-SEC-03).
 - Login methods: email plus password with verification and forgot-password, and Google. Facebook and LinkedIn are **Later**. Microsoft is **not supported**; phone OTP is **not in the MVP**.
 - **MFA** (TOTP first) is required for Mentors, Institution Admins, and Platform Admins.
 - **18+ enforcement** happens at sign-up (FR-AUTH-03); the date of birth is not stored.
@@ -608,7 +608,7 @@ The ADR log lives in `architecture-decisions.md`. All entries are **Proposed** u
 | # | Decision | Needed by |
 |---|---|---|
 | 1 | Hosting provider and region (README #14) | After the MVP is ready; **not** a Gate 0 blocker |
-| 2 | Identity provider confirmation and `identity_subject` strategy (README #8, ADR-003) | **Decided:** better-auth; only the subject strategy is settled in Sprint 0 |
+| 2 | Identity provider confirmation and the subject strategy (README #8, ADR-003) | **Decided:** better-auth; `users.id` is the subject (no `identity_subject`), implemented 2026-11-03 |
 | 3 | ORM confirmation (ADR-018, superseding ADR-002) | **Decided:** Drizzle ORM with `drizzle-kit` |
 | 4 | Job library (ADR candidate) | **Decided, provisional:** pg-boss |
 | 5 | Email provider | Before pilot |

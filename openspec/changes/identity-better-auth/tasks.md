@@ -36,11 +36,11 @@
 
 ## 7. Contracts and documentation
 
-- [ ] 7.1 Add the auth paths to `packages/contracts/openapi.yaml` and `docs/api-contracts.md` (register, verify, sign-in, sign-out, forgot/reset, sign-out-everywhere) with the documented error codes; verify every implemented route appears in the OpenAPI document and `pnpm typecheck` passes.
-- [ ] 7.2 Update `docs/data-model.md`: auth tables as library-native (`users` with `email_verified`, `sessions`, `accounts`, `verifications`), rename the mentorship table to `mentorship_sessions`, drop `email_verified_at` and `identity_subject`, and add `signup_blocks`/`consent_records`/`audit_logs` details; verify by grep that no doc still names the old `sessions` mentorship table or `identity_subject`.
-- [ ] 7.3 Update `docs/mvp-build-plan.md` §5: add a `Status` column, narrow change #2's description to this scope, mark #1 `DONE` and #2 `IN PROGRESS` with a legend line; verify the table renders with 10 rows and every row has a status value.
-- [ ] 7.4 Add the "Current state" block to the top of `docs/milestones-and-phases.md` (current sprint, last archived change, next change, blockers, date), and update `README.md`'s status line; verify the block is at most 12 lines and `README.md` matches the block's stated position.
-- [ ] 7.5 Update `docs/local-setup.md` with the migration command and the two new environment variable names, and add the decision-log rows for the scope split (deferred Google/MFA/sessions) and the migration ownership; verify the documented command runs as written.
+- [x] 7.1 Add the auth paths to `packages/contracts/openapi.yaml` and `docs/api-contracts.md` (register, verify, sign-in, sign-out, forgot/reset, sign-out-everywhere) with the documented error codes; verify every implemented route appears in the OpenAPI document and `pnpm typecheck` passes.
+- [x] 7.2 Update `docs/data-model.md`: auth tables as library-native (`users` with `email_verified`, `sessions`, `accounts`, `verifications`), rename the mentorship table to `mentorship_sessions`, drop `email_verified_at` and `identity_subject`, and add `signup_blocks`/`consent_records`/`audit_logs` details; verify by grep that no doc still names the old `sessions` mentorship table or `identity_subject`.
+- [x] 7.3 Update `docs/mvp-build-plan.md` §5: add a `Status` column, narrow change #2's description to this scope, mark #1 `DONE` and #2 `IN PROGRESS` with a legend line; verify the table renders with 10 rows and every row has a status value.
+- [x] 7.4 Add the "Current state" block to the top of `docs/milestones-and-phases.md` (current sprint, last archived change, next change, blockers, date), and update `README.md`'s status line; verify the block is at most 12 lines and `README.md` matches the block's stated position.
+- [x] 7.5 Update `docs/local-setup.md` with the migration command and the two new environment variable names, and add the decision-log rows for the scope split (deferred Google/MFA/sessions) and the migration ownership; verify the documented command runs as written.
 
 ## 8. Integration verification and review gate
 

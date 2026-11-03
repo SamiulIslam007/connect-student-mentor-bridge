@@ -5,10 +5,10 @@
 
 | | |
 |---|---|
-| **Status** | **MVP baseline approved (owner decision, 2026-10-29).** Sprint 0 platform baseline implemented: pnpm monorepo, containerized local stack, operational endpoints, CI gates. No product capability or deployment yet |
+| **Status** | **Sprint 1 identity implemented (applied 2026-11-03, not archived).** Sprint 0 baseline plus email/password auth, verification, the 18+ gate, Postgres sessions, consent and audit rows, the database foundation, and the institution seed. Google sign-in, MFA, and the session list move to the Sprint 2 change `access-google-mfa-and-sessions`. No deployment yet |
 | **Document role** | **Master README, the main source of truth** for the connect project |
 | **Audience** | Builder, future engineers, designers, advisors, pilot institutions, AI coding agents |
-| **Last reviewed** | 2026-10-29 |
+| **Last reviewed** | 2026-11-03 |
 
 ---
 
@@ -474,7 +474,7 @@ erDiagram
   MENTOR_PROFILE ||--o{ MENTORSHIP_REQUEST : receives
   MENTORSHIP_REQUEST ||--o| MENTORSHIP : becomes
   MENTORSHIP ||--o{ THREAD_MESSAGE : contains
-  MENTORSHIP ||--o{ SESSION : includes
+  MENTORSHIP ||--o{ MENTORSHIP_SESSION : includes
   MENTORSHIP ||--o{ OUTCOME : produces
   OUTCOME ||--o{ OUTCOME_EVENT : logs
   OUTCOME ||--o{ VERIFICATION_RECORD : attested_by
@@ -482,7 +482,7 @@ erDiagram
   MENTOR_PROFILE ||--o{ FIELD_IMPACT_SNAPSHOT : summarized_in
 ```
 
-Core entities: `User`, `StudentProfile`, `MentorProfile`, `Institution`, `Field`, `MentorshipRequest`, `Mentorship`, `Session`, `Outcome`, `OutcomeEvent`, `VerificationRecord`, `ReputationEvent`, `FieldImpactSnapshot`, `AvailabilityWindow`. Relationship details are **proposed design decisions**.
+Core entities: `User`, `StudentProfile`, `MentorProfile`, `Institution`, `Field`, `MentorshipRequest`, `Mentorship`, `MentorshipSession`, `Outcome`, `OutcomeEvent`, `VerificationRecord`, `ReputationEvent`, `FieldImpactSnapshot`, `AvailabilityWindow`. Relationship details are **proposed design decisions**. Auth tables (`users`, `sessions`, `accounts`, `verifications`) are library-native better-auth tables; `mentorship_sessions` is the mentorship meeting table.
 
 ### 10.3 No Redis
 
@@ -763,7 +763,9 @@ None of the following is policy. Each must be resolved, recorded in `docs/decisi
 
 The **Sprint 0 platform baseline** is implemented: a pnpm workspace (`apps/web`, `services/api`, `packages/{domain,contracts,config}`), a containerized local stack started with one Compose command, the unversioned operational endpoints `GET /healthz` and `GET /readyz`, and GitHub Actions gates for lint, type-check, tests, build, image build, dependency scan, image scan, and secret scan.
 
-**Not built yet:** product capability (auth, profiles, matching, requests, outcomes, reputation, notifications, admin), the Drizzle schema and `drizzle-kit` migrations, pg-boss queues, the email adapter, malware-scan integration, and any deployment, staging, or production environment.
+The **Sprint 1 identity change** (`identity-better-auth`) is implemented and awaiting archive: better-auth behind `IdentityService`, email/password registration, email verification, the 18+ gate, Postgres-backed sessions, sign-in/out and sign-out-everywhere, password reset, append-only consent and audit rows, the Drizzle schema with the baseline migration and append-only grants, the institution seed, and the `apps/web` auth routes and pages. Test evidence and the exact scope live in `openspec/changes/identity-better-auth/` and `docs/milestones-and-phases.md`.
+
+**Not built yet:** Google sign-in, MFA, the session list and per-session revoke (Sprint 2); profiles, matching, requests, outcomes, reputation, notifications, admin; pg-boss queues; malware-scan integration; and any deployment, staging, or production environment.
 
 Local setup: [`docs/local-setup.md`](docs/local-setup.md). The MVP build plan, the sprint sequence, and the first ten OpenSpec change proposals live in [`docs/mvp-build-plan.md`](docs/mvp-build-plan.md). Rules for AI coding agents live in [`AGENTS.md`](AGENTS.md). Decisions taken on 2026-10-29 are recorded in [`docs/decision-log.md`](docs/decision-log.md).
 

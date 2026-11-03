@@ -70,8 +70,35 @@ These are the same commands CI runs. When running the API on the host, point
 `DATABASE_URL` at the published database (`localhost:55432`), not the Compose
 service name.
 
-## Data and reset
+## Database migrations and reference data
 
+The schema is Drizzle TypeScript in `services/api/src/db/schema/`. Generated SQL lives in `services/api/drizzle/` and is applied forward-only; never edit an applied migration. Both commands read `DATABASE_URL` from the environment or the repository-root `.env`.
+
+```bash
+pnpm --filter api db:migrate   # apply pending migrations
+pnpm --filter api db:seed      # idempotent institution and domain reference data
+```
+
+When they run on the host, `DATABASE_URL` must point at the published port (`localhost:55432`); inside a container, Compose builds the `postgres:5432` URL. Migrations are owned by the owner/script and are never applied through the read-only `postgresql` MCP.
+
+Integration tests use a separate `connect_test` database. Create it once:
+
+```bash
+docker compose exec postgres psql -U connect -d postgres -c "CREATE DATABASE connect_test"
+```
+
+Replace `connect` with `POSTGRES_USER` if it differs. The tests reset the `connect_test` schema on every run, print a skip reason when the database is unreachable (the CI case), and never touch the development database.
+
+## Auth configuration
+
+| Variable | Purpose |
+|---|---|
+| `BETTER_AUTH_SECRET` | Session signing and the keyed hash in `signup_blocks`. Generate a local value with `openssl rand -base64 32`; at least 32 characters. Never commit it |
+| `BETTER_AUTH_URL` | Public application origin used in verification and reset links (`http://localhost:3000` locally) |
+
+`BETTER_AUTH_SECRET` has no default: the API refuses to start when it is missing or shorter than 32 characters. Verification links point at `apps/web/api/auth/verify`, and reset links at the `/reset` page.
+
+## Data and reset
 `pgdata`, `objectstoredata`, `mailpitdata`, and `clamavdata` are named volumes,
 so data survives `docker compose down` and `up`. To start from empty:
 

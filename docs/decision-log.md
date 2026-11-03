@@ -1,4 +1,4 @@
-﻿---
+---
 title: Decision Log
 status: Approved (MVP baseline, owner decision)
 owner: Owner / CTO
@@ -228,3 +228,33 @@ date: 2026-10-29
 - Reason: Closer to raw SQL and more control over constraints, indexes, triggers, and grants; a better fit for learning and for the append-only ledger and state-machine schema. No schema or migration had been written, so nothing had to be migrated.
 - Status: Decided
 - Affects: `architecture-decisions.md`, `system-architecture.md`, `milestones-and-phases.md`, `production-requirements.md`, `README.md`, `AGENTS.md`
+
+## Entries (2026-11-03)
+
+### D-31: Session model is better-auth's cookie session
+- Date: 2026-11-03
+- Decision: Identity uses better-auth's Postgres-backed cookie session behind `IdentityService`: 30-day lifetime, `updateAge` 1 day, no `cookieCache`, httpOnly SameSite=Lax cookie held by the Next.js BFF. The earlier 15-minute access token plus rotating refresh token design is not used. Admin idle timeouts (30 minutes / 8 hours) are deferred to the Sprint 2 change `access-google-mfa-and-sessions` with MFA. SEC-AUTH-5's refresh-token-reuse rule maps to session-row revocation.
+- Reason: The library's session model is simpler and still server-authoritative; nothing is deployed and no token design had been implemented.
+- Status: Decided
+- Affects: `auth-and-access-control.md`, `system-architecture.md`, `api-contracts.md`, `data-model.md`
+
+### D-32: Migration ownership and workflow
+- Date: 2026-11-03
+- Decision: Drizzle schema is committed TypeScript; `drizzle-kit generate` produces committed SQL under `services/api/drizzle/`, and `drizzle-kit migrate` applies it (owner-approved for local and test databases in this change). Migrations are forward-only. The `postgresql` MCP stays read-only and never applies DDL. The append-only grants create the `connect_app` role; local development connects as the database owner, so the tests assert the grants with `SET ROLE connect_app`.
+- Reason: One predictable path from schema change to migration, with the ledger guarantees enforced in the database.
+- Status: Decided
+- Affects: `local-setup.md`, `data-model.md`, `architecture-decisions.md`
+
+### D-33: Identity scope split
+- Date: 2026-11-03
+- Decision: `identity-better-auth` (Sprint 1) covers email/password registration, verification, sign-in, sign-out, sign-out-everywhere, password reset, the Postgres session store, the 18+ gate, consent rows, audit rows, the database foundation, and the institution seed. Google sign-in, MFA, the session list and per-session revoke, role-based authorization, and provider account linking move to the Sprint 2 change `access-google-mfa-and-sessions`. `age-gate-and-account-status` narrows to the account-status lifecycle; the 18+ gate ships here.
+- Reason: `mvp-build-plan.md` and `milestones-and-phases.md` disagreed about Sprint 1 scope; one reference removes the contradiction and keeps Sprint 1 reviewable.
+- Status: Decided
+- Affects: `mvp-build-plan.md`, `milestones-and-phases.md`, `api-contracts.md`, `functional-requirements.md`
+
+### D-34: Repository content supersedes D-29
+- Date: 2026-11-03
+- Decision: The repository is no longer documentation only (supersedes D-29). It contains the Sprint 0 platform baseline and the Sprint 1 identity code: pnpm workspace, Compose stack, database schema and migration, and the auth API and web routes.
+- Reason: D-29 described the state before any application code existed and is stale.
+- Status: Decided
+- Affects: `README.md`, `system-architecture.md`
