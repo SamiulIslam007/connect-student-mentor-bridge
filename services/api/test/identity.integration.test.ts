@@ -11,6 +11,8 @@ import { BetterAuthIdentityService } from "../src/identity/better-auth-identity.
 import { AuthController } from "../src/identity/auth.controller.js";
 import { IDENTITY_SERVICE } from "../src/identity/identity.tokens.js";
 import { MeController } from "../src/me/me.controller.js";
+import { DrizzleProfilesService } from "../src/profiles/drizzle-profiles.service.js";
+import { PROFILES_SERVICE } from "../src/profiles/profiles.tokens.js";
 import { createDatabaseConnection, type DatabaseConnection } from "../src/db/database.js";
 import type { EmailMessage, EmailSender } from "../src/email/email-sender.js";
 import { ProblemDetailsFilter } from "../src/http/problem-details.filter.js";
@@ -77,7 +79,10 @@ before(async () => {
 
   @Module({
     controllers: [AuthController, MeController],
-    providers: [{ provide: IDENTITY_SERVICE, useValue: service }],
+    providers: [
+      { provide: IDENTITY_SERVICE, useValue: service },
+      { provide: PROFILES_SERVICE, useValue: new DrizzleProfilesService(connection.db) },
+    ],
   })
   class IdentityTestModule implements NestModule {
     configure(consumer: MiddlewareConsumer): void {
@@ -682,7 +687,7 @@ test("activation never revives a suspended account", async (context) => {
   assert.equal(after.rows[0].status, "SUSPENDED");
 });
 
-test("GET /v1/me returns the account record only and nothing for another user", async (context) => {
+test("GET /v1/me returns the account record and the caller's own (null) profiles", async (context) => {
   const stack = requireStack(context);
   if (!stack) {
     return;
@@ -704,17 +709,27 @@ test("GET /v1/me returns the account record only and nothing for another user", 
     "email",
     "email_verified",
     "id",
+    "mentor_profile",
+    "student_profile",
     "timezone",
   ]);
   assert.equal(body.email, "me@example.com");
   assert.equal(body.email_verified, true);
   assert.equal(body.account_status, "active");
   assert.equal(body.timezone, "Asia/Dhaka");
+  assert.equal(body.student_profile, null, "no profile exists until one is saved");
+  assert.equal(body.mentor_profile, null, "no profile exists until one is saved");
+  // The sign-in response is unchanged: `AccountSummary` gained no properties.
+  const signInAccount = signedIn.body?.account as Record<string, unknown>;
+  assert.deepEqual(Object.keys(signInAccount).sort(), [
+    "account_status",
+    "display_name",
+    "email",
+    "email_verified",
+    "id",
+    "timezone",
+  ]);
   assert.ok(!response.text.includes("other@example.com"), "no other user's data");
-  // No profile fields: the account record is the whole response.
-  for (const field of ["goals", "field", "availability", "capacity", "roles"]) {
-    assert.equal(body[field], undefined, `${field} is not part of the account record`);
-  }
   assert.equal((await client.query("SELECT id FROM users")).rowCount, 2);
 });
 

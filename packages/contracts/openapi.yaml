@@ -204,21 +204,107 @@ paths:
   /v1/me:
     get:
       operationId: getCurrentAccount
-      summary: The signed-in account's own record
+      summary: The signed-in account's own record and profiles
       description: >-
-        Returns the account record only: id, display name, email, verification
-        state, account status, and timezone. Profile data is not part of this
-        response. The account is taken from the session token, never from a
-        request parameter.
+        Returns the account record (id, display name, email, verification state,
+        account status, timezone) plus the caller's own `student_profile` and
+        `mentor_profile`, which are null until the owner saves one. The sign-in
+        response keeps the narrower AccountSummary shape. The account is taken
+        from the session token, never from a request parameter.
       security:
         - bearerAuth: []
       responses:
         "200":
-          description: The signed-in account
+          description: The signed-in account and its own profiles
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AccountSummary"
+                $ref: "#/components/schemas/MeResponse"
+        "401":
+          $ref: "#/components/responses/Problem"
+  /v1/me/student-profile:
+    put:
+      operationId: saveStudentProfile
+      summary: Create or fully replace the caller's student profile
+      description: >-
+        Full replace: interest fields absent from the submission are removed.
+        Field names are the input; an unknown name creates one field inside the
+        same transaction. The user comes from the session only, and account-level
+        properties in the body (including `account_status`) are ignored. Last
+        write wins: there is no If-Match and no version column (D-39).
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StudentProfileRequest"
+      responses:
+        "200":
+          description: The saved student profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentProfile"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+  /v1/me/mentor-profile:
+    put:
+      operationId: saveMentorProfile
+      summary: Create or fully replace the caller's mentor profile
+      description: >-
+        Full replace: additional fields absent from the submission are removed.
+        The primary field is separate from the additional fields. Weekly capacity
+        is an integer from 1 to 5 in this change (a Proposed default, D-38).
+        Account-level properties in the body are ignored. Last write wins (D-39).
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MentorProfileRequest"
+      responses:
+        "200":
+          description: The saved mentor profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MentorProfile"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+  /v1/fields:
+    get:
+      operationId: listFields
+      summary: List the active field taxonomy
+      description: >-
+        Active fields only, sorted by display name, each as an id and a display
+        name. The list is created by profile saves, never seeded, and is
+        unpaginated at pilot scale (pagination is Phase 1b if the list grows).
+        A retired field is omitted here while existing profile references to it
+        stay readable.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The active field taxonomy
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [fields]
+                properties:
+                  fields:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/FieldSummary"
         "401":
           $ref: "#/components/responses/Problem"
   /v1/me/deactivate:
@@ -366,6 +452,164 @@ components:
           $ref: "#/components/schemas/AccountStatus"
         timezone:
           type: string
+    MeResponse:
+      type: object
+      additionalProperties: false
+      description: >-
+        The signed-in account plus its own profiles. Declared standalone rather
+        than composed from AccountSummary, because AccountSummary declares
+        additionalProperties false and is shared with the sign-in response.
+      required: [id, display_name, email, email_verified, account_status, timezone, student_profile, mentor_profile]
+      properties:
+        id:
+          type: string
+        display_name:
+          type: string
+        email:
+          type: string
+          format: email
+        email_verified:
+          type: boolean
+        account_status:
+          $ref: "#/components/schemas/AccountStatus"
+        timezone:
+          type: string
+        student_profile:
+          description: Null until the owner saves a student profile.
+          anyOf:
+            - $ref: "#/components/schemas/StudentProfile"
+            - type: "null"
+        mentor_profile:
+          description: Null until the owner saves a mentor profile.
+          anyOf:
+            - $ref: "#/components/schemas/MentorProfile"
+            - type: "null"
+    FieldSummary:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+          description: The first submitted display name for this field's normalized slug.
+    StudentProfile:
+      type: object
+      additionalProperties: false
+      required: [goals, primary_field, interest_fields, languages]
+      properties:
+        goals:
+          type: string
+        primary_field:
+          $ref: "#/components/schemas/FieldSummary"
+        interest_fields:
+          type: array
+          items:
+            $ref: "#/components/schemas/FieldSummary"
+        languages:
+          type: array
+          items:
+            type: string
+            description: >-
+              Mentoring language, lowercased. The code format is not validated in
+              this change.
+    MentorProfile:
+      type: object
+      additionalProperties: false
+      required: [headline, bio, expertise_summary, scope_statement, primary_field, fields, languages, weekly_capacity]
+      properties:
+        headline:
+          type: string
+        bio:
+          type: string
+        expertise_summary:
+          type: string
+        scope_statement:
+          type: string
+        primary_field:
+          $ref: "#/components/schemas/FieldSummary"
+        fields:
+          type: array
+          items:
+            $ref: "#/components/schemas/FieldSummary"
+        languages:
+          type: array
+          items:
+            type: string
+        weekly_capacity:
+          type: integer
+          minimum: 1
+          maximum: 5
+    StudentProfileRequest:
+      type: object
+      additionalProperties: false
+      required: [goals, primary_field]
+      properties:
+        goals:
+          type: string
+          minLength: 1
+        primary_field:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: A display name; an unknown name creates the field on save.
+        interest_fields:
+          type: array
+          maxItems: 2
+          items:
+            type: string
+            minLength: 1
+            maxLength: 100
+        languages:
+          type: array
+          items:
+            type: string
+        account_status:
+          type: string
+          description: >-
+            Accepted and ignored. The account status is never assigned through a
+            profile save (spec profiles/profile-bootstrap).
+    MentorProfileRequest:
+      type: object
+      additionalProperties: false
+      required: [headline, bio, expertise_summary, scope_statement, primary_field, weekly_capacity]
+      properties:
+        headline:
+          type: string
+          minLength: 1
+        bio:
+          type: string
+          minLength: 1
+        expertise_summary:
+          type: string
+          minLength: 1
+        scope_statement:
+          type: string
+          minLength: 1
+        primary_field:
+          type: string
+          minLength: 1
+          maxLength: 100
+        fields:
+          type: array
+          description: Additional fields; the primary field is submitted separately.
+          items:
+            type: string
+            minLength: 1
+            maxLength: 100
+        languages:
+          type: array
+          items:
+            type: string
+        weekly_capacity:
+          type: integer
+          minimum: 1
+          maximum: 5
+          description: Proposed default maximum 5 (D-38); Sprint 7 moves it to configuration.
+        account_status:
+          type: string
+          description: Accepted and ignored, as on the student profile save.
     Problem:
       type: object
       additionalProperties: true

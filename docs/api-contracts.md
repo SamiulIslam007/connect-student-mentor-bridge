@@ -35,7 +35,7 @@ sources: README.md (sections 5, 7, 9, 14); connect-research-report.md (Doc 7, Do
 | `Idempotency-Key` | Request | Required on every retryable `POST` (section 3) |
 | `RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset` | Response | Current limit window |
 | `Retry-After` | Response | Seconds to wait on `429` and `503` |
-| `ETag` / `If-Match` | Response / Request | Optimistic concurrency on editable resources (profiles) |
+| `ETag` / `If-Match` | Response / Request | Optimistic concurrency for a future multi-writer resource. **Not used by the profile saves**, which are last write wins (D-39) |
 
 ### 1.2 Pagination
 
@@ -87,7 +87,7 @@ Content type `application/problem+json`. Every error has the same shape:
 | `403` | Authenticated but not allowed, where the object's existence is already known |
 | `404` | Not found, **or not visible to the caller** (avoids leaking which IDs exist) |
 | `409` | State conflict (the state machine does not allow the action now) or idempotency key reuse with a different body |
-| `412` | `If-Match` failed (stale edit) |
+| `412` | `If-Match` failed (stale edit). No endpoint emits it yet; profile saves are last write wins (D-39) |
 | `422` | Validation failed |
 | `429` | Rate limit exceeded |
 | `5xx` | Server fault. Never used for client mistakes |
@@ -213,17 +213,48 @@ Roles: **S** Student, **M** Mentor, **IA** Institution Admin, **PA** Platform Ad
 
 | Method and path | Roles | Idem | Purpose | Success |
 |---|---|---|---|---|
-| `GET /v1/me` | all | no | The signed-in account record only: id, display name, email, verification state, `account_status`, timezone. No profile fields | `200` |
-| `PUT /v1/me/student-profile` | S | no (uses `If-Match`) | Goals, field, availability | `200` |
-| `PUT /v1/me/mentor-profile` | M | no (uses `If-Match`) | Fields, scope, weekly capacity cap, availability | `200` |
-| `POST /v1/me/mentor-profile/pause` | M | yes | Set access mode to `PAUSED` (hidden from discovery, no new requests) | `200` |
-| `POST /v1/me/mentor-profile/resume` | M | yes | Clear `PAUSED`, subject to capacity | `200` |
+| `GET /v1/me` | all | no | The signed-in account record (id, display name, email, verification state, `account_status`, timezone) plus the caller's own `student_profile` and `mentor_profile`, each nullable. The sign-in response keeps the narrower `AccountSummary` shape | `200` |
+| `PUT /v1/me/student-profile` | S | no (last write wins, D-39) | Create or fully replace the caller's student profile: goals, primary field, up to two interest fields, mentoring languages | `200` |
+| `PUT /v1/me/mentor-profile` | M | no (last write wins, D-39) | Create or fully replace the caller's mentor profile: headline, bio, expertise summary, scope statement, primary field, additional fields, languages, weekly capacity | `200` |
+| `POST /v1/me/mentor-profile/pause` | M | yes | Set access mode to `PAUSED` (hidden from discovery, no new requests). **Not built yet** (`profile-availability-and-access-mode`) | `200` |
+| `POST /v1/me/mentor-profile/resume` | M | yes | Clear `PAUSED`, subject to capacity. **Not built yet** | `200` |
 | `POST /v1/me/deactivate` | all | yes | Deactivate the account (`account_status = deactivated`); sessions revoked | `200` |
-| `GET /v1/me/consents` | all | no | Current consents | `200` |
-| `PUT /v1/me/consents/{purpose}` | all | yes | Give or withdraw one consent. Appends a ledger record | `200` |
-| `GET /v1/me/sessions` and `DELETE /v1/me/sessions/{id}` | all | no | List and revoke own sessions | `200`, `204` |
+| `GET /v1/me/consents` | all | no | Current consents. **Not built yet** | `200` |
+| `PUT /v1/me/consents/{purpose}` | all | yes | Give or withdraw one consent. Appends a ledger record. **Not built yet** | `200` |
+| `GET /v1/me/sessions` and `DELETE /v1/me/sessions/{id}` | all | no | List and revoke own sessions. **Not built yet** | `200`, `204` |
 
-`PUT /v1/me/mentor-profile` rejects a capacity cap below the number of active mentorships with code `CAPACITY_BELOW_ACTIVE`.
+**Profile saves (`200`, `401`, `422`).** Both `PUT` bodies use snake_case and `additionalProperties: false` in `openapi.yaml`:
+
+```json
+// PUT /v1/me/student-profile
+{
+  "goals": "Become a backend engineer",
+  "primary_field": "Data science",
+  "interest_fields": ["AI"],
+  "languages": ["en"]
+}
+
+// PUT /v1/me/mentor-profile
+{
+  "headline": "Backend engineer at a payments company",
+  "bio": "Eight years building APIs.",
+  "expertise_summary": "API design, databases",
+  "scope_statement": "I can review design docs, not write production code for you.",
+  "primary_field": "Software engineering",
+  "fields": ["Databases"],
+  "languages": ["en"],
+  "weekly_capacity": 2
+}
+```
+
+- Both saves are **full replaces**: interest or additional fields absent from the submission are removed.
+- `primary_field`, `fields`, and `interest_fields` carry **display names, not ids**. An unknown name creates exactly one field inside the same transaction; there is no `POST /v1/fields`.
+- `weekly_capacity` is an integer from 1 to 5 in this change (a **Proposed default**, D-38). `0`, `6`, `2.5`, and `"3"` are refused.
+- `200` returns the saved profile. `401 UNAUTHENTICATED` when the session is absent or revoked. `422 VALIDATION_FAILED` for any invalid value, with nothing written (no profile, no join row, no new field).
+- `account_status`, `display_name`, `email`, and any other account-level property in the body are **accepted and ignored**, never applied to the account. Strict unknown-key rejection is a pre-existing API-wide gap (`SEC-API-1`), not added here.
+- There is no `If-Match`, no `ETag`, and no version column: one owner edits one profile from one browser (D-39).
+
+`PUT /v1/me/mentor-profile` rejects a capacity cap below the number of active mentorships with code `CAPACITY_BELOW_ACTIVE`. **That check belongs to change #7** and does not ship with this version of the endpoint.
 
 ### 5.2 Affiliation
 
@@ -241,7 +272,7 @@ Roles: **S** Student, **M** Mentor, **IA** Institution Admin, **PA** Platform Ad
 | `GET /v1/mentors?field=&language=&access_state=&cursor=&limit=` | S | Mentor discovery with rule-based suggestions and a plain-language reason. Full mentors appear with the request action disabled; paused mentors are hidden. Sort by suggestion rank, ties broken by mentor ID for stable pages |
 | `GET /v1/mentors/{id}` | all | Public profile |
 | `GET /v1/mentors/{id}/impact` | all | Counted outcomes by field and difficulty, response reliability, confidence tier. Only **counted** outcomes appear |
-| `GET /v1/fields` | all | Field taxonomy |
+| `GET /v1/fields` | all | Field taxonomy: active fields only, sorted by display name, each as `{ id, name }`, unpaginated at pilot scale. **Ships with `profiles-and-dynamic-fields`**; the list is created by profile saves and is never seeded |
 
 The Match Score is a **sort aid, never a predictor of success** (README 5.2). The response exposes `reasons` as text and never exposes sensitive attributes.
 

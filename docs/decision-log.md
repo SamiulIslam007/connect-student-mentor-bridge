@@ -280,3 +280,17 @@ date: 2026-10-29
 - Status: Decided (owner confirmation during the `account-status-lifecycle` apply)
 - Affects: `data-model.md`, `openspec/changes/account-status-lifecycle/design.md`
 
+### D-38: Mentor weekly capacity maximum is 5
+- Date: 2026-11-03
+- Decision: A mentor's `weekly_capacity` is an integer from 1 to 5. The maximum is the domain constant `MENTOR_WEEKLY_CAPACITY_MAX = 5`, encoded as a **Proposed default** and not in DDL: the database checks only `weekly_capacity >= 1`. Sprint 7 replaces the constant with versioned configuration (`config_versions`).
+- Reason: The upper bound is product policy, not data integrity, so encoding 5 in the schema would need a migration to change a number. One named constant is the smallest truthful representation until versioned configuration exists.
+- Status: Decided (owner confirmation of design D7 during the `profiles-and-dynamic-fields` apply)
+- Affects: `openspec/changes/profiles-and-dynamic-fields/design.md`, `data-model.md`, `api-contracts.md`, `functional-requirements.md`
+
+### D-39: Profile saves use last write wins, not `If-Match`
+- Date: 2026-11-03
+- Decision: `PUT /v1/me/student-profile` and `PUT /v1/me/mentor-profile` are last-write-wins self-service saves. There is no `If-Match` header, no `ETag`, and no version column.
+- Reason: Each profile has exactly one owner and is edited from one browser session, so there is no second writer to lose an update against. Optimistic concurrency would add contract surface and client behavior for no user-visible benefit; capacity overshoot is guarded later by the requests-and-capacity row lock, not by profile versions.
+- Status: Decided (owner confirmation of design D8 during the `profiles-and-dynamic-fields` apply)
+- Affects: `openspec/changes/profiles-and-dynamic-fields/design.md`, `api-contracts.md`, `data-model.md`
+
