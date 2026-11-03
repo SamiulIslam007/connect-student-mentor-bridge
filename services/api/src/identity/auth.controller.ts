@@ -2,6 +2,7 @@ import { Body, Controller, Get, HttpCode, Inject, Post, Query, Req } from "@nest
 
 import { IdentityError, type IdentityService } from "@connect/domain";
 
+import { bearerToken } from "../http/bearer.js";
 import type { RequestWithId } from "../http/request-id.middleware.js";
 import { IDENTITY_SERVICE } from "./identity.tokens.js";
 
@@ -30,15 +31,6 @@ function emailField(body: unknown): string {
     throw new IdentityError("VALIDATION_ERROR", "email must be a valid email address");
   }
   return value;
-}
-
-function bearerToken(request: RequestWithId): string {
-  const header = request.headers.authorization ?? "";
-  const match = /^Bearer\s+(.+)$/.exec(header);
-  if (!match || match[1].trim().length === 0) {
-    throw new IdentityError("SESSION_INVALID", "a bearer session token is required");
-  }
-  return match[1].trim();
 }
 
 /**
@@ -91,6 +83,9 @@ export class AuthController {
         display_name: result.account.displayName,
         email: result.account.email,
         email_verified: result.account.emailVerified,
+        // The client never has to guess the status (spec: "Sign-in reports the status").
+        account_status: result.account.accountStatus.toLowerCase(),
+        timezone: result.account.timezone,
       },
     };
   }

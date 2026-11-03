@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 
-import { eq } from "drizzle-orm";
+import { and, eq, gt } from "drizzle-orm";
 
 import {
   AGE_GATE_VERSION,
@@ -11,6 +11,9 @@ import {
   passwordPolicyViolation,
   type AccountStatus,
   type AccountSummary,
+  type ActivateAccountInput,
+  type DeactivateAccountInput,
+  type IdentityErrorCode,
   type IdentityService,
   type PasswordResetInput,
   type PasswordResetRequestInput,
@@ -20,12 +23,14 @@ import {
   type SessionLookupInput,
   type SignInInput,
   type SignInResult,
+  type SuspendAccountInput,
   type VerifyEmailInput,
 } from "@connect/domain";
 
 import type { Database } from "../db/database.js";
-import { auditLogs, consentRecords, signupBlocks, users } from "../db/schema/index.js";
+import { auditLogs, consentRecords, sessions, signupBlocks, users } from "../db/schema/index.js";
 import { isClientApiError } from "./api-error.js";
+import { activatePendingAccount } from "./account-activation.js";
 import type { IdentityAuth } from "./better-auth.js";
 import { appendAuditEntry } from "./audit-log.js";
 import { runWithRequestId } from "./request-context.js";
@@ -80,6 +85,40 @@ function isInvalidCredentials(error: unknown): boolean {
   return (error as { statusCode?: number }).statusCode === 401;
 }
 
+/**
+ * The library refuses a non-active sign-in with `403`. It carries either a
+ * machine-readable `code` in the body or only a status code, so both resolve
+ * (design D2). The only 403s `signInEmail` can raise are the verification gate
+ * and this project's own session hook.
+ */
+function statusRefusal(error: unknown): IdentityErrorCode | null {
+  const code = (error as { body?: { code?: unknown } }).body?.code;
+  if (code === "EMAIL_NOT_VERIFIED" || code === "ACCOUNT_SUSPENDED" || code === "FORBIDDEN") {
+    return code;
+  }
+  if ((error as { statusCode?: unknown }).statusCode !== 403) {
+    return null;
+  }
+  // The remaining documented 403 source is the verification gate. Keep the
+  // unexpected code in the log so a future 403 is diagnosable rather than
+  // silently relabelled.
+  console.warn(
+    JSON.stringify({ event: "identity.sign_in_refused", code: typeof code === "string" ? code : "unknown" }),
+  );
+  return "EMAIL_NOT_VERIFIED";
+}
+
+function refusalMessage(code: IdentityErrorCode): string {
+  switch (code) {
+    case "ACCOUNT_SUSPENDED":
+      return "this account is suspended";
+    case "FORBIDDEN":
+      return "this account cannot sign in";
+    default:
+      return "confirm your email address before signing in";
+  }
+}
+
 function isDuplicateEmail(error: unknown): boolean {
   const body = (error as { body?: { code?: string } }).body;
   return body?.code === "USER_ALREADY_EXISTS";
@@ -121,13 +160,20 @@ export class BetterAuthIdentityService implements IdentityService {
       throw new IdentityError("VALIDATION_ERROR", "date of birth must be a calendar date");
     }
 
+    const email = input.email.trim().toLowerCase();
     const now = this.now();
-    if (!isAtLeast18(input.dateOfBirth, now)) {
-      await this.recordUnderageAttempt(input.email, now);
+
+    // The block exists to stop a resubmission with a changed date of birth, so
+    // it is checked before the age gate (design D8). Nothing is written when it
+    // matches, and the response is the same one the original attempt received.
+    if (await this.isSignupBlocked(email, now)) {
       throw new IdentityError("UNDER_MINIMUM_AGE", "registration requires an age of 18 or older");
     }
 
-    const email = input.email.trim().toLowerCase();
+    if (!isAtLeast18(input.dateOfBirth, now)) {
+      await this.recordUnderageAttempt(email, now);
+      throw new IdentityError("UNDER_MINIMUM_AGE", "registration requires an age of 18 or older");
+    }
 
     // Enumeration protection: an existing address gets the same response as a
     // new one, and no consent or account rows are written (spec: duplicate email).
@@ -232,10 +278,16 @@ export class BetterAuthIdentityService implements IdentityService {
         body: { email: input.email.trim().toLowerCase(), password: input.password },
       });
       account = toAccount(result.user);
+      if (account.accountStatus === "DEACTIVATED") {
+        // The session hook resumed the account, but the library read the user
+        // before that write; report the post-transition state (D-36).
+        account = await this.requireAccount(account.id);
+      }
       sessionToken = result.token;
       sessionId = (await this.readSession(sessionToken))?.sessionId ?? null;
     } catch (error) {
-      if (!isInvalidCredentials(error)) {
+      const refusal = statusRefusal(error);
+      if (!refusal && !isInvalidCredentials(error)) {
         throw error;
       }
       await appendAuditEntry(this.database, {
@@ -246,9 +298,13 @@ export class BetterAuthIdentityService implements IdentityService {
         objectId: null,
         requestId: input.requestId,
         // No email, password, hash, or token: the attempt is identified by the
-        // request id alone.
+        // request id alone. A status refusal records the same shape, so the
+        // two are indistinguishable outside the API.
         metadata: {},
       });
+      if (refusal) {
+        throw new IdentityError(refusal, refusalMessage(refusal));
+      }
       throw new IdentityError("INVALID_CREDENTIALS", "invalid email or password");
     }
 
@@ -330,6 +386,68 @@ export class BetterAuthIdentityService implements IdentityService {
     return (await this.readSession(input.sessionToken))?.account ?? null;
   }
 
+  async activateAccount(input: ActivateAccountInput): Promise<AccountSummary> {
+    await activatePendingAccount(this.database, input.userId, input.requestId);
+    return this.requireAccount(input.userId);
+  }
+
+  async suspendAccount(input: SuspendAccountInput): Promise<AccountSummary> {
+    return this.database.transaction(async (tx) => {
+      const [suspended] = await tx
+        .update(users)
+        .set({ status: "SUSPENDED" })
+        .where(eq(users.id, input.userId))
+        .returning();
+      if (!suspended) {
+        throw new IdentityError("VALIDATION_ERROR", "the account does not exist");
+      }
+
+      // Same transaction as the status change: no window in which a suspended
+      // account keeps a live session (design D4).
+      await tx.delete(sessions).where(eq(sessions.userId, input.userId));
+      await tx.insert(auditLogs).values({
+        action: "ACCOUNT_SUSPENDED",
+        actorUserId: input.actorUserId,
+        actorRole: "PLATFORM_ADMIN",
+        objectType: "users",
+        objectId: input.userId,
+        requestId: input.requestId,
+        reason: input.reason,
+      });
+
+      return toAccount(suspended);
+    });
+  }
+
+  async deactivateAccount(input: DeactivateAccountInput): Promise<void> {
+    // The account id comes from the session, never from the request body.
+    const session = await this.requireSession(input.sessionToken);
+
+    await this.database.transaction(async (tx) => {
+      // Only an ACTIVE account can pause itself. Without this condition a
+      // deactivation racing a suspension would overwrite the sanction, and
+      // signing in again would then lift it.
+      const paused = await tx
+        .update(users)
+        .set({ status: "DEACTIVATED" })
+        .where(and(eq(users.id, session.account.id), eq(users.status, "ACTIVE")))
+        .returning({ id: users.id });
+      if (paused.length === 0) {
+        throw new IdentityError("SESSION_INVALID", "the session is not valid");
+      }
+
+      await tx.delete(sessions).where(eq(sessions.userId, session.account.id));
+      await tx.insert(auditLogs).values({
+        action: "ACCOUNT_DEACTIVATED",
+        actorUserId: session.account.id,
+        actorRole: "USER",
+        objectType: "users",
+        objectId: session.account.id,
+        requestId: input.requestId,
+      });
+    });
+  }
+
   private async readSession(
     sessionToken: string,
   ): Promise<{ sessionId: string; account: AccountSummary } | null> {
@@ -356,10 +474,29 @@ export class BetterAuthIdentityService implements IdentityService {
     return session;
   }
 
+  private async requireAccount(userId: string): Promise<AccountSummary> {
+    const [user] = await this.database.select().from(users).where(eq(users.id, userId)).limit(1);
+    if (!user) {
+      throw new IdentityError("VALIDATION_ERROR", "the account does not exist");
+    }
+    return toAccount(user);
+  }
+
+  private async isSignupBlocked(email: string, now: Date): Promise<boolean> {
+    const [block] = await this.database
+      .select({ id: signupBlocks.id })
+      .from(signupBlocks)
+      .where(and(eq(signupBlocks.emailHash, this.emailHash(email)), gt(signupBlocks.expiresAt, now)))
+      .limit(1);
+    return block !== undefined;
+  }
+
+  private emailHash(email: string): string {
+    return createHmac("sha256", this.secret).update(email.trim().toLowerCase()).digest("hex");
+  }
+
   private async recordUnderageAttempt(email: string, now: Date): Promise<void> {
-    const emailHash = createHmac("sha256", this.secret)
-      .update(email.trim().toLowerCase())
-      .digest("hex");
+    const emailHash = this.emailHash(email);
     const expiresAt = new Date(now.getTime() + SIGNUP_BLOCK_DURATION_MS);
 
     await this.database

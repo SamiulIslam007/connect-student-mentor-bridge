@@ -33,6 +33,23 @@ class FakeIdentityService implements IdentityService {
   async getSession(): Promise<AccountSummary | null> {
     return null;
   }
+
+  async activateAccount(): Promise<AccountSummary> {
+    return {
+      id: "user-1",
+      displayName: "Fake",
+      email: "fake@example.com",
+      emailVerified: true,
+      timezone: "Asia/Dhaka",
+      accountStatus: "ACTIVE",
+    };
+  }
+
+  async suspendAccount(): Promise<AccountSummary> {
+    throw new IdentityError("ACCOUNT_SUSPENDED", "the account is suspended");
+  }
+
+  async deactivateAccount(): Promise<void> {}
 }
 
 test("a second implementation satisfies the identity interface", async () => {
