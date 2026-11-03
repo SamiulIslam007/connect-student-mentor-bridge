@@ -109,8 +109,12 @@ export async function seedInstitutions(
           await tx.insert(institutionDomains).values({ institutionId, domain: normalized });
           insertedDomains += 1;
         } catch (error) {
-          const message = error instanceof Error ? error.message : "unknown error";
-          throw new Error(`institution domain is already registered: ${normalized} (${message})`, {
+          // Only a unique violation means the domain is taken; anything else is
+          // a real fault and must not be relabelled.
+          if ((error as { code?: string }).code !== "23505") {
+            throw error;
+          }
+          throw new Error(`institution domain is already registered: ${normalized}`, {
             cause: error,
           });
         }

@@ -21,5 +21,10 @@ export function createDatabaseConnection(connectionString: string | undefined): 
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 2_000,
   });
+  // Without a listener an idle-client error (database restart, network drop) is
+  // an uncaught exception and the process exits.
+  pool.on("error", (error: Error) => {
+    console.error(JSON.stringify({ event: "db.pool_error", message: error.message }));
+  });
   return { pool, db: drizzle(pool, { schema }) };
 }

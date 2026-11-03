@@ -2,6 +2,7 @@ import { Inject, Injectable, Module, type OnApplicationShutdown, type Provider }
 import type { Pool } from "pg";
 
 import { createDatabaseConnection, type Database, type DatabaseConnection } from "./database.js";
+import { resolveDatabaseUrl } from "./database-url.js";
 
 export const DATABASE_CONNECTION = "DATABASE_CONNECTION";
 export const DATABASE_POOL = "DATABASE_POOL";
@@ -9,7 +10,9 @@ export const DATABASE = "DATABASE";
 
 const connectionProvider: Provider = {
   provide: DATABASE_CONNECTION,
-  useFactory: (): DatabaseConnection => createDatabaseConnection(process.env.DATABASE_URL),
+  // Resolved from the environment or the repository-root .env; fails loudly at
+  // boot instead of letting `pg` fall back to libpq defaults.
+  useFactory: (): DatabaseConnection => createDatabaseConnection(resolveDatabaseUrl()),
 };
 
 const poolProvider: Provider = {

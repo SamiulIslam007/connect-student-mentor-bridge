@@ -17,7 +17,12 @@ export async function POST(request: Request): Promise<NextResponse> {
   const payload = await readJson(upstream);
 
   if (!upstream.ok) {
-    return NextResponse.json(payload, { status: upstream.status });
+    const response = NextResponse.json(payload, { status: upstream.status });
+    if (upstream.status === 401) {
+      // The session is already gone; do not leave a dead token in the browser.
+      response.cookies.delete(SESSION_COOKIE_NAME);
+    }
+    return response;
   }
 
   const response = NextResponse.json({ status: "signed_out_everywhere" });

@@ -29,6 +29,7 @@ export const strings = {
     title: "Email verification",
     verified: "Your email address is verified. You can sign in now.",
     invalid: "That verification link is invalid or has expired.",
+    error: "Verification could not be completed. Try again in a moment.",
   },
   reset: {
     title: "Choose a new password",

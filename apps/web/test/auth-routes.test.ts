@@ -122,3 +122,35 @@ test("sign-out-everywhere without a cookie is 401 and calls nothing", async () =
   assert.equal(response.status, 401);
   assert.equal(calls.length, 0);
 });
+
+test("a rejected session clears the cookie instead of leaving a dead token", async () => {
+  stubFetch({ code: "UNAUTHENTICATED" }, 401);
+
+  const response = await signOutEverywhere(
+    new Request("http://localhost:3000/api/auth/sign-out-everywhere", {
+      method: "POST",
+      headers: { cookie: "connect_session=dead-token" },
+    }),
+  );
+
+  assert.equal(response.status, 401);
+  assert.match(response.headers.get("set-cookie") ?? "", /connect_session=;/);
+});
+
+test("an unreachable API returns a problem response instead of throwing", async () => {
+  globalThis.fetch = (async () => {
+    throw new TypeError("fetch failed");
+  }) as typeof fetch;
+
+  const response = await register(
+    new Request("http://localhost:3000/api/auth/register", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ display_name: "Student", email: "s@example.com" }),
+    }),
+  );
+
+  assert.equal(response.status, 502);
+  const body = (await response.json()) as { code?: string };
+  assert.equal(body.code, "INTERNAL_ERROR");
+});

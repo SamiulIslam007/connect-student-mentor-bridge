@@ -23,7 +23,12 @@ export async function GET(request: Request): Promise<NextResponse> {
     method: "GET",
   });
 
-  return NextResponse.redirect(
-    appUrl(request, upstream.ok ? "/verify?status=verified" : "/verify?status=invalid"),
-  );
+  if (upstream.status === 400) {
+    return NextResponse.redirect(appUrl(request, "/verify?status=invalid"));
+  }
+  if (!upstream.ok) {
+    // A server fault is not an expired link; do not tell the user it is.
+    return NextResponse.redirect(appUrl(request, "/verify?status=error"));
+  }
+  return NextResponse.redirect(appUrl(request, "/verify?status=verified"));
 }

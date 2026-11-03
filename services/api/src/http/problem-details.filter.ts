@@ -78,6 +78,7 @@ export class ProblemDetailsFilter implements ExceptionFilter {
         path: request.originalUrl,
         message: exception instanceof Error ? exception.message : "unknown error",
       }),
+      exception,
     );
     response
       .status(500)
