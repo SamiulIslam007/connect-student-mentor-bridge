@@ -5,7 +5,7 @@
 
 | | |
 |---|---|
-| **Status** | **Sprint 1 identity archived (2026-11-03); account-status lifecycle archived (2026-11-03); profiles and dynamic fields archived (2026-11-03).** Sprint 0 baseline plus email/password auth, verification, the 18+ gate, Postgres sessions, consent and audit rows, the database foundation, and the institution seed. The lifecycle change adds activation on email verification, the sign-in status gate (`EMAIL_NOT_VERIFIED`, `ACCOUNT_SUSPENDED`), suspension and self-deactivation with session revocation, `GET /v1/me` and `POST /v1/me/deactivate`, the blocked-signup read, and an `ACTIVE` backfill. The profile change adds student and mentor profiles, a create-on-save field taxonomy with a normalized slug, `GET /v1/fields`, the two profile `PUT`s, and the `/v1/me` profile extension. Google sign-in, MFA, and the session list move to the Sprint 2 change `access-google-mfa-and-sessions`. No deployment yet |
+| **Status** | **Sprint 1 identity archived (2026-11-03); account-status lifecycle archived (2026-11-03); profiles and dynamic fields archived (2026-11-03).** Sprint 0 baseline plus email/password auth, verification, the 18+ gate, Postgres sessions, consent and audit rows, the database foundation, and the institution seed. The lifecycle change adds activation on email verification, the sign-in status gate (`EMAIL_NOT_VERIFIED`, `ACCOUNT_SUSPENDED`), suspension and self-deactivation with session revocation, `GET /v1/me` and `POST /v1/me/deactivate`, the blocked-signup read, and an `ACTIVE` backfill. The profile change adds student and mentor profiles, a create-on-save field taxonomy with a normalized slug, `GET /v1/fields`, the two profile `PUT`s, and the `/v1/me` profile extension. Google sign-in, MFA, and the session list move to the Sprint 2 change `access-google-mfa-and-sessions`. A hardening and plan-closure change (`sprint1-hardening-and-plan-closure`) is proposed to close the independent Sprint 0/1 audit findings; see `docs/known-debt.md`. No deployment yet |
 | **Document role** | **Master README, the main source of truth** for the connect project |
 | **Audience** | Builder, future engineers, designers, advisors, pilot institutions, AI coding agents |
 | **Last reviewed** | 2026-11-03 |
@@ -401,7 +401,7 @@ connect/
 - Email and password with verification and forgot-password, plus Google sign-in.
 - Works for the web PWA and one backend.
 - Role-based access: Student, Mentor, Institution Admin, Employer (Later), Platform Admin.
-- MFA available for mentors, admins, and institution admins.
+- MFA for mentors, admins, and institution admins — **target, not built yet** (Sprint 2, `access-google-mfa-and-sessions`).
 - Verified affiliation: proof that a mentor belongs to an institution.
 - **Not in the MVP:** Facebook and LinkedIn sign-in (Later), Microsoft sign-in (removed), phone OTP (removed), SAML (Later).
 
@@ -420,7 +420,7 @@ connect/
 
 **Use `better-auth`, embedded in the NestJS API, behind an internal `IdentityService` interface.**
 
-1. **MVP:** better-auth handles Google, email/password, email verification, forgot-password, sessions, and MFA. NestJS validates the session and resolves roles from the database on every request.
+1. **Target (not current):** better-auth handles Google, email/password, email verification, forgot-password, sessions, and MFA. Email/password, verification, forgot-password, and sessions are built; Google and MFA arrive with Sprint 2 (`access-google-mfa-and-sessions`). NestJS validates the session and resolves roles from the database on every request.
 2. **Keycloak or WorkOS only if SAML is ever needed.** The OIDC boundary and the stable user UUID make that a configuration and adapter change, not a rewrite.
 3. **Authorization is separate from authentication.** Roles come from the database; fine-grained permissions (for example "this mentor may confirm this outcome") are enforced in NestJS and tested.
 4. **Wrap the provider behind `IdentityService`** so a vendor change does not touch domain code.
@@ -486,7 +486,7 @@ Core entities: `User`, `StudentProfile`, `MentorProfile`, `Institution`, `Field`
 
 ### 10.3 No Redis
 
-Redis is **not used in the MVP**. Rate limiting runs in-process on one API instance; jobs and timers use PostgreSQL (`pg-boss`); sessions live in the auth library's schema. Add Redis only on a measured trigger (multiple API instances, a real cache need, or a real-time layer).
+Redis is **not used in the MVP**. **Target (not built yet):** rate limiting runs in-process on one API instance (Sprint 7 hardening); jobs and timers use PostgreSQL (`pg-boss`) from Sprint 3 (`outbox-and-job-runner`); sessions live in the auth library's schema. Add Redis only on a measured trigger (multiple API instances, a real cache need, or a real-time layer).
 
 ### 10.4 Object storage
 
@@ -626,7 +626,7 @@ All detailed documents live in `docs/`. This README links to them and stays auth
 
 ### 16.2 Core documents also in `docs/`
 
-`glossary.md` and `assumptions-and-open-questions.md` are **Approved (MVP baseline)**; `auth-and-access-control.md` is **Approved (MVP baseline)**. The remaining documents (`business-model-and-pricing`, `data-privacy-and-retention`, `legal-and-compliance-checklist`, `matching-algorithm-spec`, `personas-and-user-journeys`, `pilot-plan`, `reputation-and-verification-policy`, `production-requirements`, `non-functional-requirements`, `system-architecture`, `architecture-decisions`) stay **Draft** and are refined while building.
+`glossary.md` and `assumptions-and-open-questions.md` are **Approved (MVP baseline)**; `auth-and-access-control.md` is **Approved (MVP baseline)**. `known-debt.md` is **Draft** and records accepted debt with an owner and a target change. The remaining documents (`business-model-and-pricing`, `data-privacy-and-retention`, `legal-and-compliance-checklist`, `matching-algorithm-spec`, `personas-and-user-journeys`, `pilot-plan`, `reputation-and-verification-policy`, `production-requirements`, `non-functional-requirements`, `system-architecture`, `architecture-decisions`) stay **Draft** and are refined while building.
 
 ---
 
@@ -763,11 +763,19 @@ None of the following is policy. Each must be resolved, recorded in `docs/decisi
 
 The **Sprint 0 platform baseline** is implemented: a pnpm workspace (`apps/web`, `services/api`, `packages/{domain,contracts,config}`), a containerized local stack started with one Compose command, the unversioned operational endpoints `GET /healthz` and `GET /readyz`, and GitHub Actions gates for lint, type-check, tests, build, image build, dependency scan, image scan, and secret scan.
 
-The **Sprint 1 identity change** (`identity-better-auth`) is archived (2026-11-03): better-auth behind `IdentityService`, email/password registration, email verification, the 18+ gate, Postgres-backed sessions, sign-in/out and sign-out-everywhere, password reset, append-only consent and audit rows, the Drizzle schema with the baseline migration and append-only grants, the institution seed, and the `apps/web` auth routes and pages. Test evidence and the exact scope live in `openspec/changes/archive/2026-11-03-identity-better-auth/` and `docs/milestones-and-phases.md`.
+The **Sprint 1 work is archived** (2026-11-03):
 
-**Not built yet:** Google sign-in, MFA, the session list and per-session revoke (Sprint 2); profiles, matching, requests, outcomes, reputation, notifications, admin; pg-boss queues; malware-scan integration; and any deployment, staging, or production environment.
+- `identity-better-auth`: better-auth behind `IdentityService`, email/password registration, email verification, the 18+ gate, Postgres-backed sessions, sign-in/out and sign-out-everywhere, password reset, consent and audit rows, the Drizzle schema with the baseline migration and append-only grants, the institution seed, and the `apps/web` auth routes and pages.
+- `account-status-lifecycle`: activation on email verification, the sign-in status gate, suspension and self-deactivation with session revocation, `GET /v1/me`, `POST /v1/me/deactivate`, the blocked-signup read, and the `ACTIVE` backfill.
+- `profiles-and-dynamic-fields`: student and mentor profiles, the create-on-save field taxonomy with a normalized slug, `GET /v1/fields`, the two profile `PUT`s, and the `/v1/me` profile extension.
 
-Local setup: [`docs/local-setup.md`](docs/local-setup.md). The MVP build plan, the sprint sequence, and the first ten OpenSpec change proposals live in [`docs/mvp-build-plan.md`](docs/mvp-build-plan.md). Rules for AI coding agents live in [`AGENTS.md`](AGENTS.md). Decisions taken on 2026-10-29 are recorded in [`docs/decision-log.md`](docs/decision-log.md).
+Test evidence and the exact scope live in `openspec/changes/archive/` and `docs/milestones-and-phases.md`.
+
+**Not built yet:** Google sign-in, MFA, the session list and per-session revoke (Sprint 2, `access-google-mfa-and-sessions`); availability windows, `access_mode`, and pause/resume (Sprint 2, `profile-availability-and-access-mode`); affiliation and mentor onboarding (change #5); matching, requests, outcomes, reputation, notifications, and admin; the outbox and pg-boss queues (Sprint 3, `outbox-and-job-runner`); malware-scan integration; and any deployment, staging, or production environment.
+
+The independent Sprint 0/1 audit findings and their owners are tracked in [`docs/known-debt.md`](docs/known-debt.md).
+
+Local setup: [`docs/local-setup.md`](docs/local-setup.md). The MVP build plan, the sprint sequence, and the ordered OpenSpec change proposals live in [`docs/mvp-build-plan.md`](docs/mvp-build-plan.md). Rules for AI coding agents live in [`AGENTS.md`](AGENTS.md). Decisions taken on 2026-10-29 are recorded in [`docs/decision-log.md`](docs/decision-log.md).
 
 When a change adds product code, it goes into the structure described in [section 7.5](#75-suggested-repository-layout), and every change begins as an OpenSpec proposal.
 

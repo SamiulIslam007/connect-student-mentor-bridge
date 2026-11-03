@@ -301,7 +301,7 @@ Rate limits and lockouts on sign-in, sign-up, password reset, and request creati
 2. **Negative tests:** unauthenticated (`401`), wrong role (`403`), wrong owner or another institution's object (`404` or `403`), wrong state (`409`).
 3. **IDOR tests:** substituting another user's ID in every path and body field is rejected.
 4. **Policy unit tests:** every predicate in section 8.2 has tests for each branch, including the conflict-of-interest rule and dual-role cases.
-5. **Session tests:** refresh token reuse revokes the family; revoked sessions fail immediately; admin timeouts apply.
+5. **Session tests:** sign-out, sign-out-everywhere, password reset, suspension, and deactivation revoke the session row and the next request fails immediately; admin timeouts arrive with `access-google-mfa-and-sessions`.
 6. **CI gate:** a route without a declared policy fails the build.
 
 ## 17. Open decisions

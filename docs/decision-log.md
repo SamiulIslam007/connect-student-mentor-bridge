@@ -33,7 +33,7 @@ date: 2026-10-29
 
 ### D-02: Canonical enums and case mapping
 - Date: 2026-10-29
-- Decision: `data-model.md` section 4.1 is the single canonical enum source. DB values `UPPER_SNAKE`, API values `lower_snake`. Outcome has 7 states; request has `WITHDRAWN` and `EXPIRED` (no `CANCELLED`); account status and mentor onboarding status are split from operating status; consent has 8 purposes.
+- Decision: `data-model.md` section 4.1 is the single canonical enum source. DB values `UPPER_SNAKE`, API values `lower_snake`. Outcome has 7 states; request has `WITHDRAWN` and `EXPIRED` (no `CANCELLED`); account status and mentor onboarding status are split from operating status; consent has 8 documented purposes (5 in the MVP enum, 3 reserved: `AI_ASSIST`, `EMPLOYER_DATA_SHARING`, `RECORDING`).
 - Reason: Stop five documents disagreeing about statuses.
 - Status: Decided
 - Affects: `data-model.md`, `glossary.md`, `api-contracts.md`, `auth-and-access-control.md`, `reputation-and-verification-policy.md`
@@ -199,6 +199,8 @@ date: 2026-10-29
 - Status: Decided
 - Affects: `pilot-plan.md`, `reputation-and-verification-policy.md`, `business-model-and-pricing.md`
 
+> **D-26 was never used.** The gap is intentional and the number is not reused; the next free number after D-39 is D-40.
+
 ### D-27: Browser-to-API transport
 - Date: 2026-10-29
 - Decision: The browser talks only to the Next.js app on its own origin (httpOnly session cookie at the BFF). The BFF calls the NestJS API with a short-lived Bearer token. The API does not issue browser cookies.
@@ -293,4 +295,39 @@ date: 2026-10-29
 - Reason: Each profile has exactly one owner and is edited from one browser session, so there is no second writer to lose an update against. Optimistic concurrency would add contract surface and client behavior for no user-visible benefit; capacity overshoot is guarded later by the requests-and-capacity row lock, not by profile versions.
 - Status: Decided (owner confirmation of design D8 during the `profiles-and-dynamic-fields` apply)
 - Affects: `openspec/changes/profiles-and-dynamic-fields/design.md`, `api-contracts.md`, `data-model.md`
+
+### D-40: Under-18 signup-block griefing accepted for now
+- Date: 2026-11-03
+- Decision: A registration attempt with an under-18 date of birth writes a 12-month `signup_blocks` row for the submitted email before ownership is proven. This lets someone pre-block an arbitrary address from registering. The risk is accepted for the pilot and revisited before real users; the Sprint 7 rate limit reduces the volume. The block stays 12 months (D-37).
+- Reason: The block exists to stop a resubmission with a changed date of birth; moving it after email verification would defeat that purpose. An existing account holder can still sign in, so the impact is limited to new registrations with that address.
+- Status: Decided (accepted risk, owner delegated)
+- Affects: `docs/known-debt.md`, `openspec/changes/sprint1-hardening-and-plan-closure/design.md`
+
+### D-41: SEC-API-1 strict unknown-field rejection is Sprint 7
+- Date: 2026-11-03
+- Decision: Keep named-field validation and ignore unknown keys for now. `SEC-API-1` (reject unknown fields) is owned by the Sprint 7 hardening work, not this change.
+- Reason: The profile spec requires `account_status` in a body to be ignored without a 422, and adding strict rejection only on new endpoints would create two validation styles. A single API-wide strict path belongs in the hardening sprint.
+- Status: Decided
+- Affects: `docs/security-requirements.md`, `docs/api-contracts.md`, `docs/known-debt.md`
+
+### D-42: Append-only deletion semantics
+- Date: 2026-11-03
+- Decision: `audit_logs.actor_user_id` changes to `ON DELETE RESTRICT`; `consent_records.user_id` stays `RESTRICT`; every future ledger FK to `users` uses `RESTRICT`. Append-only is enforced by grants plus `RESTRICT`, not a trigger. User deletion is pseudonymization, never a hard delete of a user with ledger rows.
+- Reason: `ON DELETE SET NULL` rewrites append-only audit history; a trigger would add a second enforcement path. `RESTRICT` makes the invariant explicit and leaves pseudonymization to the privacy/deletion change.
+- Status: Decided
+- Affects: `docs/data-model.md`, `docs/known-debt.md`, `openspec/changes/sprint1-hardening-and-plan-closure/design.md`
+
+### D-43: Taxonomy bounds and field pagination
+- Date: 2026-11-03
+- Decision: A mentor may have at most 5 fields total (the primary plus up to 4 additional); students and mentors may list at most 5 languages. Field names are NFKC-normalized, Unicode format characters (`Cf`) are stripped, and a name with no letter or number after normalization is refused. `GET /v1/fields` uses a keyset cursor by `normalized_slug`, default limit 100, maximum 200, ordered by slug. Cross-script confusables are a documented known limit, curated in Phase 1b.
+- Reason: The shared taxonomy is created by any authenticated user, never deleted, and unpaginated; unbounded arrays and invisible names let one request pollute every client. The primary field stays separate from the additional fields.
+- Status: Decided
+- Affects: `docs/api-contracts.md`, `docs/data-model.md`, `docs/known-debt.md`, `openspec/changes/sprint1-hardening-and-plan-closure/design.md`
+
+### D-44: CI runs the database integration tests
+- Date: 2026-11-03
+- Decision: The `checks` CI job starts a `postgres:16-alpine` service, creates `connect_test`, and sets `DATABASE_URL`. The test support fails (not skips) when `CI=true` and the database is unreachable. The three required check names stay `checks`, `images`, and `security` because the `protect-main` ruleset requires them.
+- Reason: A green gate that skips 47 of 56 API tests does not verify the auth/profile boundary; Sprint 2 adds MFA and session endpoints on that boundary.
+- Status: Decided
+- Affects: `docs/local-setup.md`, `docs/milestones-and-phases.md`, `docs/mvp-build-plan.md`, `docs/known-debt.md`, `openspec/changes/sprint1-hardening-and-plan-closure/design.md`
 

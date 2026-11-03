@@ -125,7 +125,7 @@ This is the engineering baseline, **not legal advice** and not the full threat m
 |---|---|---|---|---|
 | NFR-SEC-01 | Standard | OWASP ASVS as the baseline. Aim for Level 2 on authentication, authorization, file handling, and the ledger; Level 1 elsewhere | README, **Proposed default** (level split) | ASVS checklist before pilot |
 | NFR-SEC-02 | Passwords | Minimum length **12** (owner decision; `auth-and-access-control.md` section 4.3), check against known-breached passwords, no arbitrary composition rules, hashing with a modern memory-hard algorithm | **Proposed default** | Auth test suite |
-| NFR-SEC-03 | Sessions | Access tokens about 15 minutes; rotating refresh tokens; idle session limit 7 days and absolute limit 30 days for users; shorter limits for admins; httpOnly, Secure cookies on web | **Proposed default** | Auth test suite |
+| NFR-SEC-03 | Sessions | Postgres-backed better-auth cookie session: 30-day lifetime, refreshed at most once a day, no access/refresh token pair; httpOnly, SameSite=Lax, Secure cookies on web; a revoked session row fails the next request. Admin idle timeouts (30 minutes / 8 hours) are deferred to `access-google-mfa-and-sessions` (D-31) | **Proposed default** | Auth test suite |
 | NFR-SEC-04 | MFA | Required for Mentors, Institution Admins, Platform Admins (TOTP first) | README, **Recommendation** | Auth test |
 | NFR-SEC-05 | Authorization | Role-based plus object-level checks on every endpoint; permission-matrix tests | README | Generated tests |
 | NFR-SEC-06 | Transport and storage encryption | TLS everywhere; encryption at rest for the database and object storage | **Recommendation** | Provider configuration check |

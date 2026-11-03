@@ -16,11 +16,11 @@ sources: [README.md, connect-research-report.md (Sections 5, 6, 7, 9, 10)]
 |---|---|
 | Updated | 2026-11-03 (update at every apply and every archive, `AGENTS.local.md` section 4) |
 | Phase | 1a - MVP build (about 8 sprints, 1 week each, 3 working days) |
-| Current sprint | **Sprint 1** - Identity core. Both halves are shipped: identity (changes #2 and #3) and profiles (change #4) |
-| Last archived change | `profiles-and-dynamic-fields` (2026-11-03) - `DONE`: student and mentor profiles, the create-on-save field taxonomy with a normalized slug, `GET /v1/fields`, the two profile `PUT`s, and the `/v1/me` profile extension. All four gates green, 115 tests |
-| In flight | None |
-| Next change | `affiliation-and-mentor-onboarding` (change #5) |
-| Open blockers | None |
+| Current sprint | **Sprint 1 complete; Sprint 2 planning.** Sprint 1 shipped identity (changes #2 and #3) and profiles (change #4), with the partials listed under 5.2 |
+| Last archived change | `profiles-and-dynamic-fields` (2026-11-03) - `DONE`: student and mentor profiles, the create-on-save field taxonomy with a normalized slug, `GET /v1/fields`, the two profile `PUT`s, and the `/v1/me` profile extension. All four gates green locally (115 tests); the audit's blockers will be closed by the in-flight hardening change |
+| In flight | `sprint1-hardening-and-plan-closure` (proposed 2026-11-03) - closes the independent Sprint 0/1 audit findings; see `docs/known-debt.md` |
+| Next change | `access-google-mfa-and-sessions` (4a), then `profile-availability-and-access-mode` (4b), then `affiliation-and-mentor-onboarding` (#5) |
+| Open blockers | None for coding. The hardening change must land before Sprint 2 feature work merges: app-role grants, CI database tests, and the plan rows |
 
 ## 1. Purpose and scope
 
@@ -47,11 +47,13 @@ It expands README section 15 and the research report sections 7 (doc 16) and 9.
 
 Gate 0 is deliberately small. It is passed when **all** of these are true:
 
-1. [ ] The contradictions fixed in the 2026-10-29 resolution run stay fixed (see `docs/audit/08-resolution-report.md`).
-2. [ ] `AGENTS.md` exists.
-3. [ ] `docs/decision-log.md` exists with this run's decisions.
-4. [ ] `docs/mvp-build-plan.md` exists.
-5. [ ] These documents are marked **Approved (MVP baseline, owner decision)**: `README.md`, `glossary.md`, `assumptions-and-open-questions.md`, `functional-requirements.md`, `data-model.md`, `api-contracts.md`, `auth-and-access-control.md`, `security-requirements.md`, `milestones-and-phases.md`, plus the decided ADRs (ADR-018 Drizzle ORM, which supersedes the ORM choice in ADR-002, ADR-003 better-auth, ADR-006 no Redis/WebSocket with pg-boss, ADR-016 Docker, ADR-017 Agile).
+1. [x] The contradictions fixed in the 2026-10-29 resolution run stay fixed (see `docs/audit/08-resolution-report.md`).
+2. [x] `AGENTS.md` exists.
+3. [x] `docs/decision-log.md` exists with this run's decisions.
+4. [x] `docs/mvp-build-plan.md` exists.
+5. [x] These documents are marked **Approved (MVP baseline, owner decision)**: `README.md`, `glossary.md`, `assumptions-and-open-questions.md`, `functional-requirements.md`, `data-model.md`, `api-contracts.md`, `auth-and-access-control.md`, `security-requirements.md`, `milestones-and-phases.md`, plus the decided ADRs (ADR-018 Drizzle ORM, which supersedes the ORM choice in ADR-002, ADR-003 better-auth, ADR-006 no Redis/WebSocket with pg-boss, ADR-016 Docker, ADR-017 Agile).
+
+Gate 0 passed on 2026-10-29. The boxes above are kept as history, not as a live gate.
 
 All other documents stay **Draft** and are refined while building. Hosting, pilot partner type, pricing, legal entity, counsel, willingness-to-pay, brand clearance, data residency, and trust-and-safety staffing are **not** Gate 0 conditions.
 
@@ -101,14 +103,23 @@ Mapping to README: README Phase 1 = our 1a + 1b + the pilot run. The partner-val
 
 | Sprint | Goal | Requirements | Technical work | Demo at sprint end |
 |---|---|---|---|---|
-| **0** | Setup and skeleton | — | GitHub repository, CI (lint, type-check, tests, build), monorepo, Docker Compose (Postgres, object store, mail catcher, ClamAV scanner), Drizzle schema and baseline `drizzle-kit` migration with roles and ledger grants, `packages/domain` skeleton, outbox + pg-boss + email adapter, OpenSpec initialized, `AGENTS.md` | `docker compose up` starts the stack; CI is green; a test event travels outbox → job → mail catcher |
-| **1** | Identity core (changes #2, #3 and #4 shipped) | FR-AUTH-01, 03, 05; FR-PROF-01, 02; FR-CONS-01 (basic); FR-AUD-01 (basic); FR-VER-01 (seed only) | **Shipped by change #2:** better-auth with email/password, verification and forgot-password, 18+ gate, Postgres sessions, `institutions` and `institution_domains` seeded, consent records, string catalog. **Shipped by change #3:** `account_status` lifecycle and the blocked-signup check. **Shipped by change #4:** student and mentor profile CRUD, dynamic fields with a normalized slug, `GET /v1/fields`, profile saves, and the `/v1/me` profile extension | Sign up, verify email, pass the age gate, sign in and sign out. Creating a student or mentor profile with a self-created field shipped with change #4 |
-| **2** | Access, affiliation, discovery | FR-AUTH-02, 04, 06, 07; FR-PROF-03, 04, 05; FR-VER-01, 04, 05; FR-CONS-02; FR-DISC-01 to 03, 06 | Google sign-in, MFA for privileged roles, session list and revoke, institutional-email affiliation, mentor activation gate, profile visibility, badge disclaimer, revocable institution-sharing consent, pure match function with tests, discovery list | A mentor is activated after affiliation and MFA; a student sees suggested mentors with reasons |
-| **3** | Requests and notifications | FR-REQ-01, 02, 03 (accept/decline), 05 to 08; FR-NOT-01 | Request creation with idempotency, capacity row lock, accept/decline/withdraw, 48h expiry and 24h reminder sweeper, email templates and de-duplication | Student sends a request, mentor accepts or declines; an ignored request gets one reminder and expires |
+| **0** | Setup and skeleton | - | GitHub repository, CI (lint, type-check, tests, build), monorepo, Docker Compose (Postgres, object store, mail catcher, ClamAV scanner), `packages/domain` skeleton, email adapter, OpenSpec initialized, `AGENTS.md`. The Drizzle schema/migration and the email adapter landed with change #2; the outbox + pg-boss runner and its retry path land with `outbox-and-job-runner` (6a, Sprint 3) | `docker compose up` starts the stack; CI is green; the email adapter delivers a real verification email to Mailcatcher. The outbox → job → mail-catcher demo moved to `outbox-and-job-runner` (Sprint 3) |
+| **1** | Identity core (changes #2, #3 and #4 shipped) | FR-AUTH-01, 03, 05 (partial); FR-PROF-01, 02 (partial); FR-CONS-01 (basic); FR-AUD-01 (basic); FR-VER-01 (seed only, partial) | **Shipped by change #2:** better-auth with email/password, verification and forgot-password, 18+ gate, Postgres sessions, `institutions` and `institution_domains` seeded, consent records, string catalog. **Shipped by change #3:** `account_status` lifecycle and the blocked-signup check. **Shipped by change #4:** student and mentor profile CRUD, dynamic fields with a normalized slug, `GET /v1/fields`, profile saves, and the `/v1/me` profile extension | Sign up, verify email, pass the age gate, sign in and sign out. Creating a student or mentor profile with a self-created field shipped with change #4 |
+| **2** | Access, affiliation, discovery | FR-AUTH-02, 04, 06, 07; FR-PROF-01, 02 residual (availability, `access_mode`); FR-PROF-03, 04, 05; FR-VER-01, 04, 05; FR-CONS-02; FR-DISC-01 to 03, 06 | `access-google-mfa-and-sessions` (4a) first: Google sign-in, MFA for privileged roles, session list and revoke, role authorization, profile visibility; `profile-availability-and-access-mode` (4b) before discovery: availability windows, `access_mode`, pause/resume; then #5 institutional-email affiliation and the mentor activation gate; #6 pure match function with tests and the discovery list; badge disclaimer and revocable institution-sharing consent | A mentor is activated after affiliation and MFA; a student sees suggested mentors with reasons; availability and access mode are stored |
+| **3** | Outbox, requests, notifications | FR-REQ-01, 02, 03 (accept/decline), 05 to 08; FR-NOT-01 | `outbox-and-job-runner` (6a) first: `outbox_events`, pg-boss, the worker consumer, and email through the queue with retry; then request creation with idempotency, capacity row lock, accept/decline/withdraw, 48h expiry and 24h reminder sweeper, email templates and de-duplication | The worker delivers a queued test email with a retry on failure; a student sends a request, a mentor accepts or declines; an ignored request gets one reminder and expires |
 | **4** | Mentorship, thread, session | FR-MEN-01, 02; FR-THR-01, 02; FR-SES-01, 02 | Mentorship on acceptance, agreement, text thread, notification on new message, meeting link, session record and held confirmations | Student and mentor exchange messages, record a session with a link, both confirm it was held |
 | **5** | Outcomes | FR-OUT-01 to 07, 09, 11 | Outcome state machine, append-only events and verification records, evidence upload and scan, evidence tier, withdraw, conflict declaration, reminders day 3/5 and day-7 escalation | Student reports an outcome, mentor confirms or disputes, a withdrawn outcome never counts |
 | **6** | Reputation and impact | FR-OUT-10; FR-REP-01 to 05, 07 | Reputation ledger, pair factor `1/(1+n)`, cooling and counting sweeper, snapshots, confidence tiers, clawback, counts-only public view | Mentor impact view shows counted outcomes; replaying the ledger reproduces it |
 | **7** | Admin, privacy, hardening | FR-ADM-01, 03 to 07; FR-VER-02 (attestation queue); FR-PRIV-01, 02; FR-AUD-01; FR-UX-01, 02, 04, 05; FR-NOT-03, 04 | Platform review queue with written reason, institution attestation queue, audit sampling, moderation, sanctions, break-glass, versioned config, export and download, deletion intake and ledger-safe pseudonymization, audit log, accessibility pass, rate limits, restore drill, runbook, Terms and Privacy Notice drafts | A platform admin resolves a case with a written reason; an institution admin attests an affiliation; export and deletion can be requested and tracked; restore performed |
+
+**Sprint 1 partials and their homes:**
+
+- **FR-AUTH-05**: password reset and sign-out-everywhere ship; the session list/per-session revoke moves to `access-google-mfa-and-sessions` (4a), and the forgot-password **web page** is added by `sprint1-hardening-and-plan-closure`.
+- **FR-PROF-01**: goals, primary/interest fields, and languages ship; availability windows move to `profile-availability-and-access-mode` (4b) and institution affiliation to `affiliation-and-mentor-onboarding` (#5).
+- **FR-PROF-02**: profile content and the capacity bound ship; availability and `access_mode` move to 4b, and capacity enforcement (the row lock and `CAPACITY_BELOW_ACTIVE`) to `requests-and-capacity` (#7).
+- **FR-VER-01**: only the institution/domain seed ships; the claim flow moves to #5.
+- **FR-CONS-01**: registration writes `TERMS` and `PRIVACY_NOTICE`; the volunteer agreement, community guidelines, and institution-sharing purposes arrive with their owning changes.
+- **FR-AUD-01**: authentication events are written; the append-only FK, failed-audit fail-closed path, and request-id gaps are closed by `sprint1-hardening-and-plan-closure`; disputes, admin actions, and exports are audited by their later changes.
 
 ### 5.3 Pre-agreed cut order (if behind schedule)
 
@@ -128,12 +139,12 @@ Cut from the top. Items below the line are never cut.
 |---|---|
 | 0 | Does the app start with one `docker compose up` on a clean machine, and is CI green? |
 | 1 | Can a new user sign up, pass the 18+ gate, and create a profile with a self-created field? |
-| 2 | Can a mentor decide on a request, and does an undecided request expire at 48 hours? |
-| 3 | Does a student receive an email when the mentor decides, and does the thread stay participant-only? |
-| 4 | Does the state machine reject every illegal outcome transition in tests? |
-| 5 | Does replaying the reputation ledger reproduce the snapshot exactly? |
-| 6 | Can a platform admin resolve a case with a written reason while an institution admin cannot? |
-| 7 | Was a backup restored successfully and did the full lifecycle pass on a clean machine? |
+| 2 | Is a mentor activated after affiliation and MFA, and does a student see suggested mentors with reasons? |
+| 3 | Can a mentor decide on a request, and does an undecided request expire at 48 hours? |
+| 4 | Does a student receive an email when the mentor decides, and does the thread stay participant-only? |
+| 5 | Does the state machine reject every illegal outcome transition in tests? |
+| 6 | Does replaying the reputation ledger reproduce the snapshot exactly? |
+| 7 | Can a platform admin resolve a case with a written reason while an institution admin cannot, and was a backup restored? |
 
 ### 5.5 MVP acceptance (Gate 1)
 

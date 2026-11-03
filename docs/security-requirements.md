@@ -91,7 +91,7 @@ Each requirement has an ID, a priority (**Must**, **Should**, **Could**), and th
 | SEC-AUTH-2 | MFA is enforced for Mentor, Institution Admin, and Platform Admin | Must | Integration test |
 | SEC-AUTH-3 | Passwords are hashed with a modern algorithm (Argon2id or scrypt); minimum length 12; breached-password check | Must | Config review and test |
 | SEC-AUTH-4 | Web sessions use httpOnly, Secure, SameSite cookies; no tokens in `localStorage`; CSRF protection on cookie-authenticated writes | Must | Automated test and manual review |
-| SEC-AUTH-5 | Refresh token reuse revokes the session family | Must | Test |
+| SEC-AUTH-5 | Session revocation: sign-out, sign-out-everywhere, password reset, suspension, and deactivation delete session rows, and a revoked session fails on its next request (no refresh-token family; D-31) | Must | Test |
 | SEC-AUTH-6 | Sign-in, sign-up, and password-reset responses do not reveal whether an email exists | Must | Test |
 | SEC-AUTH-7 | Under-18 sign-up is blocked and no unnecessary data is retained | Must | Test, counsel review |
 
