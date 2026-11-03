@@ -95,6 +95,9 @@ export default function AccountPage() {
         </dl>
       ) : null}
       <p role="status">{message}</p>
+      <p>
+        <a href="/profile">{strings.account.manageProfiles}</a>
+      </p>
       {account && account.account_status === "active" ? (
         confirming ? (
           <div>

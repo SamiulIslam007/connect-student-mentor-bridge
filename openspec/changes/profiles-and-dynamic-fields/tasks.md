@@ -36,9 +36,9 @@
 
 ## 5. Web
 
-- [ ] 5.1 Add an optional `method` parameter to `proxyJson` in `apps/web/lib/bff.ts` (default `POST`), add the BFF routes `app/api/me/student-profile`, `app/api/me/mentor-profile` (PUT) and `app/api/fields` (GET), and add the profile strings to `apps/web/lib/strings.ts`. Add route tests covering the session cookie being forwarded, `401` when absent, and the upstream status being passed through. Verify: `pnpm --filter web test` passes.
+- [x] 5.1 Add an optional `method` parameter to `proxyJson` in `apps/web/lib/bff.ts` (default `POST`), add the BFF routes `app/api/me/student-profile`, `app/api/me/mentor-profile` (PUT) and `app/api/fields` (GET), and add the profile strings to `apps/web/lib/strings.ts`. Add route tests covering the session cookie being forwarded, `401` when absent, and the upstream status being passed through. Verify: `pnpm --filter web test` passes.
 
-- [ ] 5.2 Add `apps/web/app/profile/page.tsx` with a student section and a mentor section that load current values from `/api/me`, use a native `<input list>` fed by `/api/fields` for pick-or-create, and save each section with its own PUT, surfacing the problem `detail` on failure. Link the page from `apps/web/app/account/page.tsx`. Verify: `pnpm --filter web typecheck` and `pnpm --filter web build` pass, and the page renders both sections in a manual `docker compose up` check.
+- [x] 5.2 Add `apps/web/app/profile/page.tsx` with a student section and a mentor section that load current values from `/api/me`, use a native `<input list>` fed by `/api/fields` for pick-or-create, and save each section with its own PUT, surfacing the problem `detail` on failure. Link the page from `apps/web/app/account/page.tsx`. Verify: `pnpm --filter web typecheck` and `pnpm --filter web build` pass, and the page renders both sections in a manual `docker compose up` check.
 
 ## 6. Documentation Conformance and Integration
 

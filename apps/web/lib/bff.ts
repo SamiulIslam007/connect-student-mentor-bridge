@@ -9,7 +9,7 @@ import { callApi, readJson } from "./api";
 export async function proxyJson(
   path: string,
   request: Request,
-  options: { sessionToken?: string } = {},
+  options: { sessionToken?: string; method?: string } = {},
 ): Promise<NextResponse> {
   let body: unknown;
   try {
@@ -23,7 +23,11 @@ export async function proxyJson(
     headers.authorization = `Bearer ${options.sessionToken}`;
   }
 
-  const upstream = await callApi(path, { method: "POST", headers, body: JSON.stringify(body) });
+  const upstream = await callApi(path, {
+    method: options.method ?? "POST",
+    headers,
+    body: JSON.stringify(body),
+  });
   const payload = await readJson(upstream);
   return NextResponse.json(payload, { status: upstream.status });
 }
