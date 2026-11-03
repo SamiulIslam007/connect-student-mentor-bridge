@@ -10,6 +10,7 @@ import { createIdentityAuth } from "../src/identity/better-auth.js";
 import { BetterAuthIdentityService } from "../src/identity/better-auth-identity.service.js";
 import { AuthController } from "../src/identity/auth.controller.js";
 import { IDENTITY_SERVICE } from "../src/identity/identity.tokens.js";
+import { MeController } from "../src/me/me.controller.js";
 import { createDatabaseConnection, type DatabaseConnection } from "../src/db/database.js";
 import type { EmailMessage, EmailSender } from "../src/email/email-sender.js";
 import { ProblemDetailsFilter } from "../src/http/problem-details.filter.js";
@@ -49,6 +50,7 @@ let connection: DatabaseConnection | undefined;
 let app: INestApplication | undefined;
 let baseUrl = "";
 let sender: RecordingEmailSender | undefined;
+let identity: BetterAuthIdentityService | undefined;
 
 before(async () => {
   database = await openTestDatabase();
@@ -71,14 +73,15 @@ before(async () => {
     database: connection.db,
     secret: TEST_AUTH_SECRET,
   });
+  identity = service;
 
   @Module({
-    controllers: [AuthController],
+    controllers: [AuthController, MeController],
     providers: [{ provide: IDENTITY_SERVICE, useValue: service }],
   })
   class IdentityTestModule implements NestModule {
     configure(consumer: MiddlewareConsumer): void {
-      consumer.apply(RequestIdMiddleware).forRoutes(AuthController);
+      consumer.apply(RequestIdMiddleware).forRoutes(AuthController, MeController);
     }
   }
 
@@ -165,6 +168,24 @@ async function register(email: string, dateOfBirth = "2000-01-01"): Promise<Http
 
 async function signIn(email: string, password = PASSWORD): Promise<HttpResult> {
   return request("POST", "/v1/auth/sign-in", { email, password });
+}
+
+/** Registers and opens the verification link, which activates the account. */
+async function registerAndVerify(email: string, dateOfBirth = "2000-01-01"): Promise<void> {
+  const registration = await register(email, dateOfBirth);
+  assert.equal(registration.status, 200, "registration must succeed before verification");
+  assert.ok(sender, "the email sender must be recording");
+  const token = tokenFromEmail(await sender.last("verify-email"), "/api/auth/verify");
+  const verified = await request("GET", `/v1/auth/verify?token=${encodeURIComponent(token)}`);
+  assert.equal(verified.status, 200);
+}
+
+async function sessionCount(client: TestDatabase["client"], email: string): Promise<number> {
+  const result = await client.query(
+    "SELECT s.id FROM sessions s JOIN users u ON u.id = s.user_id WHERE u.email = $1",
+    [email],
+  );
+  return result.rowCount ?? 0;
 }
 
 test("registration writes one account, two consent rows, an audit entry, and sends the email", async (context) => {
@@ -270,6 +291,59 @@ test("an under-18 attempt is rejected, blocked, and creates no account", async (
   assert.ok(blocks.rows[0].expires_at > new Date());
 });
 
+test("a blocked email is refused whatever date of birth is submitted", async (context) => {
+  const stack = requireStack(context);
+  if (!stack) {
+    return;
+  }
+  const { client } = stack;
+
+  const underage = new Date();
+  underage.setUTCFullYear(underage.getUTCFullYear() - 10);
+  const first = await register("blocked@example.com", underage.toISOString().slice(0, 10));
+  assert.equal(first.status, 422);
+  assert.equal(first.body?.code, "UNDER_MINIMUM_AGE");
+
+  // The same address with an adult date of birth is the evasion the block exists
+  // to stop.
+  const retry = await register("blocked@example.com", "1990-05-05");
+  assert.equal(retry.status, 422);
+  assert.equal(retry.body?.code, "UNDER_MINIMUM_AGE");
+  assert.ok(!retry.text.includes("blocked@example.com"), "the refusal names no address");
+
+  const users = await client.query("SELECT id FROM users");
+  assert.equal(users.rowCount, 0, "no account is written");
+  const consent = await client.query("SELECT id FROM consent_records");
+  assert.equal(consent.rowCount, 0, "no consent is written");
+  const audit = await client.query("SELECT id FROM audit_logs");
+  assert.equal(audit.rowCount, 0, "no audit entry is written");
+
+  const blocks = await client.query<{ email_hash: string }>("SELECT email_hash FROM signup_blocks");
+  assert.equal(blocks.rowCount, 1);
+  assert.match(blocks.rows[0].email_hash, /^[0-9a-f]{64}$/, "only a keyed hash is stored");
+  assert.ok(!blocks.rows[0].email_hash.includes("blocked"), "the address is not recoverable");
+});
+
+test("an expired block allows registration", async (context) => {
+  const stack = requireStack(context);
+  if (!stack) {
+    return;
+  }
+  const { client } = stack;
+
+  const underage = new Date();
+  underage.setUTCFullYear(underage.getUTCFullYear() - 10);
+  await register("expired-block@example.com", underage.toISOString().slice(0, 10));
+  await client.query("UPDATE signup_blocks SET expires_at = now() - interval '1 day'");
+
+  const allowed = await register("expired-block@example.com");
+  assert.equal(allowed.status, 200);
+  assert.deepEqual(allowed.body, { status: "verification_sent" });
+  const users = await client.query<{ status: string }>("SELECT status FROM users");
+  assert.equal(users.rowCount, 1);
+  assert.equal(users.rows[0].status, "PENDING");
+});
+
 test("a verification link verifies once and a second use stays verified without error", async (context) => {
   const stack = requireStack(context);
   if (!stack) {
@@ -285,8 +359,11 @@ test("a verification link verifies once and a second use stays verified without 
   assert.equal(first.status, 200);
   assert.deepEqual(first.body, { status: "verified" });
 
-  const users = await client.query<{ email_verified: boolean }>("SELECT email_verified FROM users");
+  const users = await client.query<{ email_verified: boolean; status: string }>(
+    "SELECT email_verified, status FROM users",
+  );
   assert.equal(users.rows[0].email_verified, true);
+  assert.equal(users.rows[0].status, "ACTIVE", "verification activates the account");
   const audit = await client.query("SELECT action FROM audit_logs WHERE action = 'EMAIL_VERIFIED'");
   assert.equal(audit.rowCount, 1);
 
@@ -295,6 +372,8 @@ test("a verification link verifies once and a second use stays verified without 
   assert.deepEqual(second.body, { status: "verified" });
   const auditAfterSecondUse = await client.query("SELECT id FROM audit_logs WHERE action = 'EMAIL_VERIFIED'");
   assert.equal(auditAfterSecondUse.rowCount, 1, "no duplicate audit entry on replay");
+  const activations = await client.query("SELECT id FROM audit_logs WHERE action = 'ACCOUNT_ACTIVATED'");
+  assert.equal(activations.rowCount, 1, "no second activation on replay");
 });
 
 test("an expired verification link is rejected and the account stays unverified", async (context) => {
@@ -318,8 +397,11 @@ test("an expired verification link is rejected and the account stays unverified"
   assert.equal(response.status, 400);
   assert.equal(response.body?.code, "INVALID_VERIFICATION_LINK");
 
-  const users = await client.query<{ email_verified: boolean }>("SELECT email_verified FROM users");
+  const users = await client.query<{ email_verified: boolean; status: string }>(
+    "SELECT email_verified, status FROM users",
+  );
   assert.equal(users.rows[0].email_verified, false);
+  assert.equal(users.rows[0].status, "PENDING", "a rejected link never activates the account");
 });
 
 test("sign-in stores a session row and sign-out revokes it", async (context) => {
@@ -329,9 +411,14 @@ test("sign-in stores a session row and sign-out revokes it", async (context) => 
   }
   const { client } = stack;
 
-  await register("session@example.com");
+  await registerAndVerify("session@example.com");
   const signedIn = await signIn("session@example.com");
   assert.equal(signedIn.status, 200);
+  assert.equal(
+    (signedIn.body?.account as Record<string, unknown> | undefined)?.account_status,
+    "active",
+    "the sign-in response reports the account status",
+  );
   const token = String(signedIn.body?.session_token);
   assert.ok(token.length > 0);
 
@@ -357,6 +444,388 @@ test("sign-in stores a session row and sign-out revokes it", async (context) => 
     audit.rows.map((row) => row.action),
     ["SIGNED_OUT", "SIGN_IN_SUCCEEDED"],
   );
+});
+
+test("an unverified account is refused after its password is accepted and holds no session", async (context) => {
+  const stack = requireStack(context);
+  if (!stack) {
+    return;
+  }
+  const { client } = stack;
+
+  await register("pending@example.com");
+  const refused = await signIn("pending@example.com");
+
+  assert.equal(refused.status, 403);
+  assert.equal(refused.body?.code, "EMAIL_NOT_VERIFIED");
+  assert.equal(await sessionCount(client, "pending@example.com"), 0, "no session row for an unverified account");
+
+  const users = await client.query<{ status: string; email_verified: boolean }>(
+    "SELECT status, email_verified FROM users WHERE email = $1",
+    ["pending@example.com"],
+  );
+  assert.equal(users.rows[0].status, "PENDING");
+  assert.equal(users.rows[0].email_verified, false);
+});
+
+test("a wrong password on an unverified account still returns the generic 401", async (context) => {
+  const stack = requireStack(context);
+  if (!stack) {
+    return;
+  }
+
+  await register("pending-wrong@example.com");
+  const refused = await signIn("pending-wrong@example.com", "a wrong but long password");
+
+  assert.equal(refused.status, 401);
+  assert.equal(refused.body?.code, "UNAUTHENTICATED");
+});
+
+test("a suspended account is refused after its password is accepted and holds no session", async (context) => {
+  const stack = requireStack(context);
+  if (!stack) {
+    return;
+  }
+  const { client } = stack;
+  assert.ok(identity);
+
+  await registerAndVerify("suspended@example.com");
+  await registerAndVerify("admin@example.com");
+  const ids = await client.query<{ id: string; email: string }>("SELECT id, email FROM users");
+  const subject = ids.rows.find((row) => row.email === "suspended@example.com");
+  const admin = ids.rows.find((row) => row.email === "admin@example.com");
+  assert.ok(subject && admin);
+
+  await identity.suspendAccount({
+    userId: subject.id,
+    reason: "pilot suspension",
+    actorUserId: admin.id,
+    requestId: "req-suspend-1",
+  });
+
+  const refused = await signIn("suspended@example.com");
+  assert.equal(refused.status, 403);
+  assert.equal(refused.body?.code, "ACCOUNT_SUSPENDED");
+  assert.equal(await sessionCount(client, "suspended@example.com"), 0);
+
+  // A wrong password is still the generic 401, so status is not an oracle.
+  const wrongPassword = await signIn("suspended@example.com", "a wrong but long password");
+  assert.equal(wrongPassword.status, 401);
+  assert.equal(wrongPassword.body?.code, "UNAUTHENTICATED");
+});
+
+test("suspension kills an open session on its next request", async (context) => {
+  const stack = requireStack(context);
+  if (!stack) {
+    return;
+  }
+  const { client } = stack;
+  assert.ok(identity);
+
+  await registerAndVerify("open@example.com");
+  const signedIn = await signIn("open@example.com");
+  assert.equal(signedIn.status, 200);
+  const token = String(signedIn.body?.session_token);
+  assert.equal(await sessionCount(client, "open@example.com"), 1);
+
+  const [user] = (await client.query<{ id: string }>("SELECT id FROM users WHERE email = $1", [
+    "open@example.com",
+  ])).rows;
+
+  await identity.suspendAccount({
+    userId: user.id,
+    reason: "pilot suspension",
+    actorUserId: user.id,
+    requestId: "req-suspend-2",
+  });
+
+  assert.equal(await sessionCount(client, "open@example.com"), 0, "every session row is gone");
+  const next = await request("POST", "/v1/auth/sign-out", undefined, token);
+  assert.equal(next.status, 401);
+  assert.equal(next.body?.code, "UNAUTHENTICATED");
+
+  const audit = await client.query<{ actor_user_id: string | null; reason: string | null; metadata: unknown }>(
+    "SELECT actor_user_id, reason, metadata FROM audit_logs WHERE action = 'ACCOUNT_SUSPENDED'",
+  );
+  assert.equal(audit.rowCount, 1);
+  assert.equal(audit.rows[0].actor_user_id, user.id);
+  assert.equal(audit.rows[0].reason, "pilot suspension");
+  assert.deepEqual(audit.rows[0].metadata, {});
+  assert.ok(!JSON.stringify(audit.rows[0]).includes(token), "no session token in the audit entry");
+});
+
+test("a suspension that fails partway leaves the status and sessions unchanged", async (context) => {
+  const stack = requireStack(context);
+  if (!stack) {
+    return;
+  }
+  const { client } = stack;
+  assert.ok(identity);
+
+  await registerAndVerify("atomic@example.com");
+  await signIn("atomic@example.com");
+  const [user] = (await client.query<{ id: string }>("SELECT id FROM users WHERE email = $1", [
+    "atomic@example.com",
+  ])).rows;
+
+  // A nonexistent actor violates the audit foreign key, so the whole
+  // transaction must roll back.
+  await assert.rejects(
+    identity.suspendAccount({
+      userId: user.id,
+      reason: "pilot suspension",
+      actorUserId: "no-such-actor",
+      requestId: "req-suspend-3",
+    }),
+  );
+
+  const after = await client.query<{ status: string }>("SELECT status FROM users WHERE id = $1", [user.id]);
+  assert.equal(after.rows[0].status, "ACTIVE");
+  assert.equal(await sessionCount(client, "atomic@example.com"), 1, "the session survives the rollback");
+  const audit = await client.query("SELECT id FROM audit_logs WHERE action = 'ACCOUNT_SUSPENDED'");
+  assert.equal(audit.rowCount, 0);
+});
+
+test("deactivation revokes the caller's own session and names the actor", async (context) => {
+  const stack = requireStack(context);
+  if (!stack) {
+    return;
+  }
+  const { client } = stack;
+  assert.ok(identity);
+
+  await registerAndVerify("leave@example.com");
+  const token = String((await signIn("leave@example.com")).body?.session_token);
+
+  await identity.deactivateAccount({ sessionToken: token, requestId: "req-deactivate-1" });
+
+  const users = await client.query<{ id: string; status: string }>(
+    "SELECT id, status FROM users WHERE email = $1",
+    ["leave@example.com"],
+  );
+  assert.equal(users.rows[0].status, "DEACTIVATED");
+  assert.equal(await sessionCount(client, "leave@example.com"), 0);
+
+  const next = await request("POST", "/v1/auth/sign-out", undefined, token);
+  assert.equal(next.status, 401);
+
+  const audit = await client.query<{ actor_user_id: string | null }>(
+    "SELECT actor_user_id FROM audit_logs WHERE action = 'ACCOUNT_DEACTIVATED'",
+  );
+  assert.equal(audit.rowCount, 1);
+  assert.equal(audit.rows[0].actor_user_id, users.rows[0].id);
+
+  // An invalid session never changes anything.
+  await assert.rejects(
+    identity.deactivateAccount({ sessionToken: "not-a-session", requestId: "req-deactivate-2" }),
+    { code: "SESSION_INVALID" },
+  );
+  const after = await client.query<{ status: string }>("SELECT status FROM users WHERE email = $1", [
+    "leave@example.com",
+  ]);
+  assert.equal(after.rows[0].status, "DEACTIVATED");
+});
+
+test("deactivation is reversible by signing in and records one activation", async (context) => {
+  const stack = requireStack(context);
+  if (!stack) {
+    return;
+  }
+  const { client } = stack;
+  assert.ok(identity);
+
+  await registerAndVerify("resume@example.com");
+  const first = String((await signIn("resume@example.com")).body?.session_token);
+  await identity.deactivateAccount({ sessionToken: first, requestId: "req-deactivate-3" });
+
+  const resumed = await signIn("resume@example.com");
+  assert.equal(resumed.status, 200, "a deactivated account that signs in is active again");
+  assert.equal(
+    (resumed.body?.account as Record<string, unknown> | undefined)?.account_status,
+    "active",
+    "the response reports the post-transition status, not the pre-transition one",
+  );
+
+  const users = await client.query<{ status: string }>("SELECT status FROM users WHERE email = $1", [
+    "resume@example.com",
+  ]);
+  assert.equal(users.rows[0].status, "ACTIVE");
+  assert.equal(await sessionCount(client, "resume@example.com"), 1);
+
+  // One activation for verification plus one for the resume, never a third.
+  const activations = await client.query("SELECT id FROM audit_logs WHERE action = 'ACCOUNT_ACTIVATED'");
+  assert.equal(activations.rowCount, 2);
+});
+
+test("activation never revives a suspended account", async (context) => {
+  const stack = requireStack(context);
+  if (!stack) {
+    return;
+  }
+  const { client } = stack;
+  assert.ok(identity);
+
+  await registerAndVerify("revive@example.com");
+  const [user] = (await client.query<{ id: string }>("SELECT id FROM users WHERE email = $1", [
+    "revive@example.com",
+  ])).rows;
+  await identity.suspendAccount({
+    userId: user.id,
+    reason: "pilot suspension",
+    actorUserId: user.id,
+    requestId: "req-suspend-4",
+  });
+
+  const summary = await identity.activateAccount({ userId: user.id, requestId: "req-activate-1" });
+  assert.equal(summary.accountStatus, "SUSPENDED");
+  const after = await client.query<{ status: string }>("SELECT status FROM users WHERE id = $1", [user.id]);
+  assert.equal(after.rows[0].status, "SUSPENDED");
+});
+
+test("GET /v1/me returns the account record only and nothing for another user", async (context) => {
+  const stack = requireStack(context);
+  if (!stack) {
+    return;
+  }
+  const { client } = stack;
+
+  await registerAndVerify("me@example.com");
+  await registerAndVerify("other@example.com");
+  const signedIn = await signIn("me@example.com");
+  assert.equal(signedIn.status, 200);
+  const token = String(signedIn.body?.session_token);
+
+  const response = await request("GET", "/v1/me", undefined, token);
+  assert.equal(response.status, 200);
+  const body = response.body ?? {};
+  assert.deepEqual(Object.keys(body).sort(), [
+    "account_status",
+    "display_name",
+    "email",
+    "email_verified",
+    "id",
+    "timezone",
+  ]);
+  assert.equal(body.email, "me@example.com");
+  assert.equal(body.email_verified, true);
+  assert.equal(body.account_status, "active");
+  assert.equal(body.timezone, "Asia/Dhaka");
+  assert.ok(!response.text.includes("other@example.com"), "no other user's data");
+  // No profile fields: the account record is the whole response.
+  for (const field of ["goals", "field", "availability", "capacity", "roles"]) {
+    assert.equal(body[field], undefined, `${field} is not part of the account record`);
+  }
+  assert.equal((await client.query("SELECT id FROM users")).rowCount, 2);
+});
+
+test("GET /v1/me without a valid session is 401 and returns no account data", async (context) => {
+  if (!requireStack(context)) {
+    return;
+  }
+
+  const missing = await request("GET", "/v1/me");
+  assert.equal(missing.status, 401);
+  assert.equal(missing.body?.code, "UNAUTHENTICATED");
+  assert.equal(missing.body?.email, undefined);
+
+  const bogus = await request("GET", "/v1/me", undefined, "not-a-session");
+  assert.equal(bogus.status, 401);
+  assert.equal(bogus.body?.email, undefined);
+});
+
+test("POST /v1/me/deactivate deactivates the caller and revokes every session", async (context) => {
+  const stack = requireStack(context);
+  if (!stack) {
+    return;
+  }
+  const { client } = stack;
+
+  await registerAndVerify("bff@example.com");
+  const token = String((await signIn("bff@example.com")).body?.session_token);
+
+  const response = await request("POST", "/v1/me/deactivate", undefined, token);
+  assert.equal(response.status, 200);
+  assert.deepEqual(response.body, { status: "deactivated" });
+
+  const users = await client.query<{ status: string }>("SELECT status FROM users WHERE email = $1", [
+    "bff@example.com",
+  ]);
+  assert.equal(users.rows[0].status, "DEACTIVATED");
+  assert.equal(await sessionCount(client, "bff@example.com"), 0);
+
+  const after = await request("GET", "/v1/me", undefined, token);
+  assert.equal(after.status, 401);
+
+  const withoutSession = await request("POST", "/v1/me/deactivate");
+  assert.equal(withoutSession.status, 401);
+});
+
+test("a deletion-pending or anonymized account is refused without a status code leak", async (context) => {
+  const stack = requireStack(context);
+  if (!stack) {
+    return;
+  }
+  const { client } = stack;
+
+  for (const status of ["DELETION_PENDING", "ANONYMIZED"] as const) {
+    await registerAndVerify(`gone-${status.toLowerCase()}@example.com`);
+    await client.query("UPDATE users SET status = $1 WHERE email = $2", [
+      status,
+      `gone-${status.toLowerCase()}@example.com`,
+    ]);
+
+    const refused = await signIn(`gone-${status.toLowerCase()}@example.com`);
+    assert.equal(refused.status, 403, `${status} sign-in is refused`);
+    assert.equal(refused.body?.code, "FORBIDDEN");
+    assert.equal(await sessionCount(client, `gone-${status.toLowerCase()}@example.com`), 0);
+  }
+});
+
+test("deactivation cannot overwrite a suspension", async (context) => {
+  const stack = requireStack(context);
+  if (!stack) {
+    return;
+  }
+  const { client } = stack;
+  assert.ok(identity);
+
+  await registerAndVerify("sanctioned@example.com");
+  const token = String((await signIn("sanctioned@example.com")).body?.session_token);
+  const [user] = (await client.query<{ id: string }>("SELECT id FROM users WHERE email = $1", [
+    "sanctioned@example.com",
+  ])).rows;
+
+  // Simulates the narrow race: the status changed after the session was read.
+  await client.query("UPDATE users SET status = 'SUSPENDED' WHERE id = $1", [user.id]);
+
+  await assert.rejects(identity.deactivateAccount({ sessionToken: token, requestId: "req-race" }), {
+    code: "SESSION_INVALID",
+  });
+  const after = await client.query<{ status: string }>("SELECT status FROM users WHERE id = $1", [user.id]);
+  assert.equal(after.rows[0].status, "SUSPENDED", "the sanction survives");
+  const audits = await client.query("SELECT id FROM audit_logs WHERE action = 'ACCOUNT_DEACTIVATED'");
+  assert.equal(audits.rowCount, 0);
+});
+
+test("a verified account whose activation write failed repairs itself at sign-in", async (context) => {
+  const stack = requireStack(context);
+  if (!stack) {
+    return;
+  }
+  const { client } = stack;
+
+  await registerAndVerify("repair@example.com");
+  // The state a failed activation leaves behind: the address is verified and
+  // the token is spent, but the status never moved.
+  await client.query("UPDATE users SET status = 'PENDING' WHERE email = $1", ["repair@example.com"]);
+
+  const signedIn = await signIn("repair@example.com");
+  assert.equal(signedIn.status, 200, "the account is not locked out");
+  const users = await client.query<{ status: string }>("SELECT status FROM users WHERE email = $1", [
+    "repair@example.com",
+  ]);
+  assert.equal(users.rows[0].status, "ACTIVE");
+  assert.equal(await sessionCount(client, "repair@example.com"), 1);
 });
 
 test("unknown email and wrong password return the same 401 body", async (context) => {
@@ -398,7 +867,7 @@ test("no audit entry contains a password, token, or raw email", async (context) 
   const { client } = stack;
 
   const email = "audit@example.com";
-  await register(email);
+  await registerAndVerify(email);
   const signedIn = await signIn(email);
   const token = String(signedIn.body?.session_token);
   await request("POST", "/v1/auth/sign-out-everywhere", undefined, token);
@@ -423,7 +892,7 @@ test("sign-out-everywhere makes another session fail on its next request", async
   }
   const { client } = stack;
 
-  await register("everywhere@example.com");
+  await registerAndVerify("everywhere@example.com");
   const first = String((await signIn("everywhere@example.com")).body?.session_token);
   const second = String((await signIn("everywhere@example.com")).body?.session_token);
   assert.notEqual(first, second);
@@ -474,7 +943,7 @@ test("a password reset revokes every session and the reset token cannot be reuse
   const { client } = stack;
   assert.ok(sender);
 
-  await register("revoke@example.com");
+  await registerAndVerify("revoke@example.com");
   const first = String((await signIn("revoke@example.com")).body?.session_token);
   const second = String((await signIn("revoke@example.com")).body?.session_token);
 

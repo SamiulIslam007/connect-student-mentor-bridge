@@ -258,3 +258,25 @@ date: 2026-10-29
 - Reason: D-29 described the state before any application code existed and is stale.
 - Status: Decided
 - Affects: `README.md`, `system-architecture.md`
+
+### D-35: Account status activates on email verification
+- Date: 2026-11-03
+- Decision: Change #3 is renamed `account-status-lifecycle` (was `age-gate-and-account-status`), because the 18+ gate shipped in `identity-better-auth` and the remaining scope is the account-status lifecycle plus the blocked-signup policy. Activation happens on email verification: opening the verification link moves `PENDING` to `ACTIVE`, only an `ACTIVE` account can sign in, and the status is evaluated only after the password is accepted.
+- Reason: `PENDING` needs a reachable exit, otherwise every later capability gates on a value that is never true. Email verification is the only state an account can reach inside this change, it already exists as `email_verified`, and FR-AUTH-01 already uses verified/unverified as the permission boundary, so activation is a mechanical consequence of an existing rule rather than a new policy.
+- Status: Decided
+- Affects: `mvp-build-plan.md`, `milestones-and-phases.md`, `functional-requirements.md`, `auth-and-access-control.md`, `api-contracts.md`, `data-model.md`
+
+### D-36: Deactivation is reversible by signing in
+- Date: 2026-11-03
+- Decision: A `DEACTIVATED` account that signs in with the correct password returns to `ACTIVE` and receives a session. There is no separate reactivation endpoint and no `ACCOUNT_DEACTIVATED` error code. The transition is one idempotent update (`WHERE status = 'DEACTIVATED'`) in the session-creation hook, plus one `ACCOUNT_ACTIVATED` audit entry.
+- Reason: The docs describe deactivation as a pause but never said how the pause ends. Reversal on a successful password sign-in is the only option that adds no endpoint and no new unauthenticated write path, and the password was already verified before the status is read.
+- Status: Decided (owner confirmation of the design D5 Proposed default during the `account-status-lifecycle` apply)
+- Affects: `openspec/changes/account-status-lifecycle/design.md`, `data-model.md`, `api-contracts.md`, `auth-and-access-control.md`
+
+### D-37: Signup block stays at 12 months
+- Date: 2026-11-03
+- Decision: The `signup_blocks` entry written after an under-18 attempt expires 12 months after the attempt, and registration reads it before the age gate. The duration stays one named constant, so shortening it later is a code change and not a migration.
+- Reason: Twelve months is the value already Proposed in `data-model.md`, and the block exists to stop a resubmission with a changed date of birth rather than to punish the applicant.
+- Status: Decided (owner confirmation during the `account-status-lifecycle` apply)
+- Affects: `data-model.md`, `openspec/changes/account-status-lifecycle/design.md`
+

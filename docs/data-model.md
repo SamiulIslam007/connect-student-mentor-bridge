@@ -156,7 +156,7 @@ Authentication internals are **library-native** better-auth tables in the same s
 | Enum | Values |
 |---|---|
 | `role` | `STUDENT`, `MENTOR`, `INSTITUTION_ADMIN`, `PLATFORM_ADMIN`, `EMPLOYER` (reserved, Phase 3) |
-| `account_status` | `PENDING`, `ACTIVE`, `SUSPENDED`, `DEACTIVATED`, `DELETION_PENDING`, `ANONYMIZED`. Account lifecycle only. Verification progress is stored in separate fields (`email_verified`, `age_gate_passed_at`), never as an account state. `PENDING` is the state of a new account until the account-status lifecycle activates it |
+| `account_status` | `PENDING`, `ACTIVE`, `SUSPENDED`, `DEACTIVATED`, `DELETION_PENDING`, `ANONYMIZED`. Account lifecycle only. Verification progress is stored in separate fields (`email_verified`, `age_gate_passed_at`), never as an account state. `PENDING` is the state of a new account until email verification activates it (`PENDING` → `ACTIVE`, idempotent, and never applied to any other state). `SUSPENDED` and `DEACTIVATED` are each written with a `DELETE` of every `sessions` row for the account in the same transaction, so only an `ACTIVE` account can hold a session; signing in with the correct password returns a `DEACTIVATED` account to `ACTIVE`. `DELETION_PENDING` and `ANONYMIZED` are defined but no code path writes them yet |
 | `institution_kind` | `UNIVERSITY`, `BOOTCAMP`, `TRAINING_INSTITUTE`, `OTHER` |
 | `institution_status` | `ONBOARDING`, `ACTIVE`, `SUSPENDED` |
 | `affiliation_kind` | `ALUMNUS`, `STUDENT`, `FACULTY_STAFF`, `EMPLOYEE` |
@@ -318,7 +318,7 @@ The project columns are declared to the library with `input: false`, so no reque
 
 **`role_assignments`**: `user_id`, `role`, `institution_id?` (required when `role = INSTITUTION_ADMIN`), `granted_by_user_id?`, `granted_at`, `revoked_at?`. Unique active row per (`user_id`, `role`, `institution_id`). Roles are revoked, never deleted.
 
-**`signup_blocks`**: `email_hash text` unique (hex HMAC-SHA-256 keyed with `BETTER_AUTH_SECRET`; the address is not recoverable from it), `reason` (`UNDER_18`), `expires_at` (**Proposed**: 12 months), `created_at`. Exists only to stop immediate re-registration after an under-18 attempt.
+**`signup_blocks`**: `email_hash text` unique (hex HMAC-SHA-256 keyed with `BETTER_AUTH_SECRET`; the address is not recoverable from it), `reason` (`UNDER_18`), `expires_at` (**Proposed**: 12 months), `created_at`. Exists only to stop immediate re-registration after an under-18 attempt: registration reads it before the age gate and refuses a live entry with `422 UNDER_MINIMUM_AGE`, whatever date of birth is submitted. An expired entry no longer blocks.
 
 **`institutions`**: `name`, `kind`, `country_code char(2)`, `status`, `mou_signed_on date?`, `min_cohort_size smallint?` (null means platform default, **Proposed**: 5).
 **`institution_domains`**: `institution_id`, `domain citext` unique, `verified_at?`.
@@ -535,7 +535,7 @@ Shape (Proposed, policy governs): `points = difficulty_weight x tier_multiplier 
 **`abuse_reports`**: `reporter_user_id`, `subject_type` (`USER`, `THREAD_MESSAGE`, `MENTOR_PROFILE`, `OUTCOME`), `subject_id`, `category` (`HARASSMENT`, `EXPLOITATION`, `FRAUD`, `SPAM`, `OTHER`), `description`, `status` (`OPEN`, `IN_REVIEW`, `ACTION_TAKEN`, `DISMISSED`), `assigned_to_user_id?`, `resolution_note?`, `resolved_at?`.
 **`account_sanctions`**: `user_id`, `kind` (`WARNING`, `SUSPENSION`, `REMOVAL`), `reason`, `starts_at`, `ends_at?`, `issued_by_user_id`, `related_report_id?`, `revoked_at?`.
 
-**`audit_logs`** (append-only): `id`, `occurred_at`, `actor_user_id?`, `actor_role`, `action text`, `object_type`, `object_id?` (null when the attempt has no object, for example a failed sign-in), `request_id`, `break_glass bool`, `reason text?`, `metadata jsonb` (no message bodies, no passwords, hashes, tokens, or raw email addresses), `prev_hash text?`, `hash text?`. The optional hash chain (FR-AUD-02) gives tamper evidence. Authentication events written today: `USER_REGISTERED`, `EMAIL_VERIFIED`, `SIGN_IN_SUCCEEDED`, `SIGN_IN_FAILED`, `PASSWORD_RESET_REQUESTED`, `PASSWORD_RESET_COMPLETED`, `SIGNED_OUT`, `SIGNED_OUT_EVERYWHERE`.
+**`audit_logs`** (append-only): `id`, `occurred_at`, `actor_user_id?`, `actor_role`, `action text`, `object_type`, `object_id?` (null when the attempt has no object, for example a failed sign-in), `request_id`, `break_glass bool`, `reason text?`, `metadata jsonb` (no message bodies, no passwords, hashes, tokens, or raw email addresses), `prev_hash text?`, `hash text?`. The optional hash chain (FR-AUD-02) gives tamper evidence. Authentication events written today: `USER_REGISTERED`, `EMAIL_VERIFIED`, `ACCOUNT_ACTIVATED`, `ACCOUNT_SUSPENDED`, `ACCOUNT_DEACTIVATED`, `SIGN_IN_SUCCEEDED`, `SIGN_IN_FAILED`, `PASSWORD_RESET_REQUESTED`, `PASSWORD_RESET_COMPLETED`, `SIGNED_OUT`, `SIGNED_OUT_EVERYWHERE`.
 
 **`data_rights_requests`**: `user_id`, `kind` (`EXPORT`, `DELETION`), `status` (`RECEIVED`, `VERIFYING`, `IN_PROGRESS`, `COMPLETED`, `PARTIALLY_COMPLETED`), `received_at`, `due_at` (period **Open**), `completed_at?`, `exceptions_applied jsonb?`, `handled_by_user_id?`, `export_storage_key?`, `export_expires_at?`.
 

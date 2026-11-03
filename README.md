@@ -5,7 +5,7 @@
 
 | | |
 |---|---|
-| **Status** | **Sprint 1 identity archived (2026-11-03).** Sprint 0 baseline plus email/password auth, verification, the 18+ gate, Postgres sessions, consent and audit rows, the database foundation, and the institution seed. Google sign-in, MFA, and the session list move to the Sprint 2 change `access-google-mfa-and-sessions`. No deployment yet |
+| **Status** | **Sprint 1 identity archived (2026-11-03); account-status lifecycle archived (2026-11-03).** Sprint 0 baseline plus email/password auth, verification, the 18+ gate, Postgres sessions, consent and audit rows, the database foundation, and the institution seed. The lifecycle change adds activation on email verification, the sign-in status gate (`EMAIL_NOT_VERIFIED`, `ACCOUNT_SUSPENDED`), suspension and self-deactivation with session revocation, `GET /v1/me` and `POST /v1/me/deactivate`, the blocked-signup read, and an `ACTIVE` backfill. Google sign-in, MFA, and the session list move to the Sprint 2 change `access-google-mfa-and-sessions`. No deployment yet |
 | **Document role** | **Master README, the main source of truth** for the connect project |
 | **Audience** | Builder, future engineers, designers, advisors, pilot institutions, AI coding agents |
 | **Last reviewed** | 2026-11-03 |

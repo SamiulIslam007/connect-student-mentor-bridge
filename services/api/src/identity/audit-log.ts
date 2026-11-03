@@ -4,6 +4,9 @@ import { auditLogs } from "../db/schema/index.js";
 export type AuditAction =
   | "USER_REGISTERED"
   | "EMAIL_VERIFIED"
+  | "ACCOUNT_ACTIVATED"
+  | "ACCOUNT_SUSPENDED"
+  | "ACCOUNT_DEACTIVATED"
   | "SIGN_IN_SUCCEEDED"
   | "SIGN_IN_FAILED"
   | "PASSWORD_RESET_REQUESTED"

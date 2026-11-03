@@ -21,6 +21,9 @@ const PROBLEMS: Record<IdentityErrorCode, ProblemMapping> = {
   SESSION_INVALID: { status: 401, code: "UNAUTHENTICATED", title: "The session is not valid" },
   INVALID_VERIFICATION_LINK: { status: 400, code: "INVALID_VERIFICATION_LINK", title: "The verification link is invalid or expired" },
   INVALID_RESET_TOKEN: { status: 400, code: "INVALID_RESET_TOKEN", title: "The reset link is invalid or expired" },
+  EMAIL_NOT_VERIFIED: { status: 403, code: "EMAIL_NOT_VERIFIED", title: "Confirm your email address before signing in" },
+  ACCOUNT_SUSPENDED: { status: 403, code: "ACCOUNT_SUSPENDED", title: "This account is suspended" },
+  FORBIDDEN: { status: 403, code: "FORBIDDEN", title: "This account cannot sign in" },
 };
 
 const PROBLEM_BASE = "https://docs.connect.example/problems/";

@@ -1,14 +1,20 @@
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { betterAuth } from "better-auth";
+import { APIError } from "better-auth/api";
 import { bearer } from "better-auth/plugins";
+import { eq } from "drizzle-orm";
+
+import { decideSignIn } from "@connect/domain";
 
 import type { Database } from "../db/database.js";
+import { users } from "../db/schema/index.js";
 import {
   passwordResetEmail,
   sendInBackground,
   verificationEmail,
   type EmailSender,
 } from "../email/email-sender.js";
+import { activatePendingAccount, resumeDeactivatedAccount } from "./account-activation.js";
 import { appendAuditEntry } from "./audit-log.js";
 import { currentRequestId } from "./request-context.js";
 
@@ -56,10 +62,66 @@ export function createIdentityAuth({
       expiresIn: SESSION_EXPIRES_IN_SECONDS,
       updateAge: SESSION_UPDATE_AGE_SECONDS,
     },
+    databaseHooks: {
+      session: {
+        create: {
+          // The single invariant: a session row exists only for an `ACTIVE`
+          // account (design D2). Aborting the write is the only refusal the
+          // library offers, and throwing keeps the specific reason.
+          before: async (session) => {
+            const [account] = await database
+              .select({ status: users.status, emailVerified: users.emailVerified })
+              .from(users)
+              .where(eq(users.id, session.userId))
+              .limit(1);
+
+            if (!account) {
+              throw new APIError("FORBIDDEN", { message: "this account cannot sign in", code: "FORBIDDEN" });
+            }
+
+            // Repair a verification whose activation write failed: the library
+            // consumed the token and refuses to resend a link for a verified
+            // address, so a `PENDING` + verified row would otherwise be locked
+            // out for good. The write is the same idempotent activation.
+            if (account.status === "PENDING" && account.emailVerified) {
+              await activatePendingAccount(database, session.userId, currentRequestId());
+              return;
+            }
+
+            const decision = decideSignIn(account.status);
+            if (decision.action === "REFUSE") {
+              throw new APIError("FORBIDDEN", {
+                message: "this account cannot sign in",
+                code: decision.code,
+              });
+            }
+            if (decision.action === "ACTIVATE_THEN_ALLOW") {
+              // Deactivation is a pause; signing in resumes it (design D5).
+              // If the row was no longer `DEACTIVATED`, a suspension won the
+              // race: refuse instead of allowing the session.
+              // ponytail: the status read and the session insert are not in one
+              // transaction, so a suspension committing between them can still
+              // leave one live session. Close it in FR-ADM-05 by moving the
+              // check into the library's transaction or by a DB guard.
+              const resumed = await resumeDeactivatedAccount(database, session.userId, currentRequestId());
+              if (!resumed) {
+                throw new APIError("FORBIDDEN", {
+                  message: "this account cannot sign in",
+                  code: "FORBIDDEN",
+                });
+              }
+            }
+          },
+        },
+      },
+    },
     emailAndPassword: {
       enabled: true,
       // Registration returns no session (spec: "a success without a session").
       autoSignIn: false,
+      // Only a verified account signs in; the password is checked first, so the
+      // refusal never discloses whether the address exists (SEC-AUTH-6).
+      requireEmailVerification: true,
       minPasswordLength: 12,
       maxPasswordLength: 128,
       resetPasswordTokenExpiresIn: RESET_TOKEN_EXPIRES_IN_SECONDS,
@@ -83,6 +145,9 @@ export function createIdentityAuth({
     },
     emailVerification: {
       sendOnSignUp: true,
+      // A refused sign-in for an unverified account sends a fresh link, which
+      // is the resend action the web client offers.
+      sendOnSignIn: true,
       expiresIn: VERIFICATION_EXPIRES_IN_SECONDS,
       sendVerificationEmail: async ({ user, token }) => {
         sendInBackground(
@@ -99,6 +164,7 @@ export function createIdentityAuth({
           objectId: user.id,
           requestId: currentRequestId(),
         });
+        await activatePendingAccount(database, user.id, currentRequestId());
       },
     },
   });

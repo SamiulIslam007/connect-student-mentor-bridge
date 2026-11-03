@@ -146,7 +146,7 @@ The word "verification" is split in two, because the README uses it for both.
 | Enum | Values (Proposed) |
 |---|---|
 | `role` | `STUDENT`, `MENTOR`, `INSTITUTION_ADMIN`, `PLATFORM_ADMIN`, `EMPLOYER` (reserved, Phase 3) |
-| `account_status` | `ACTIVE`, `SUSPENDED`, `DEACTIVATED`, `DELETION_PENDING`, `ANONYMIZED` |
+| `account_status` | `PENDING`, `ACTIVE`, `SUSPENDED`, `DEACTIVATED`, `DELETION_PENDING`, `ANONYMIZED` |
 | `mentor_onboarding_status` | `APPLIED`, `EMAIL_VERIFIED`, `AFFILIATION_VERIFIED`, `EMPLOYER_CHECKED` |
 | `mentor_status` | `DRAFT`, `PENDING`, `ACTIVE`, `SUSPENDED`, `REMOVED` |
 | `mentor_access_mode` | `OPEN`, `APPLICATION_ONLY`, `PAUSED` |

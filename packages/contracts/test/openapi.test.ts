@@ -78,3 +78,20 @@ test("every auth failure is documented as a problem detail", () => {
     }
   }
 });
+
+test("every self-service account route implemented by the controller appears in the contract", () => {
+  const document = contract();
+  const controller = readFileSync(resolve(process.cwd(), "../../services/api/src/me/me.controller.ts"), "utf8");
+
+  const routes = [...controller.matchAll(/@(Get|Post)\(([^)]*)\)/g)].map((match) => {
+    const suffix = match[2].replaceAll('"', "").trim();
+    return `/v1/me${suffix ? `/${suffix}` : ""}`;
+  });
+  assert.deepEqual([...routes].sort(), ["/v1/me", "/v1/me/deactivate"]);
+
+  for (const route of routes) {
+    assert.ok(document.paths[route], `${route} is implemented but missing from openapi.yaml`);
+    const operation = Object.values(document.paths[route])[0];
+    assert.deepEqual(operation.security, [{ bearerAuth: [] }], `${route} must require a session`);
+  }
+});

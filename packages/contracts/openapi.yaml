@@ -100,8 +100,11 @@ paths:
       summary: Email and password sign-in
       description: >-
         A wrong password and an unknown email return the same 401 problem body.
-        The session token is returned to the backend-for-frontend only, which
-        stores it in an httpOnly cookie.
+        The status is evaluated only after the password is accepted, so a 403
+        never discloses whether an address exists. A 403 is EMAIL_NOT_VERIFIED
+        for an unverified account, ACCOUNT_SUSPENDED for a suspended account, or
+        FORBIDDEN for any other non-active state. The session token is returned
+        to the backend-for-frontend only, which stores it in an httpOnly cookie.
       security: []
       requestBody:
         required: true
@@ -117,6 +120,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/SessionResponse"
         "401":
+          $ref: "#/components/responses/Problem"
+        "403":
           $ref: "#/components/responses/Problem"
         "422":
           $ref: "#/components/responses/Problem"
@@ -196,6 +201,45 @@ paths:
           $ref: "#/components/responses/Problem"
         "422":
           $ref: "#/components/responses/Problem"
+  /v1/me:
+    get:
+      operationId: getCurrentAccount
+      summary: The signed-in account's own record
+      description: >-
+        Returns the account record only: id, display name, email, verification
+        state, account status, and timezone. Profile data is not part of this
+        response. The account is taken from the session token, never from a
+        request parameter.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The signed-in account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountSummary"
+        "401":
+          $ref: "#/components/responses/Problem"
+  /v1/me/deactivate:
+    post:
+      operationId: deactivateAccount
+      summary: Deactivate the signed-in account
+      description: >-
+        Sets the account status to deactivated and revokes every session for the
+        account, so the caller's own session fails on its next request. Signing
+        in again with the correct password returns the account to active.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The account is deactivated and every session is revoked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+        "401":
+          $ref: "#/components/responses/Problem"
 components:
   securitySchemes:
     bearerAuth:
@@ -233,6 +277,7 @@ components:
           enum:
             - verification_sent
             - verified
+            - deactivated
             - signed_out
             - signed_out_everywhere
             - reset_email_sent_if_account_exists
@@ -298,19 +343,29 @@ components:
           type: string
           description: Opaque bearer token for the BFF; never placed in client storage.
         account:
-          type: object
-          additionalProperties: false
-          required: [id, display_name, email, email_verified]
-          properties:
-            id:
-              type: string
-            display_name:
-              type: string
-            email:
-              type: string
-              format: email
-            email_verified:
-              type: boolean
+          $ref: "#/components/schemas/AccountSummary"
+    AccountStatus:
+      type: string
+      description: Account lifecycle state (docs/data-model.md §4.1, lowercase API form).
+      enum: [pending, active, suspended, deactivated, deletion_pending, anonymized]
+    AccountSummary:
+      type: object
+      additionalProperties: false
+      required: [id, display_name, email, email_verified, account_status, timezone]
+      properties:
+        id:
+          type: string
+        display_name:
+          type: string
+        email:
+          type: string
+          format: email
+        email_verified:
+          type: boolean
+        account_status:
+          $ref: "#/components/schemas/AccountStatus"
+        timezone:
+          type: string
     Problem:
       type: object
       additionalProperties: true
@@ -332,6 +387,9 @@ components:
             - VALIDATION_FAILED
             - UNDER_MINIMUM_AGE
             - UNAUTHENTICATED
+            - EMAIL_NOT_VERIFIED
+            - ACCOUNT_SUSPENDED
+            - FORBIDDEN
             - INVALID_VERIFICATION_LINK
             - INVALID_RESET_TOKEN
             - NOT_FOUND

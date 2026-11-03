@@ -71,13 +71,35 @@ export interface SessionLookupInput {
   sessionToken: string;
 }
 
+export interface ActivateAccountInput {
+  userId: string;
+  requestId: string;
+}
+
+export interface SuspendAccountInput {
+  userId: string;
+  /** Free text with no PII; FR-ADM-05 owns the vocabulary. */
+  reason: string;
+  actorUserId: string;
+  requestId: string;
+}
+
+export interface DeactivateAccountInput {
+  /** Self-service: the account id comes from the session, never a body. */
+  sessionToken: string;
+  requestId: string;
+}
+
 export type IdentityErrorCode =
   | "UNDER_MINIMUM_AGE"
   | "INVALID_CREDENTIALS"
   | "INVALID_VERIFICATION_LINK"
   | "INVALID_RESET_TOKEN"
   | "VALIDATION_ERROR"
-  | "SESSION_INVALID";
+  | "SESSION_INVALID"
+  | "EMAIL_NOT_VERIFIED"
+  | "ACCOUNT_SUSPENDED"
+  | "FORBIDDEN";
 
 /** A failure a feature module may map to a response, with no library detail. */
 export class IdentityError extends Error {
@@ -99,4 +121,8 @@ export interface IdentityService {
   requestPasswordReset(input: PasswordResetRequestInput): Promise<void>;
   resetPassword(input: PasswordResetInput): Promise<void>;
   getSession(input: SessionLookupInput): Promise<AccountSummary | null>;
+  /** Idempotent: applies only to a `PENDING` account (design D1). */
+  activateAccount(input: ActivateAccountInput): Promise<AccountSummary>;
+  suspendAccount(input: SuspendAccountInput): Promise<AccountSummary>;
+  deactivateAccount(input: DeactivateAccountInput): Promise<void>;
 }
