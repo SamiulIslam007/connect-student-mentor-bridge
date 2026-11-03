@@ -92,7 +92,7 @@ Integration tests use a separate `connect_test` database. Create it once:
 docker compose exec postgres psql -U connect -d postgres -c "CREATE DATABASE connect_test"
 ```
 
-Replace `connect` with `POSTGRES_USER` if it differs. The tests reset the `connect_test` schema on every run, print a skip reason when the database is unreachable (the CI case), and never touch the development database.
+Replace `connect` with `POSTGRES_USER` if it differs. The tests reset the `connect_test` schema on every run and never touch the development database. Outside CI they print a skip reason when the database is unreachable; with `CI` set they fail instead, so a green required check means the integration suite really ran.
 
 ## Auth configuration
 
