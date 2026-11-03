@@ -107,7 +107,7 @@ The outcome and reputation ledgers are the product's credibility. These requirem
 
 | ID | Requirement | Target | Label | Verification |
 |---|---|---|---|---|
-| NFR-INT-01 | Append-only ledgers | `outcome_event`, `verification_record`, `reputation_event`, `consent_record`, and `audit_log` accept inserts only. The application database role has no UPDATE or DELETE privilege on them, and a trigger rejects both | **Recommendation** (ADR-008) | Migration test that attempts UPDATE and DELETE and expects failure |
+| NFR-INT-01 | Append-only ledgers | `outcome_event`, `verification_record`, `reputation_event`, `consent_record`, and `audit_log` accept inserts only. The application database role has no UPDATE or DELETE privilege on them, and every ledger foreign key to `users` is `ON DELETE RESTRICT`; no trigger enforces the same rule (D-42) | **Recommendation** (ADR-008) | Migration test that attempts UPDATE and DELETE and expects failure |
 | NFR-INT-02 | Projection consistency | `outcome.status` always equals the result of replaying that outcome's events | **Recommendation** | Property test plus a nightly consistency job with an alert |
 | NFR-INT-03 | Deterministic recompute | Recomputing a mentor's snapshot from the ledger yields the stored snapshot exactly, for a given configuration version | **Recommendation** | Unit test on pure functions; nightly check |
 | NFR-INT-04 | Pure business rules | Match score, reputation points, state transitions, confidence tier, and suppression logic are pure functions in `packages/domain` with no I/O | **Recommendation** (ADR-012) | Dependency-rule check; unit tests |

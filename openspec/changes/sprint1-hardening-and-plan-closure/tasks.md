@@ -42,8 +42,8 @@
 
 ## 6. Documentation and hygiene
 
-- [ ] 6.1 Re-read the propose-time docs against the implemented code (`README.md`, `mvp-build-plan.md`, `milestones-and-phases.md`, `decision-log.md`, `data-model.md`, `api-contracts.md`, `security-requirements.md`, `non-functional-requirements.md`, `auth-and-access-control.md`, `production-requirements.md`, `system-architecture.md`, `known-debt.md`) and fix any statement that is now wrong. Verify: `openspec validate --all --strict` passes and no live document calls a deferred item current.
-- [ ] 6.2 Add `opencode.json`, `AGENTS.local.md`, `dbhub.toml`, and `.mcp-memory.jsonl` to `.dockerignore`. Verify: `docker compose build` still succeeds and the four paths are excluded from the build context.
+- [x] 6.1 Re-read the propose-time docs against the implemented code (`README.md`, `mvp-build-plan.md`, `milestones-and-phases.md`, `decision-log.md`, `data-model.md`, `api-contracts.md`, `security-requirements.md`, `non-functional-requirements.md`, `auth-and-access-control.md`, `production-requirements.md`, `system-architecture.md`, `known-debt.md`) and fix any statement that is now wrong. Verify: `openspec validate --all --strict` passes and no live document calls a deferred item current.
+- [x] 6.2 Add `opencode.json`, `AGENTS.local.md`, `dbhub.toml`, and `.mcp-memory.jsonl` to `.dockerignore`. Verify: `docker compose build` still succeeds and the four paths are excluded from the build context.
 - [ ] 6.3 Record the apply evidence in the change handoff: test counts, the timing medians, the CI log with 0 skipped, the clean-volume migration pair, and any UNVERIFIED item that remains. Verify: every claim cites a command run in the session.
 
 ## 7. Integration, review, and handoff

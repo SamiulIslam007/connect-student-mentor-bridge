@@ -320,7 +320,7 @@ date: 2026-10-29
 ### D-43: Taxonomy bounds and field pagination
 - Date: 2026-11-03
 - Decision: A mentor may have at most 5 fields total (the primary plus up to 4 additional); students and mentors may list at most 5 languages. Field names are NFKC-normalized, Unicode format characters (`Cf`) are stripped, and a name with no letter or number after normalization is refused. `GET /v1/fields` uses a keyset cursor by `normalized_slug`, default limit 100, maximum 200, ordered by slug. Cross-script confusables are a documented known limit, curated in Phase 1b.
-- Reason: The shared taxonomy is created by any authenticated user, never deleted, and unpaginated; unbounded arrays and invisible names let one request pollute every client. The primary field stays separate from the additional fields.
+- Reason: The shared taxonomy is created by any authenticated user, never deleted, and was unpaginated before this change; unbounded arrays and invisible names let one request pollute every client. The primary field stays separate from the additional fields.
 - Status: Decided
 - Affects: `docs/api-contracts.md`, `docs/data-model.md`, `docs/known-debt.md`, `openspec/changes/sprint1-hardening-and-plan-closure/design.md`
 

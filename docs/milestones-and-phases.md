@@ -18,9 +18,9 @@ sources: [README.md, connect-research-report.md (Sections 5, 6, 7, 9, 10)]
 | Phase | 1a - MVP build (about 8 sprints, 1 week each, 3 working days) |
 | Current sprint | **Sprint 1 complete; Sprint 2 planning.** Sprint 1 shipped identity (changes #2 and #3) and profiles (change #4), with the partials listed under 5.2 |
 | Last archived change | `profiles-and-dynamic-fields` (2026-11-03) - `DONE`: student and mentor profiles, the create-on-save field taxonomy with a normalized slug, `GET /v1/fields`, the two profile `PUT`s, and the `/v1/me` profile extension. All four gates green locally (115 tests); the audit's blockers will be closed by the in-flight hardening change |
-| In flight | `sprint1-hardening-and-plan-closure` (proposed 2026-11-03) - closes the independent Sprint 0/1 audit findings; see `docs/known-debt.md` |
+| In flight | `sprint1-hardening-and-plan-closure` (implemented 2026-11-03 on `feat/sprint1-hardening-and-plan-closure`) - closes the independent Sprint 0/1 audit findings; review gate and archive pending. See `docs/known-debt.md` |
 | Next change | `access-google-mfa-and-sessions` (4a), then `profile-availability-and-access-mode` (4b), then `affiliation-and-mentor-onboarding` (#5) |
-| Open blockers | None for coding. The hardening change must land before Sprint 2 feature work merges: app-role grants, CI database tests, and the plan rows |
+| Open blockers | None for coding. The hardening change must merge before Sprint 2 feature work: its app-role grants, CI database tests, and plan rows are implemented on the branch and await the review gate |
 
 ## 1. Purpose and scope
 
