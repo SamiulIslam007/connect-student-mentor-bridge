@@ -2,8 +2,8 @@
 
 ## 1. Dependencies and configuration
 
-- [ ] 1.1 Add exact dependencies to `services/api/package.json` (`better-auth` 1.7.15, `@better-auth/drizzle-adapter` 1.7.15, `drizzle-orm` 0.45.4, `nodemailer` 10.3.1) and dev dependencies (`drizzle-kit` 0.31.11, `@types/nodemailer`); verify `pnpm install` succeeds, `pnpm-lock.yaml` is committed, and `pnpm audit --audit-level high` reports no new high findings.
-- [ ] 1.2 Add `BETTER_AUTH_SECRET` and `BETTER_AUTH_URL` names to `.env.example` and pass them through `compose.yaml` and `compose.dev.yaml`; verify `docker compose config` parses and `git grep -n "BETTER_AUTH_SECRET=" -- .env.example` shows a name with no value.
+- [x] 1.1 Add exact dependencies to `services/api/package.json` (`better-auth` 1.7.15, `@better-auth/drizzle-adapter` 1.7.15, `drizzle-orm` 0.45.4, `nodemailer` 10.3.1) and dev dependencies (`drizzle-kit` 0.31.11, `@types/nodemailer`); verify `pnpm install` succeeds, `pnpm-lock.yaml` is committed, and `pnpm audit --audit-level high` reports no new high findings.
+- [x] 1.2 Add `BETTER_AUTH_SECRET` and `BETTER_AUTH_URL` names to `.env.example` and pass them through `compose.yaml` and `compose.dev.yaml`; verify `docker compose config` parses and `git grep -n "BETTER_AUTH_SECRET=" -- .env.example` shows a name with no value.
 
 ## 2. Database foundation
 

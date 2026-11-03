@@ -20,6 +20,8 @@ x-api-environment: &api-environment
   SMTP_FROM: ${SMTP_FROM}
   CLAMAV_HOST: clamav
   CLAMAV_PORT: "3310"
+  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+  BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
 
 services:
   postgres:
@@ -142,6 +144,7 @@ services:
       PORT: "3000"
       HOSTNAME: 0.0.0.0
       HEALTHCHECK_PATHS: /healthz
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:3001}
     ports:
       - "${WEB_PORT:-3000}:3000"
     healthcheck:
