@@ -78,9 +78,9 @@ Rejected: better-auth's `admin` plugin, which brings its own `banned`/`role` use
 
 Atomicity is the spec's requirement, so the status update, session delete, and audit insert share one transaction; a failure rolls back all three.
 
-### D5 — Deactivation is reversible by signing in (Proposed default, owner confirmation required)
+### D5 — Deactivation is reversible by signing in (owner-confirmed 2026-11-03, D-36)
 
-The docs describe deactivation as the user pausing their account but never say how the pause ends. Options were: admin-only reinstatement (adds an endpoint and a support dependency in the pilot), a credential-bearing reactivation endpoint (a new unauthenticated write path), or reactivation on a successful password sign-in (no new endpoint, no new token, one idempotent update already in the session hook). The third is chosen and marked **Proposed default** because it is the only one that costs no new surface, and "pause" stays honest.
+The docs describe deactivation as the user pausing their account but never say how the pause ends. Options were: admin-only reinstatement (adds an endpoint and a support dependency in the pilot), a credential-bearing reactivation endpoint (a new unauthenticated write path), or reactivation on a successful password sign-in (no new endpoint, no new token, one idempotent update already in the session hook). The third is chosen and **owner-confirmed** because it is the only one that costs no new surface, and "pause" stays honest.
 
 Consequence recorded: `DEACTIVATED` never produces a `403`. If the owner rejects this, the change grows one endpoint (`POST /v1/me/reactivate` with a signed reactivation token) and the `ACCOUNT_DEACTIVATED` error code returns to the catalog.
 
@@ -142,6 +142,8 @@ The check must run **before** the age gate, because the block exists precisely t
 
 ## Open Questions
 
-- **Owner confirmation required before apply:** is deactivation reversible by signing in (D5)? If not, the change needs one more endpoint.
-- **Owner decision, either value acceptable:** should the signup block stay at 12 months?
-- Do `DELETION_PENDING` and `ANONYMIZED` need a distinct refusal code, or is `FORBIDDEN` enough? Deferred to the deletion/privacy change, which is the first caller.
+All three were answered by the owner before apply (2026-11-03) and are recorded as D-36 and D-37.
+
+- **Deactivation is reversible by signing in (D5).** Confirmed: yes. No reactivation endpoint and no `ACCOUNT_DEACTIVATED` code ship.
+- **Signup block duration.** Confirmed: stays at 12 months as one named constant.
+- **Do `DELETION_PENDING` and `ANONYMIZED` need a distinct refusal code?** Still deferred to the deletion/privacy change, which is their first writer. Until then they refuse with the documented `FORBIDDEN` (`403`).

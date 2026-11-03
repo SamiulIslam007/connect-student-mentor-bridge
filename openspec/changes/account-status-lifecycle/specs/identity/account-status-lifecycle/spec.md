@@ -89,7 +89,7 @@ A signed-in user SHALL be able to deactivate their own account, which SHALL set 
 
 ### Requirement: Deactivation is reversible by signing in
 
-A `DEACTIVATED` account that signs in with the correct password SHALL return to `ACTIVE` and be granted a session. (Proposed default; owner confirmation required before apply.)
+A `DEACTIVATED` account that signs in with the correct password SHALL return to `ACTIVE` and be granted a session. (Owner-confirmed 2026-11-03; D-36.)
 
 #### Scenario: Signing in after deactivation
 
