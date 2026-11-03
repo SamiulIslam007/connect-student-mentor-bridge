@@ -253,11 +253,34 @@ Written to the append-only `AuditLog` (who, role, action, object, result, time, 
 
 ## 13. Account lifecycle
 
-`active` -> (`suspended` | `deactivated`) -> `deletion_pending` -> `anonymized`, using the `account_status` enum. Email verification and the age gate are separate fields (`email_verified_at`, `age_gate_passed_at`, `age_18_plus`), not account states.
+`pending` -> `active` -> (`suspended` | `deactivated`) -> `deletion_pending` -> `anonymized`, using the `account_status` enum.
 
-- **Suspension:** sessions revoked, no new requests. Reason and reviewer recorded.
-- **Deactivation:** the user can pause their own account; sessions are revoked and the profile is hidden.
+```
+                  open the verification link
+   pending -----------------------------------> active
+                                                  |
+                        +-------------------------+-------------------------+
+                        |                                                   |
+                sanction (admin)                                    self-deactivation
+                        v                                                   v
+                    suspended                                          deactivated
+                        |                                                   |
+        only an admin can reinstate                     signing in with the correct
+        (no user-side exit)                              password returns to `active`
+                        |                                                   |
+                        +-------------------------+-------------------------+
+                                                  |
+                                           deletion request
+                                                  v
+                                   deletion_pending -> anonymized
+```
+
+- **Activation:** opening the verification link moves `pending` to `active`, and only an `active` account can sign in. Registration writes the email as unverified, so "pending" and "unverified" are the same condition by construction (FR-AUTH-08). Google sign-in is not gated by the email/password verification rule, so the provider path in Sprint 2 activates through the same transition.
+- **Suspension:** every session is revoked in the same transaction, no new requests, sign-in refused. Reason and reviewer recorded (FR-AUTH-10; the sanction workflow itself is FR-ADM-05).
+- **Deactivation:** the user can pause their own account; sessions are revoked and the profile is hidden. Reversible by signing in again with the correct password (**Proposed default**, owner confirmation required; FR-AUTH-09).
 - **Deletion:** identifiers removed or pseudonymized, evidence files deleted, the ledger structure kept with pseudonymous references so counted outcomes remain auditable. This must be confirmed with counsel against the erasure right and its exceptions **[S1]** (see `docs/data-privacy-and-retention.md`).
+
+Email verification and the age gate are separate fields (`email_verified`, `age_gate_passed_at`, `age_18_plus`), not account states.
 
 ## 14. Abuse controls (summary; details in security-requirements.md)
 
