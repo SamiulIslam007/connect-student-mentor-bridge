@@ -9,13 +9,15 @@ import { AuthController } from "./identity/auth.controller.js";
 import { IdentityModule } from "./identity/identity.module.js";
 import { MeController } from "./me/me.controller.js";
 import { MeModule } from "./me/me.module.js";
+import { ProfilesController } from "./profiles/profiles.controller.js";
+import { ProfilesModule } from "./profiles/profiles.module.js";
 
 /**
- * Modular monolith root module. Product modules (profiles, matching, requests,
- * outcomes, reputation, notifications, admin, audit) are added by later changes.
+ * Modular monolith root module. Product modules (matching, requests, outcomes,
+ * reputation, notifications, admin, audit) are added by later changes.
  */
 @Module({
-  imports: [DatabaseModule, IdentityModule, MeModule],
+  imports: [DatabaseModule, IdentityModule, MeModule, ProfilesModule],
   controllers: [HealthController],
   providers: [
     { provide: DATABASE_PROBE, useValue: defaultProbe },
@@ -24,6 +26,8 @@ import { MeModule } from "./me/me.module.js";
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
-    consumer.apply(RequestIdMiddleware).forRoutes(HealthController, AuthController, MeController);
+    consumer
+      .apply(RequestIdMiddleware)
+      .forRoutes(HealthController, AuthController, MeController, ProfilesController);
   }
 }
