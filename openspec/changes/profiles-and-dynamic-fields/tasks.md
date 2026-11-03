@@ -42,9 +42,9 @@
 
 ## 6. Documentation Conformance and Integration
 
-- [ ] 6.1 Fix `docs/auth-and-access-control.md:79`: an unverified user cannot sign in or complete a profile; activation on email verification is the only path to a profile (FR-AUTH-08, `identity/account-status-lifecycle`). Verify: the sentence no longer contradicts the lifecycle spec, and no other line in the file still claims unverified users can sign in.
+- [x] 6.1 Fix `docs/auth-and-access-control.md:79`: an unverified user cannot sign in or complete a profile; activation on email verification is the only path to a profile (FR-AUTH-08, `identity/account-status-lifecycle`). Verify: the sentence no longer contradicts the lifecycle spec, and no other line in the file still claims unverified users can sign in.
 
-- [ ] 6.2 Update the trackers in the same branch: add `FR-PROF-01, 02` to Sprint 1's Requirements column in `docs/milestones-and-phases.md:103`, refresh the "Current state" block, add `GET /v1/fields` and the `/v1/me` extension to change #4's row in `docs/mvp-build-plan.md:95` and mark it `IN PROGRESS`, and update the status line in `README.md`. Verify: no document still calls #4 `PLANNED` or omits the profile FRs from Sprint 1.
+- [x] 6.2 Update the trackers in the same branch: add `FR-PROF-01, 02` to Sprint 1's Requirements column in `docs/milestones-and-phases.md:103`, refresh the "Current state" block, add `GET /v1/fields` and the `/v1/me` extension to change #4's row in `docs/mvp-build-plan.md:95` and mark it `IN PROGRESS`, and update the status line in `README.md`. Verify: no document still calls #4 `PLANNED` or omits the profile FRs from Sprint 1.
 
 - [ ] 6.3 Run the four project gates from the repository root with Compose Postgres running: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`. Verify: all four exit 0, and paste the real output in the handoff; a skipped integration suite counts as UNVERIFIED, not as a pass.
 

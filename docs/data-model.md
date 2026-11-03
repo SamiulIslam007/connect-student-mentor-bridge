@@ -15,7 +15,7 @@ sources: [README.md (sections 5, 10, 12), connect-research-report.md v1.1 (secti
 |---|---|
 | **Authority** | Subordinate to [README.md](../README.md) section 10. Rules about reputation and verification come from `reputation-and-verification-policy.md`; if they differ, **the policy wins** and this file is updated. |
 | **Companion documents** | [system-architecture.md](system-architecture.md), [non-functional-requirements.md](non-functional-requirements.md), `data-privacy-and-retention.md`, `glossary.md` |
-| **Status** | **Proposed design.** Nothing here is built. Field lists and enums are the starting schema, to be refined by the first migration and by pilot findings. |
+| **Status** | **Partly built.** `users`, `sessions`, `accounts`, `verifications`, `consent_records`, `audit_logs`, `signup_blocks`, `institutions`, `institution_domains`, `fields`, `student_profiles`, `student_field_interests`, `mentor_profiles`, and `mentor_fields` exist in migrations `0000` to `0002`. Everything else here is the design target, refined by each migration and by pilot findings. |
 
 ---
 

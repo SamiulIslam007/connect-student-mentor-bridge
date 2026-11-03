@@ -76,7 +76,7 @@ sources: README.md (sections 8, 12.1); connect-research-report.md (Sections 5.4,
 
 ### 4.4 Email verification
 
-- A verification link or code is required for every account. Unverified users can sign in and complete their profile but **cannot send requests, receive requests, or report outcomes** (requirement AUTH-1).
+- A verification link or code is required for every account. An unverified account **cannot sign in and cannot complete a profile**: opening the verification link is the only path from `PENDING` to `ACTIVE`, and only an `ACTIVE` account holds a session (FR-AUTH-08, `identity/account-status-lifecycle`). Until then the account cannot send requests, receive requests, or report outcomes (requirement AUTH-1).
 - Verification links are single-use and expire (**Proposed default: 24 hours**).
 
 ### 4.5 Multi-factor authentication
