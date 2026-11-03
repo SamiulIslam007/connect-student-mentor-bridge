@@ -14,8 +14,8 @@
 
 ## 3. Domain seam and pure rules
 
-- [ ] 3.1 Add the `IdentityService` interface and its types to `packages/domain`; verify `pnpm --filter @connect/domain typecheck` passes, `pnpm lint` keeps the package free of driver and framework imports, and a test asserts a second fake implementation satisfies the interface.
-- [ ] 3.2 Add `isAtLeast18(dateOfBirth, now)` and the password policy to `packages/domain` with unit tests; verify tests cover the 18th birthday boundary, a leap-day birth date, an under-18 date, 11 vs 12 characters, and a 64+ character passphrase.
+- [x] 3.1 Add the `IdentityService` interface and its types to `packages/domain`; verify `pnpm --filter @connect/domain typecheck` passes, `pnpm lint` keeps the package free of driver and framework imports, and a test asserts a second fake implementation satisfies the interface.
+- [x] 3.2 Add `isAtLeast18(dateOfBirth, now)` and the password policy to `packages/domain` with unit tests; verify tests cover the 18th birthday boundary, a leap-day birth date, an under-18 date, 11 vs 12 characters, and a 64+ character passphrase.
 
 ## 4. Identity implementation
 

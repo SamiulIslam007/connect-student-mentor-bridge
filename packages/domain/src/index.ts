@@ -8,3 +8,7 @@ export const DOMAIN_PACKAGE_NAME = "@connect/domain";
 export function describeDomain(): string {
   return `${DOMAIN_PACKAGE_NAME} holds pure business rules only.`;
 }
+
+export * from "./age-gate.js";
+export * from "./identity.js";
+export * from "./password-policy.js";
