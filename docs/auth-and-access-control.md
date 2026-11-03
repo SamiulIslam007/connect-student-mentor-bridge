@@ -94,20 +94,20 @@ sources: README.md (sections 8, 12.1); connect-research-report.md (Sections 5.4,
 
 ## 5. Sessions and tokens
 
-| Item | Proposed default |
+| Item | Implemented (2026-11-03) |
 |---|---|
-| Access token lifetime | 15 minutes (README 8.3) |
-| Refresh token | Rotating; each use issues a new one; reuse of an old one revokes the whole session family |
-| Web storage | **httpOnly, Secure, SameSite=Lax cookies** via the Next.js backend-for-frontend pattern. No tokens in `localStorage` |
-| CSRF | Anti-CSRF protection on every state-changing request that uses cookies |
-| Idle timeout | 7 days for Student and Mentor; 30 minutes for admin roles |
-| Absolute lifetime | 30 days for Student and Mentor; 8 hours for admin roles |
-| Revocation | Logout, password change, MFA change, role change, and suspension revoke sessions. A server-side session table is the source of truth (no Redis in Phase 1, ADR-006) |
-| Concurrent sessions | Allowed; each is listed in the user's security settings and individually revocable |
+| Session model | Postgres-backed cookie session held by better-auth; the session row is the source of truth. No access/refresh token pair (D-31) |
+| Session lifetime | 30 days, refreshed at most once a day (`updateAge` 1 day). A revoked row fails the next request immediately |
+| Web storage | **httpOnly, Secure outside development, SameSite=Lax cookie** set by the `apps/web` route handlers. No token in `localStorage`, `sessionStorage`, or any response body the browser can read |
+| CSRF | Next.js same-origin form handling plus SameSite=Lax during the pilot; a dedicated token is a Sprint 7 hardening item |
+| Idle timeout | 30 minutes (admin) and 8 hours (privileged roles) are **deferred to Sprint 2** with MFA; Student and Mentor have no shorter idle timeout in Sprint 1 |
+| Absolute lifetime | 30 days for every role in Sprint 1; admin 8 hours arrives with MFA in Sprint 2 |
+| Revocation | Sign-out, sign-out-everywhere, and password reset delete session rows. Password reset revokes every session for the account (SEC-AUTH-5 maps to session-row revocation, not a refresh-token family) |
+| Concurrent sessions | Allowed. The session list and per-session revoke are **deferred to Sprint 2** (`GET /v1/me/sessions`) |
 
-**Token content (minimal):** `sub` (user UUID), `sid` (session id), `iat`, `exp`, `amr` (authentication methods used, including whether MFA was done). Roles and permissions are **not** trusted from the token.
+**Session content.** The API resolves the account from the session row on every request; roles and permissions are read from the database and never trusted from a token.
 
-**Transport rule (owner decision, 2026-10-29).** The browser never calls the API directly. The Next.js app acts as a backend-for-frontend on the same origin and holds the session cookie; the BFF forwards requests to NestJS with a short-lived Bearer token. The API accepts Bearer for non-browser clients and does not issue browser cookies itself. This keeps CSRF handling in one place and avoids cross-origin cookie configuration between `web` and `api` containers.
+**Transport rule (owner decision, 2026-10-29).** The browser never calls the API directly. The Next.js app is the backend-for-frontend on the same origin and holds the session cookie; it forwards requests to NestJS with `Authorization: Bearer <session token>`. The API accepts Bearer for non-browser clients and does not set browser cookies itself. This keeps CSRF handling in one place and avoids cross-origin cookie configuration between the `web` and `api` containers.
 
 ## 6. The `IdentityService` seam
 
@@ -115,20 +115,18 @@ Domain code depends only on this interface (TypeScript sketch, **Recommendation*
 
 ```ts
 interface IdentityService {
-  register(input: { email: string; password: string; dateOfBirth: string }): Promise<UserRef>; // dateOfBirth is checked, never persisted
-  verifyEmail(token: string): Promise<void>;
-  signInWithPassword(email: string, password: string): Promise<SignInResult>; // may require MFA
-  signInWithProvider(provider: 'google' | 'facebook' | 'linkedin', code: string): Promise<SignInResult>; // only 'google' in the MVP
-  enrollTotp(userId: string): Promise<TotpEnrollment>;
-  verifyMfa(sessionId: string, code: string): Promise<SignInResult>;
-  refreshSession(refreshToken: string): Promise<SessionTokens>;
-  revokeSession(sessionId: string): Promise<void>;
-  revokeAllSessions(userId: string): Promise<void>;
-  requestPasswordReset(email: string): Promise<void>; // always returns the same response
-  completePasswordReset(token: string, newPassword: string): Promise<void>;
-  getUser(userId: string): Promise<UserRef | null>;
+  register(input: RegisterAccountInput): Promise<{ status: 'VERIFICATION_SENT' }>; // dateOfBirth is checked, never persisted
+  verifyEmail(input: VerifyEmailInput): Promise<void>;
+  signIn(input: SignInInput): Promise<SignInResult>;
+  signOut(input: SessionInput): Promise<void>;
+  signOutEverywhere(input: SessionInput): Promise<void>;
+  requestPasswordReset(input: PasswordResetRequestInput): Promise<void>; // always returns the same response
+  resetPassword(input: PasswordResetInput): Promise<void>;
+  getSession(input: SessionLookupInput): Promise<AccountSummary | null>;
 }
 ```
+
+The implemented interface lives in `packages/domain/src/identity.ts`. Google sign-in, MFA enrollment and verification, and the session list/revoke methods arrive with the Sprint 2 change `access-google-mfa-and-sessions`.
 
 Rules: the interface returns domain types, never library types. A user ID returned by any implementation is the same UUID. Swapping to Keycloak, Auth0, or WorkOS means writing a new implementation of this interface.
 

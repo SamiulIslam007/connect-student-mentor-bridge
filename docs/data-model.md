@@ -84,8 +84,8 @@ erDiagram
   MENTORSHIP_REQUESTS ||--o| MENTORSHIPS : becomes
   STUDENT_PROFILES ||--o{ SUGGESTION_LOGS : sees
   MENTORSHIPS ||--o{ THREAD_MESSAGES : contains
-  MENTORSHIPS ||--o{ SESSIONS : includes
-  SESSIONS ||--o{ PRIVATE_FEEDBACK : receives
+  MENTORSHIPS ||--o{ MENTORSHIP_SESSIONS : includes
+  MENTORSHIP_SESSIONS ||--o{ PRIVATE_FEEDBACK : receives
   MENTORSHIPS ||--o{ OUTCOMES : produces
   OUTCOMES ||--o{ OUTCOME_EVENTS : logs
   OUTCOMES ||--o{ VERIFICATION_RECORDS : attested_by
@@ -126,7 +126,7 @@ The README's 11-entity diagram is preserved and extended. Section 11 lists every
 | `suggestion_logs` | Match suggestions shown and chosen | matching | Insert | Medium |
 | `mentorships` | Ongoing relationship and agreement | mentorships | Mutable | Medium |
 | `thread_messages`, `thread_read_states` | Async thread | mentorships | Insert (redact only) | **High** |
-| `sessions` | Session records with meeting link | mentorships | Mutable | Medium |
+| `mentorship_sessions` | Session records with meeting link | mentorships | Mutable | Medium |
 | `private_feedback` | Private double-blind feedback (Phase 1b) | mentorships | Insert, reveal | Medium |
 | `outcomes` | Outcome projection (current state) | outcomes | Mutable (state machine) | Medium |
 | `outcome_events` | **Append-only** lifecycle log | outcomes | Insert only | Medium |
@@ -145,7 +145,7 @@ The README's 11-entity diagram is preserved and extended. Section 11 lists every
 | `outbox_events`, `notifications`, `notification_preferences`, `email_suppressions` | Events and notifications | notifications | Mutable | Medium |
 | `idempotency_keys` | Safe retries | platform | Insert, expire | Low |
 
-Authentication internals (credentials, sessions, tokens, MFA secrets) live in a separate schema owned by the auth library behind `IdentityService`. They are not modeled here; `users.identity_subject` links to them. The background-job library keeps its own schema.
+Authentication internals are **library-native** better-auth tables in the same schema: `users`, `sessions`, `accounts`, and `verifications` (ADR-003, added by change `identity-better-auth`). The library owns their shape; `users.id` is the opaque subject the API and `IdentityService` use, so there is no separate `identity_subject` column. The background-job library keeps its own schema.
 
 ---
 
@@ -156,7 +156,7 @@ Authentication internals (credentials, sessions, tokens, MFA secrets) live in a 
 | Enum | Values |
 |---|---|
 | `role` | `STUDENT`, `MENTOR`, `INSTITUTION_ADMIN`, `PLATFORM_ADMIN`, `EMPLOYER` (reserved, Phase 3) |
-| `account_status` | `ACTIVE`, `SUSPENDED`, `DEACTIVATED`, `DELETION_PENDING`, `ANONYMIZED`. Account lifecycle only. Verification progress is stored in separate fields (`email_verified_at`, `age_gate_passed_at`), never as an account state |
+| `account_status` | `PENDING`, `ACTIVE`, `SUSPENDED`, `DEACTIVATED`, `DELETION_PENDING`, `ANONYMIZED`. Account lifecycle only. Verification progress is stored in separate fields (`email_verified`, `age_gate_passed_at`), never as an account state. `PENDING` is the state of a new account until the account-status lifecycle activates it |
 | `institution_kind` | `UNIVERSITY`, `BOOTCAMP`, `TRAINING_INSTITUTE`, `OTHER` |
 | `institution_status` | `ONBOARDING`, `ACTIVE`, `SUSPENDED` |
 | `affiliation_kind` | `ALUMNUS`, `STUDENT`, `FACULTY_STAFF`, `EMPLOYEE` |
@@ -177,6 +177,8 @@ Authentication internals (credentials, sessions, tokens, MFA secrets) live in a 
 | `interaction_type` | `ASYNC_THREAD`, `ONE_TO_ONE_SESSION`, `GROUP_OFFICE_HOURS` (reserved; not allowed in Phase 1) |
 | `timeframe_bucket` | `WITHIN_1_MONTH`, `ONE_TO_3_MONTHS`, `THREE_TO_6_MONTHS`, `OVER_6_MONTHS` (**Proposed**) |
 | `consent_purpose` | `TERMS`, `PRIVACY_NOTICE`, `VOLUNTEER_AGREEMENT`, `COMMUNITY_GUIDELINES`, `INSTITUTION_DATA_SHARING`, `AI_ASSIST`, `EMPLOYER_DATA_SHARING` (Phase 3), `RECORDING` (reserved) |
+| `consent_action` | `GRANTED`, `WITHDRAWN` |
+| `signup_block_reason` | `UNDER_18` |
 | `confidence_tier` | `NONE`, `EMERGING`, `ESTABLISHED`, `PROVEN` (thresholds in configuration) |
 
 "Job offer" was added to `outcome_type` by the owner. Its difficulty weight is **Open**; the README order is Admission > Internship > Skill milestone > Interview.
@@ -209,7 +211,7 @@ stateDiagram-v2
 | Entity | Statuses | Transitions |
 |---|---|---|
 | `mentorships.status` | `ACTIVE`, `COMPLETED`, `ENDED_EARLY` | ACTIVE to COMPLETED or ENDED_EARLY by either party or by an inactivity rule (**Open**) |
-| `sessions.status` | `SCHEDULED`, `HELD`, `CANCELLED` | SCHEDULED to HELD when both parties confirm; SCHEDULED to CANCELLED by either |
+| `mentorship_sessions.status` | `SCHEDULED`, `HELD`, `CANCELLED` | SCHEDULED to HELD when both parties confirm; SCHEDULED to CANCELLED by either |
 | `affiliations.status` | `PENDING`, `VERIFIED`, `REJECTED`, `REVOKED`, `EXPIRED` | PENDING to VERIFIED or REJECTED; VERIFIED to REVOKED or EXPIRED (expiry **Open**) |
 | `mentor_profiles.status` | `DRAFT`, `PENDING`, `ACTIVE`, `SUSPENDED`, `REMOVED` | DRAFT to PENDING on application; PENDING to ACTIVE when onboarding is complete (Level 1, MFA, agreements); ACTIVE and SUSPENDED toggle by sanction; REMOVED is final. Verification progress lives in `mentor_profiles.onboarding_status`, not in this enum |
 
@@ -288,25 +290,35 @@ Common columns `id uuid PK`, `created_at`, and (mutable tables) `updated_at` are
 
 ### 5.1 Identity and organizations
 
-**`users`**
+**`users`** (library-native better-auth table, extended with server-owned columns)
 
 | Column | Type | Notes |
 |---|---|---|
-| `email` | `citext` unique | Verified before most actions |
-| `email_verified_at` | `timestamptz?` | |
-| `display_name` | `text` | 1 to 100 chars, any Unicode script |
+| `id` | `text` PK | Opaque library subject used by the API and `IdentityService`; there is no separate `identity_subject` column |
+| `name` | `text` | Display name, 1 to 100 characters, any Unicode script |
+| `email` | `text` unique | Normalized to lowercase by the library |
+| `email_verified` | `bool` | Library column. The verification time lives in the audit entry, not here |
+| `image` | `text?` | Library column |
 | `timezone` | `text` | Default `Asia/Dhaka` |
-| `status` | `account_status` | |
-| `age_18_plus` | `bool` | Set true only when the age gate passed. |
+| `status` | `account_status` | Default `PENDING` |
+| `age_18_plus` | `bool` | Set true only when the age gate passed |
 | `age_gate_passed_at` | `timestamptz?` | When the 18+ gate passed. **Date of birth is used once for the check and is not stored** (owner decision; counsel to confirm no stored proof is required) |
-| `age_gate_version` | `text` | Wording version shown |
-| `identity_subject` | `text` unique | Opaque id from the auth library. **Hard to change** (ADR-003) |
+| `age_gate_version` | `text?` | Wording version shown |
 | `last_seen_at` | `timestamptz?` | |
 | `anonymized_at` | `timestamptz?` | Set by deletion (section 8) |
+| `created_at`, `updated_at` | `timestamptz` | |
+
+The project columns are declared to the library with `input: false`, so no request body can set them.
+
+**`sessions`** (library-native): `id text PK`, `token text` unique, `user_id text` FK to `users.id` (cascade), `expires_at`, `ip_address?`, `user_agent?`, `created_at`, `updated_at`. Rows are the source of truth for authentication and revocation: 30-day lifetime, refreshed at most once a day, and a revoked row fails the next request immediately.
+
+**`accounts`** (library-native): credential and provider records — `id`, `account_id`, `provider_id`, `user_id`, `password` (hash only), optional provider tokens, timestamps. A password or hash never appears in a log or audit entry.
+
+**`verifications`** (library-native): email-verification and password-reset token records — `id`, `identifier`, `value`, `expires_at`, timestamps. Reset tokens are single-use; verification links are stateless and idempotent.
 
 **`role_assignments`**: `user_id`, `role`, `institution_id?` (required when `role = INSTITUTION_ADMIN`), `granted_by_user_id?`, `granted_at`, `revoked_at?`. Unique active row per (`user_id`, `role`, `institution_id`). Roles are revoked, never deleted.
 
-**`signup_blocks`**: `email_hash bytea` (keyed hash, not reversible), `reason` (`UNDER_18`), `expires_at` (**Proposed**: 12 months). Exists only to stop immediate re-registration after an under-18 attempt.
+**`signup_blocks`**: `email_hash text` unique (hex HMAC-SHA-256 keyed with `BETTER_AUTH_SECRET`; the address is not recoverable from it), `reason` (`UNDER_18`), `expires_at` (**Proposed**: 12 months), `created_at`. Exists only to stop immediate re-registration after an under-18 attempt.
 
 **`institutions`**: `name`, `kind`, `country_code char(2)`, `status`, `mou_signed_on date?`, `min_cohort_size smallint?` (null means platform default, **Proposed**: 5).
 **`institution_domains`**: `institution_id`, `domain citext` unique, `verified_at?`.
@@ -399,12 +411,12 @@ Constraints: at most one `PENDING` request per (`student_profile_id`, `mentor_pr
 | `started_at`, `ended_at`, `ended_by_user_id` | | |
 | `outcome_report_until` | `timestamptz?` | Reporting window after end (**Open**) |
 
-### 5.4 Threads, sessions, feedback
+### 5.4 Threads, mentorship sessions, feedback
 
 **`thread_messages`** (High): `mentorship_id`, `sender_user_id`, `body text` (length-checked), `redacted_at?`, `redacted_by_user_id?`, `redaction_reason?`. Messages are **not editable** in Phase 1; moderators can redact. No attachments. Index (`mentorship_id`, `created_at`, `id`).
 **`thread_read_states`**: (`mentorship_id`, `user_id`) key, `last_read_message_id`.
 
-**`sessions`**: `mentorship_id`, `scheduled_start`, `duration_minutes`, `meeting_url` (must start with `https://`), `status`, `student_confirmed_held_at?`, `mentor_confirmed_held_at?`, `cancelled_by_user_id?`, `cancel_reason?`, `created_by_user_id`. `HELD` requires both confirmations. Meeting links are mentor-provided; the UI warns users to treat links as untrusted.
+**`mentorship_sessions`** (renamed from `sessions` so the auth library's `sessions` table can keep its native name): `mentorship_id`, `scheduled_start`, `duration_minutes`, `meeting_url` (must start with `https://`), `status`, `student_confirmed_held_at?`, `mentor_confirmed_held_at?`, `cancelled_by_user_id?`, `cancel_reason?`, `created_by_user_id`. `HELD` requires both confirmations. Meeting links are mentor-provided; the UI warns users to treat links as untrusted.
 
 **`private_feedback`** (Phase 1b): `session_id`, `author_user_id`, `about_user_id`, `helpfulness smallint` (1 to 5), `comment?`, `submitted_at`, `reveal_at` (timer), `revealed_at?`. Unique (`session_id`, `author_user_id`). **No foreign key from reputation tables to this table.** It never becomes a public star rating or a reputation input.
 
@@ -518,12 +530,12 @@ Shape (Proposed, policy governs): `points = difficulty_weight x tier_multiplier 
 
 ### 5.7 Trust, privacy, and audit
 
-**`consent_records`** (append-only, High): `user_id`, `purpose`, `action` (`GRANTED` or `WITHDRAWN`), `document_version`, `institution_id?` (for institution sharing), `occurred_at`. Current consent for a purpose is the latest record; history is never edited.
+**`consent_records`** (append-only, High): `id`, `user_id` (text FK to `users.id`), `purpose` (`consent_purpose`), `action` (`GRANTED` or `WITHDRAWN`), `document_version`, `institution_id?` (for institution sharing), `occurred_at`. Current consent for a purpose is the latest record; history is never edited. Registration writes one `TERMS` and one `PRIVACY_NOTICE` row with the same document version.
 
 **`abuse_reports`**: `reporter_user_id`, `subject_type` (`USER`, `THREAD_MESSAGE`, `MENTOR_PROFILE`, `OUTCOME`), `subject_id`, `category` (`HARASSMENT`, `EXPLOITATION`, `FRAUD`, `SPAM`, `OTHER`), `description`, `status` (`OPEN`, `IN_REVIEW`, `ACTION_TAKEN`, `DISMISSED`), `assigned_to_user_id?`, `resolution_note?`, `resolved_at?`.
 **`account_sanctions`**: `user_id`, `kind` (`WARNING`, `SUSPENSION`, `REMOVAL`), `reason`, `starts_at`, `ends_at?`, `issued_by_user_id`, `related_report_id?`, `revoked_at?`.
 
-**`audit_logs`** (append-only): `occurred_at`, `actor_user_id?`, `actor_role`, `action text`, `object_type`, `object_id`, `request_id`, `break_glass bool`, `reason text?`, `metadata jsonb` (no message bodies, no secrets), `prev_hash bytea?`, `hash bytea?`. The optional hash chain (FR-AUD-02) gives tamper evidence.
+**`audit_logs`** (append-only): `id`, `occurred_at`, `actor_user_id?`, `actor_role`, `action text`, `object_type`, `object_id?` (null when the attempt has no object, for example a failed sign-in), `request_id`, `break_glass bool`, `reason text?`, `metadata jsonb` (no message bodies, no passwords, hashes, tokens, or raw email addresses), `prev_hash text?`, `hash text?`. The optional hash chain (FR-AUD-02) gives tamper evidence. Authentication events written today: `USER_REGISTERED`, `EMAIL_VERIFIED`, `SIGN_IN_SUCCEEDED`, `SIGN_IN_FAILED`, `PASSWORD_RESET_REQUESTED`, `PASSWORD_RESET_COMPLETED`, `SIGNED_OUT`, `SIGNED_OUT_EVERYWHERE`.
 
 **`data_rights_requests`**: `user_id`, `kind` (`EXPORT`, `DELETION`), `status` (`RECEIVED`, `VERIFYING`, `IN_PROGRESS`, `COMPLETED`, `PARTIALLY_COMPLETED`), `received_at`, `due_at` (period **Open**), `completed_at?`, `exceptions_applied jsonb?`, `handled_by_user_id?`, `export_storage_key?`, `export_expires_at?`.
 
@@ -581,7 +593,7 @@ Shape (Proposed, policy governs): `points = difficulty_weight x tier_multiplier 
 | Role | Rights |
 |---|---|
 | `migrator` | DDL only; used by the migration job |
-| `app_rw` | DML for the API and worker; **no UPDATE or DELETE on ledger tables** |
+| `app_rw` | DML for the API and worker; **no UPDATE or DELETE on ledger tables**. Named `connect_app` in the first migration; local development connects as the database owner, so the grants are asserted in tests with `SET ROLE connect_app` |
 | `app_ro` | Read on views only; for dashboards and reporting |
 | `backup` | Read for backups |
 
@@ -627,7 +639,7 @@ All periods are **Proposed defaults** unless marked, to be confirmed with counse
 
 | Table | Index | Supports |
 |---|---|---|
-| `users` | unique `email`, unique `identity_subject` | Sign-in |
+| `users` | unique `email` | Sign-in |
 | `mentor_profiles` | (`status`, `access_mode`) | Discovery |
 | `mentor_fields` | (`field_id`, `mentor_profile_id`) | Field filter |
 | `mentorship_requests` | (`mentor_profile_id`, `status`, `created_at`); partial unique (`student_profile_id`, `mentor_profile_id`) where `PENDING`; (`expires_at`) where `PENDING` | Inbox, capacity, expiry sweeper |
@@ -666,7 +678,7 @@ The **sweeper** jobs that drive reminders, expiry, cooling, and counting read th
 | Source name | This document | Reason |
 |---|---|---|
 | `MentorAvailability` | `availability_windows` (both sides) | Availability match needs the student's availability too |
-| `MentorshipSession` produces `Outcome` | `mentorships` produce `outcomes`; `sessions` belong to a mentorship | Outcomes belong to a relationship, not one meeting |
+| `MentorshipSession` produces `Outcome` | `mentorships` produce `outcomes`; `mentorship_sessions` belong to a mentorship | Outcomes belong to a relationship, not one meeting |
 | `FieldSpecificImpactScore` | `field_impact_snapshots` | It is derived data, rebuilt from the ledger |
 | `EvidenceFile` | `evidence_items` | Covers both files and links |
 | `DeletionRequest` | `data_rights_requests` | Also covers export |

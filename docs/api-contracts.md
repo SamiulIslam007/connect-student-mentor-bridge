@@ -94,19 +94,23 @@ Content type `application/problem+json`. Every error has the same shape:
 
 ## 2. Authentication endpoints
 
-`POST /v1/auth/*` is **delegated to the auth library** behind `IdentityService` (ADR-003). The endpoints are documented in OpenAPI but not custom-built.
+Identity is implemented with better-auth behind `IdentityService` (ADR-003) and exposed as NestJS endpoints under `/v1/auth`. The browser reaches them only through the `apps/web` route handlers, which keep the session token in an httpOnly, SameSite=Lax cookie (Secure outside development); the API accepts `Authorization: Bearer <session token>` from the BFF.
 
-| Method and path | Purpose |
-|---|---|
-| `POST /v1/auth/register` | Create an account. A date of birth is accepted **only** to check the 18+ gate and is **not stored**; an under-18 attempt returns `422` with code `UNDER_MINIMUM_AGE` |
-| `POST /v1/auth/verify-email` | Confirm the email token |
-| `POST /v1/auth/sign-in` | Email and password; may return `mfa_required` |
-| `POST /v1/auth/sign-in/provider` | Google in the MVP. Facebook and LinkedIn are **Later**; Microsoft is not supported |
-| `POST /v1/auth/mfa/verify` | Complete TOTP |
-| `POST /v1/auth/mfa/enroll` | Start TOTP enrollment |
-| `POST /v1/auth/refresh` | Rotate the refresh token (library endpoint) |
-| `POST /v1/auth/sign-out` | Revoke the current session (library endpoint) |
-| `POST /v1/auth/forgot-password` and `/reset-password` | Reset flow (same response whether or not the email exists) |
+**Implemented in Sprint 1 (change `identity-better-auth`):**
+
+| Method and path | Auth | Purpose | Success | Errors |
+|---|---|---|---|---|
+| `POST /v1/auth/register` | none | Create an account. A date of birth is accepted **only** to check the 18+ gate and is **not stored**. The response does not reveal whether the address already exists, and no session is returned | `200` `{ "status": "verification_sent" }` | `422 VALIDATION_FAILED`, `422 UNDER_MINIMUM_AGE` |
+| `GET /v1/auth/verify?token=` | none | Confirm the email token (24-hour lifetime). Opening the link twice succeeds and sends no second email | `200` `{ "status": "verified" }` | `400 INVALID_VERIFICATION_LINK`, `422 VALIDATION_FAILED` |
+| `POST /v1/auth/sign-in` | none | Email and password. A wrong password and an unknown email return the same `401` body | `200` `{ "session_token", "account" }` | `401 UNAUTHENTICATED`, `422 VALIDATION_FAILED` |
+| `POST /v1/auth/sign-out` | bearer | Revoke the current session | `200` `{ "status": "signed_out" }` | `401 UNAUTHENTICATED` |
+| `POST /v1/auth/sign-out-everywhere` | bearer | Revoke every session for the account | `200` `{ "status": "signed_out_everywhere" }` | `401 UNAUTHENTICATED` |
+| `POST /v1/auth/forgot-password` | none | Send a reset link (30-minute lifetime). Same response whether or not the address exists; no email for an unknown address | `200` `{ "status": "reset_email_sent_if_account_exists" }` | `422 VALIDATION_FAILED` |
+| `POST /v1/auth/reset-password` | none | Set a new password with a single-use token; every existing session is revoked | `200` `{ "status": "password_reset" }` | `400 INVALID_RESET_TOKEN`, `422 VALIDATION_FAILED` |
+
+`GET /v1/auth/verify` returns `4xx` only for a missing, invalid, or expired token; an already-verified address is not an error.
+
+**Deferred to Sprint 2 (change `access-google-mfa-and-sessions`) and not implemented:** Google sign-in and provider account linking, `POST /v1/auth/sign-in/provider`, MFA enrollment and verification (`POST /v1/auth/mfa/enroll`, `/v1/auth/mfa/verify`), the session list and per-session revoke (`GET /v1/me/sessions`, `DELETE /v1/me/sessions/{id}`), role-based authorization beyond the session guard, and refresh-token rotation. The better-auth cookie session replaced the earlier 15-minute access token plus rotating refresh token design (D-31); HTTP 401 and session-row revocation are the equivalent guarantees.
 
 ## 3. Idempotency
 
@@ -124,7 +128,7 @@ All enum values below are the code names. They must match the glossary and the d
 | Enum | Values |
 |---|---|
 | `role` | `student`, `mentor`, `institution_admin`, `platform_admin` (`employer` is **Later**) |
-| `account_status` | `active`, `suspended`, `deactivated`, `deletion_pending`, `anonymized` |
+| `account_status` | `pending`, `active`, `suspended`, `deactivated`, `deletion_pending`, `anonymized` |
 | `mentor_onboarding_status` | `applied`, `email_verified`, `affiliation_verified`, `employer_checked` |
 | `mentor_status` | `draft`, `pending`, `active`, `suspended`, `removed` |
 | `affiliation_level` | `level_0`, `level_1`, `level_2` |
@@ -418,6 +422,8 @@ Default limits are configuration, not code (SEC-ABUSE-4). Endpoints with stricte
 | Code | HTTP | Meaning |
 |---|---|---|
 | `UNAUTHENTICATED` | 401 | No valid session |
+| `INVALID_VERIFICATION_LINK` | 400 | Verification token missing, invalid, or expired |
+| `INVALID_RESET_TOKEN` | 400 | Reset token missing, invalid, expired, or already used |
 | `FORBIDDEN` | 403 | Role or policy does not allow this |
 | `NOT_FOUND` | 404 | Not found or not visible |
 | `VALIDATION_FAILED` | 422 | Field errors in `errors` |

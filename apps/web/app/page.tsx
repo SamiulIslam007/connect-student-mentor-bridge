@@ -1,11 +1,15 @@
 import { APP_NAME } from "@connect/config";
 
+import { strings } from "../lib/strings";
+
 export default function HomePage() {
   return (
     <main>
       <h1>{APP_NAME}</h1>
-      <p>Structured mentorship with confirmed outcomes.</p>
-      <p>This is the Sprint 0 application shell. Product screens arrive in later changes.</p>
+      <p>{strings.home.title}</p>
+      <p>
+        <a href="/sign-up">{strings.home.signUp}</a> · <a href="/sign-in">{strings.home.signIn}</a>
+      </p>
     </main>
   );
 }

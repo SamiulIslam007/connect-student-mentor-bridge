@@ -8,7 +8,19 @@ sources: [README.md, connect-research-report.md (Sections 5, 6, 7, 9, 10)]
 
 # connect: Milestones and Phases
 
-> Draft for Owner review. Truth labels follow README section 1.1. Nothing here is a delivery guarantee. Dates are relative (Week 1, Week 2 ...) until the owner sets a start date.
+> Truth labels follow README section 1.1. Nothing here is a delivery guarantee. Dates are relative (Week 1, Week 2 ...) until the owner sets a start date.
+
+## Current state
+
+| Field | Value |
+|---|---|
+| Updated | 2026-11-03 (update at every apply and every archive, `AGENTS.local.md` section 4) |
+| Phase | 1a — MVP build (about 8 sprints, 1 week each, 3 working days) |
+| Current sprint | **Sprint 1** - Identity core and profiles |
+| Last archived change | `identity-better-auth` (2026-11-03) - `DONE`: email/password auth, verification, 18+ gate, Postgres sessions, consent and audit rows, DB foundation, institution seed. Main specs created for 4 capabilities |
+| In flight | None |
+| Next change | `age-gate-and-account-status` - account-status lifecycle; the 18+ gate shipped inside `identity-better-auth` |
+| Open blockers | None |
 
 ## 1. Purpose and scope
 

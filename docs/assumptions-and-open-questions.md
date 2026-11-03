@@ -147,3 +147,4 @@ Current state on 2026-10-29: **items 1 to 5 are satisfied by this run.** Hosting
 1. Do you want to set an owner other than yourself for any assumption (for example a partner contact for A9 or A10)?
 2. When do you want to set the kill or pivot values (X, Y, Z)? They are needed before the pilot starts, not before coding.
 3. Is the pilot partner type still intentionally open, or do you want to record a preference now?
+4. Age-gate boundary for 29 February birthdays: the implemented rule treats a 29 February birthday as 28 February in non-leap years, so the person turns 18 on 28 February. Confirm that, or choose 1 March. The rule lives in `packages/domain/src/age-gate.ts` and its test and changes with your answer.

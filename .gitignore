@@ -26,3 +26,6 @@ opencode.json
 
 # Local DBHub MCP config (may hold database credentials)
 /dbhub.toml
+
+# Browser automation artifacts (Playwright MCP)
+/.playwright-mcp/
