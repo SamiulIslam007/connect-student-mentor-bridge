@@ -15,7 +15,7 @@
 ## 2. Security and correctness fixes
 
 - [x] 2.1 Add the shared email-shape validator and map better-auth client errors to `IdentityError("VALIDATION_ERROR", ...)` in register, forgot-password, and sign-in. Verify: `a@b..c` returns `422 VALIDATION_FAILED` on all three endpoints, no 500 is logged, and a real 5xx still maps to 500.
-- [ ] 2.2 On the existing-email registration path, call `hashPassword` from `better-auth/crypto` and discard the result; do not await SMTP on the fresh path. Verify: 20 samples per path through the BFF, median ratio below 1.5×, recorded in the handoff; the duplicate path still writes no second account, consent, or audit row.
+- [x] 2.2 On the existing-email registration path, call `hashPassword` from `better-auth/crypto` and discard the result; do not await SMTP on the fresh path. Verify: 20 samples per path through the BFF, median ratio below 1.5×, recorded in the handoff; the duplicate path still writes no second account, consent, or audit row.
 - [x] 2.3 Wrap `signInEmail` in `runWithRequestId`, re-read the account after every successful call, and on a failed `SIGN_IN_SUCCEEDED` audit revoke the new session before returning the 500. Add the optional `auditWriter` seam. Verify: reactivation and verified-PENDING repair report `active`; the `ACCOUNT_ACTIVATED` row carries the response request id; a fault-injected audit failure leaves zero sessions and a 500.
 - [x] 2.4 Add the server-only `appOrigin()` from `BETTER_AUTH_URL`, expose `BETTER_AUTH_URL` to the web service in `compose.yaml`, and build the verify redirect only from that origin with an `http`/`https` allowlist. Verify: spoofed `Host: evil.example` and `x-forwarded-proto: javascript` never change the `Location`; the normal verification flow still redirects to `/verify?status=verified`.
 - [x] 2.5 Add the BFF body cap (`128 KiB`, Content-Length check plus a chunked byte counter), the `decodeURIComponent` catch in `readSessionCookie`, and the non-JSON upstream `502` mapping. Verify: a 200 KiB body returns `413`; a chunked 200 KiB body returns `413`; `Cookie: connect_session=%` returns `401`; an upstream `500 text/html` becomes a `502` problem body.
@@ -29,7 +29,7 @@
 
 ## 4. UI completeness (Stitch reference)
 
-- [ ] 4.1 Add `apps/web/app/forgot-password/page.tsx`, a sign-in link, the BFF-facing form, and the string-catalog entries, using the Stitch screen `projects/7444600524954243355/screens/4d4ed8f5e03a47fdbb27e2d1b7f4f8bf` and the "Civic Trust" design system. Verify: `pnpm --filter web build` passes, the page renders the default/loading/success/invalid/network states, and the success copy does not reveal whether an account exists.
+- [x] 4.1 Add `apps/web/app/forgot-password/page.tsx`, a sign-in link, the BFF-facing form, and the string-catalog entries, using the Stitch screen `projects/7444600524954243355/screens/4d4ed8f5e03a47fdbb27e2d1b7f4f8bf` and the "Civic Trust" design system. Verify: `pnpm --filter web build` passes, the page renders the default/loading/success/invalid/network states, and the success copy does not reveal whether an account exists.
 - [x] 4.2 Map `UNDER_MINIMUM_AGE` and `VALIDATION_FAILED` to distinct sign-up messages with catalog strings; extract the mapping into a pure helper and test it. Verify: the helper test covers under-18, validation, and network/unknown cases; the sign-up page keeps non-password values and shows the under-18 message.
 - [x] 4.3 Make the `BETTER_AUTH_SECRET` boot error name the variable and the generation command; confirm the propose-time `local-setup.md` step matches. Verify: starting the API with an empty secret fails with the documented message, and the documented setup command produces a working stack.
 
@@ -44,13 +44,13 @@
 
 - [x] 6.1 Re-read the propose-time docs against the implemented code (`README.md`, `mvp-build-plan.md`, `milestones-and-phases.md`, `decision-log.md`, `data-model.md`, `api-contracts.md`, `security-requirements.md`, `non-functional-requirements.md`, `auth-and-access-control.md`, `production-requirements.md`, `system-architecture.md`, `known-debt.md`) and fix any statement that is now wrong. Verify: `openspec validate --all --strict` passes and no live document calls a deferred item current.
 - [x] 6.2 Add `opencode.json`, `AGENTS.local.md`, `dbhub.toml`, and `.mcp-memory.jsonl` to `.dockerignore`. Verify: `docker compose build` still succeeds and the four paths are excluded from the build context.
-- [ ] 6.3 Record the apply evidence in the change handoff: test counts, the timing medians, the CI log with 0 skipped, the clean-volume migration pair, and any UNVERIFIED item that remains. Verify: every claim cites a command run in the session.
+- [x] 6.3 Record the apply evidence in the change handoff: test counts, the timing medians, the CI log with 0 skipped, the clean-volume migration pair, and any UNVERIFIED item that remains. Verify: every claim cites a command run in the session.
 
 ## 7. Integration, review, and handoff
 
-- [ ] 7.1 On a clean volume, run `docker compose down -v`, `up -d --build`, `db:migrate` twice, `db:seed` twice, then `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and the Sprint 1 demo end to end. Verify: all gates exit 0, the second migrate is a no-op, the second seed inserts nothing, and the demo passes.
-- [ ] 7.2 Run the review gate on the diff: `/ponytail-review`, `/ce-code-review`, `silent-failure-hunter`, the trust-rule check, `/ponytail-debt`, and a diff-scope check. Verify: every finding is fixed in scope or reported with a reason; the debt is recorded in `docs/known-debt.md`.
-- [ ] 7.3 Write the handoff: what changed, docs updated, stale docs found, the real gate output, the branch commit list, and the still-UNVERIFIED list from design.md. Verify: every claim traces to a command or file.
+- [x] 7.1 On a clean volume, run `docker compose down -v`, `up -d --build`, `db:migrate` twice, `db:seed` twice, then `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and the Sprint 1 demo end to end. Verify: all gates exit 0, the second migrate is a no-op, the second seed inserts nothing, and the demo passes.
+- [x] 7.2 Run the review gate on the diff: `/ponytail-review`, `/ce-code-review`, `silent-failure-hunter`, the trust-rule check, `/ponytail-debt`, and a diff-scope check. Verify: every finding is fixed in scope or reported with a reason; the debt is recorded in `docs/known-debt.md`.
+- [x] 7.3 Write the handoff: what changed, docs updated, stale docs found, the real gate output, the branch commit list, and the still-UNVERIFIED list from design.md. Verify: every claim traces to a command or file.
 
 ## Workflow follow-up
 

@@ -25,6 +25,8 @@ sources: [docs/milestones-and-phases.md, docs/decision-log.md, docs/security-req
 | DEBT-09 | Status read and session insert are not one transaction | A narrow race can leave one live session for a suspended account | `FR-ADM-05` / Sprint 7 administration work | Open |
 | DEBT-10 | `0001_backfill_active_verified.sql` writes no audit rows | The backfilled status changes have no audit trail | Audit owner; fold into the first audit-repair change | Open |
 | DEBT-11 | SMTP has no retry and no provider failover | A failed verification/reset email is only logged; the user can request another link | `outbox-and-job-runner` (6a, Sprint 3) | Open |
+| DEBT-12 | A `429` from the identity library is not translated to a rate-limit response; it surfaces as a generic `500` | A throttled client sees "unexpected error", not "try again later". The library's own limiter is the only throttle today | Sprint 7 rate limiting | Open |
+| DEBT-13 | `database-probe` swallows a pool-close error (`client.end().catch(() => undefined)`) | A cleanup failure is invisible; the probe result is unaffected | Sprint 7 observability pass | Open |
 
 ## 2. Not debt
 
