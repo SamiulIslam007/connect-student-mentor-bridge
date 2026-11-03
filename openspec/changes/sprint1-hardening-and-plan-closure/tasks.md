@@ -30,8 +30,8 @@
 ## 4. UI completeness (Stitch reference)
 
 - [ ] 4.1 Add `apps/web/app/forgot-password/page.tsx`, a sign-in link, the BFF-facing form, and the string-catalog entries, using the Stitch screen `projects/7444600524954243355/screens/4d4ed8f5e03a47fdbb27e2d1b7f4f8bf` and the "Civic Trust" design system. Verify: `pnpm --filter web build` passes, the page renders the default/loading/success/invalid/network states, and the success copy does not reveal whether an account exists.
-- [ ] 4.2 Map `UNDER_MINIMUM_AGE` and `VALIDATION_FAILED` to distinct sign-up messages with catalog strings; extract the mapping into a pure helper and test it. Verify: the helper test covers under-18, validation, and network/unknown cases; the sign-up page keeps non-password values and shows the under-18 message.
-- [ ] 4.3 Make the `BETTER_AUTH_SECRET` boot error name the variable and the generation command; confirm the propose-time `local-setup.md` step matches. Verify: starting the API with an empty secret fails with the documented message, and the documented setup command produces a working stack.
+- [x] 4.2 Map `UNDER_MINIMUM_AGE` and `VALIDATION_FAILED` to distinct sign-up messages with catalog strings; extract the mapping into a pure helper and test it. Verify: the helper test covers under-18, validation, and network/unknown cases; the sign-up page keeps non-password values and shows the under-18 message.
+- [x] 4.3 Make the `BETTER_AUTH_SECRET` boot error name the variable and the generation command; confirm the propose-time `local-setup.md` step matches. Verify: starting the API with an empty secret fails with the documented message, and the documented setup command produces a working stack.
 
 ## 5. Test quality and edge cases
 

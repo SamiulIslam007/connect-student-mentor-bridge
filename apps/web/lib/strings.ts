@@ -15,7 +15,10 @@ export const strings = {
     submit: "Create account",
     success: "Check your email for the verification link.",
     ageGateNote: "You must be 18 or older to use connect.",
+    underAge: "You must be 18 or older to create an account. This address cannot be registered.",
+    invalid: "Some of those details are not valid. Check each field and try again.",
     error: "Registration failed. Check the fields and try again.",
+    network: "The form could not be sent. Check your connection and try again.",
   },
   signIn: {
     title: "Sign in",
@@ -92,6 +95,21 @@ export const strings = {
     submit: "Set new password",
     success: "Your password has been changed. Sign in with the new password.",
     invalid: "That reset link is invalid or has expired.",
+  },
+  forgotPassword: {
+    title: "Reset your password",
+    intro:
+      "Enter your email address. If an account exists for it, we will send a reset link.",
+    email: "Email address",
+    submit: "Send reset link",
+    sending: "Sending…",
+    // Deliberately identical for known and unknown addresses (FR-AUTH-07).
+    success:
+      "If an account exists for that address, a reset link is on its way. Check your email.",
+    invalid: "That email address is not valid. Check it and try again.",
+    error: "The reset link could not be requested. Try again in a moment.",
+    network: "The request could not be sent. Check your connection and try again.",
+    backToSignIn: "Back to sign in",
   },
   session: {
     signOutEverywhere: "Sign out of all sessions",

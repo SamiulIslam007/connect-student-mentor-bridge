@@ -66,6 +66,9 @@ export default function SignInPage() {
         </p>
         <button type="submit">{strings.signIn.submit}</button>
       </form>
+      <p>
+        <a href="/forgot-password">{strings.forgotPassword.title}</a>
+      </p>
       <p role="status">{message}</p>
       {emailNotVerified ? (
         <p>
