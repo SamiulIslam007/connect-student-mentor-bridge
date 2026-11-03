@@ -50,7 +50,7 @@
 
 - [x] 6.4 Run the review gate on the diff: `/ponytail-review`, `/ce-code-review`, the `silent-failure-hunter` subagent, the trust-rule check (unconfirmed never counts, neutrality firewall, append-only ledger, object-level authorization, audit log, consent records, erasure design), `/ponytail-debt`, and `review-diff`. Verify: every finding is either fixed in scope or reported in the handoff with a reason it was not.
 
-- [ ] 6.5 Write the handoff report: what changed, docs updated, stale docs found but not fixed, the `SEC-API-1` unknown-field gap recorded as debt, the exact gate output, and the branch commit list. Verify: every claim traces to a command that was run in this session.
+- [x] 6.5 Write the handoff report: what changed, docs updated, stale docs found but not fixed, the `SEC-API-1` unknown-field gap recorded as debt, the exact gate output, and the branch commit list. Verify: every claim traces to a command that was run in this session.
 
 ## Workflow follow-up
 
