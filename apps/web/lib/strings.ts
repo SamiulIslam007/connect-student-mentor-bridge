@@ -31,6 +31,8 @@ export const strings = {
     resendVerification: "Send the verification link again",
     suspended: "This account is suspended. Contact support if you think this is a mistake.",
     forbidden: "This account cannot sign in.",
+    google: "Sign in with Google",
+    googleError: "Google sign-in could not be started. It may not be enabled here.",
   },
   account: {
     title: "Your account",
