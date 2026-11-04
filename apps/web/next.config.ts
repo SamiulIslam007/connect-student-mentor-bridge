@@ -4,6 +4,11 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // The container image builds a standalone server; local `pnpm start` uses `next start`.
   output: process.env.NEXT_OUTPUT === "standalone" ? "standalone" : undefined,
+  // better-auth's OAuth redirect_uri is <baseURL>/api/auth/callback/<provider>
+  // (verified live); the app's handler lives at /callback/google.
+  async rewrites() {
+    return [{ source: "/api/auth/callback/google", destination: "/callback/google" }];
+  },
   outputFileTracingRoot: path.join(__dirname, "../../"),
   transpilePackages: ["@connect/config", "@connect/contracts", "@connect/domain"],
   // Turbopack cannot see host file events through a Docker bind mount; polling

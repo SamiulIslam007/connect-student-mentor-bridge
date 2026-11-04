@@ -22,6 +22,9 @@ x-api-environment: &api-environment
   CLAMAV_PORT: "3310"
   BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
   BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+  # Google sign-in (FR-AUTH-02): both or neither; empty keeps the provider off.
+  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+  GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
 
 services:
   postgres:

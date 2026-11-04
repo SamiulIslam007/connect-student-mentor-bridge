@@ -45,6 +45,22 @@ export default function SignInPage() {
     }
   }
 
+  function onGoogleSignIn(): void {
+    void (async () => {
+      const response = await fetch("/api/auth/sign-in/provider", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ provider: "google" }),
+      });
+      const body = (await response.json().catch(() => ({}))) as { authorization_url?: string };
+      if (response.ok && body.authorization_url) {
+        window.location.assign(body.authorization_url);
+        return;
+      }
+      setMessage(strings.signIn.googleError);
+    })();
+  }
+
   async function signOutEverywhere(): Promise<void> {
     const response = await fetch("/api/auth/sign-out-everywhere", { method: "POST" });
     if (response.ok) {
@@ -74,6 +90,11 @@ export default function SignInPage() {
       </form>
       <p>
         <a href="/forgot-password">{strings.forgotPassword.title}</a>
+      </p>
+      <p>
+        <button type="button" onClick={onGoogleSignIn}>
+          {strings.signIn.google}
+        </button>
       </p>
       <p role="status">{message}</p>
       {emailNotVerified ? (
