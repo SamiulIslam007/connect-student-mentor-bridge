@@ -46,6 +46,22 @@ export default function SignUpPage() {
     setMessage(messageFor(status, code));
   }
 
+  function onGoogleSignIn(): void {
+    void (async () => {
+      const response = await fetch("/api/auth/sign-in/provider", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ provider: "google" }),
+      });
+      const body = (await response.json().catch(() => ({}))) as { authorization_url?: string };
+      if (response.ok && body.authorization_url) {
+        window.location.assign(body.authorization_url);
+        return;
+      }
+      setMessage(strings.signIn.googleError);
+    })();
+  }
+
   return (
     <main>
       <h1>{strings.signUp.title}</h1>
@@ -80,6 +96,11 @@ export default function SignUpPage() {
         <p>{strings.signUp.ageGateNote}</p>
         <button type="submit">{strings.signUp.submit}</button>
       </form>
+      <p>
+        <button type="button" onClick={onGoogleSignIn}>
+          {strings.signIn.google}
+        </button>
+      </p>
       <p role="status">{message}</p>
       {success ? (
         <p>
