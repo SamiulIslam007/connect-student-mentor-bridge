@@ -20,7 +20,13 @@ export default function SignInPage() {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ email: form.get("email"), password: form.get("password") }),
     });
-    const body = (await response.json().catch(() => ({}))) as { code?: string };
+    const body = (await response.json().catch(() => ({}))) as { code?: string; status?: string };
+
+    // A withheld session: the second step happens on its own page.
+    if (response.ok && body.status === "mfa_required") {
+      window.location.assign("/sign-in/mfa");
+      return;
+    }
 
     setSignedIn(response.ok);
     setSignedOut(false);

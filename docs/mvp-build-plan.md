@@ -87,7 +87,7 @@ A work item is done when:
 
 Status values: `DONE` (archived with evidence), `IN PROGRESS` (proposed or applied, not archived), `PLANNED`, `BLOCKED`.
 
-The original ten entries keep their numbers. Three rows were inserted without renumbering: **4a** and **4b** in Sprint 2, and **6a** in Sprint 3. Sprint 2 order is 4a → 4b → #5 → #6 (4a must land before #5 because mentor activation needs MFA; 4b must land before discovery). Sprint 3 order is 6a → #7.
+The original ten entries keep their numbers. Rows were inserted without renumbering: **4a**, **4b**, and **4c** in Sprint 2, and **6a** in Sprint 3. Sprint 2 order is 4a → 4c → 4b → #5 → #6 (4c must land before #5 because mentor activation needs role-keyed MFA; 4b must land before discovery). Sprint 3 order is 6a → #7.
 
 | # | Change | Scope | Status |
 |---|---|---|---|
@@ -96,7 +96,8 @@ The original ten entries keep their numbers. Three rows were inserted without re
 | 3 | `account-status-lifecycle` | Account-status lifecycle (`PENDING`, `ACTIVE`, suspension, deactivation) and the blocked-signup policy. The 18+ gate and `signup_blocks` ship in change 2 (D-35) | `DONE` (archived 2026-11-03; `pnpm lint`, `typecheck`, `test`, `build` green, 78 tests) |
 | 4 | `profiles-and-dynamic-fields` | Student/mentor profiles, `fields` with normalized slug, primary field, `GET /v1/fields`, and the `/v1/me` profile extension. Availability and access mode move to `profile-availability-and-access-mode` | `DONE` (archived 2026-11-03; `pnpm lint`, `typecheck`, `test`, `build` green, 115 tests) |
 | — | `sprint1-hardening-and-plan-closure` | Closes the independent Sprint 0/1 audit findings: app-role grants, CI database tests, audit FK `RESTRICT`, email/transport hardening, taxonomy bounds and pagination, forgot-password and under-18 UI | `DONE` (archived 2026-11-03; `pnpm lint`, `typecheck`, `test`, `build` green, 147 tests with 0 skipped under `CI=true`) |
-| 4a | `access-google-mfa-and-sessions` | Google sign-in and provider linking, MFA enrollment/verification, session list and per-session revoke, role-based authorization, profile visibility. **Sprint 2, before #5** because mentor activation needs MFA | `PLANNED` |
+| 4a | `access-google-mfa-and-sessions` | Google sign-in and provider linking, TOTP enrollment/verification with backup codes and attempt limits, session list and idempotent per-session revoke. **Sprint 2** | `DONE` (archived 2026-11-04; `pnpm lint`, `typecheck`, `test`, `build` green, 0 skipped under `CI=true`; provider success path UNVERIFIED without owner Google credentials, DEBT-15) |
+| 4c | `roles-and-profile-visibility` | `role_assignments`, role guard, MFA enforcement by role, permission-matrix test, profile visibility, admin idle/absolute session timeouts. **Sprint 2, before #5** because mentor activation needs role-keyed MFA | `PLANNED` |
 | 4b | `profile-availability-and-access-mode` | Availability windows, `access_mode` (Open / Application-only / Paused), pause/resume, availability validation and UI. **Sprint 2, before discovery (#6)** | `PLANNED` |
 | 5 | `affiliation-and-mentor-onboarding` | Level 1 registration, admin attestation, onboarding vs operating status | `PLANNED` |
 | 6 | `matching-and-discovery` | Pure match function, weights from config, suggestions with reasons, suggestion log | `PLANNED` |

@@ -27,6 +27,8 @@ sources: [docs/milestones-and-phases.md, docs/decision-log.md, docs/security-req
 | DEBT-11 | SMTP has no retry and no provider failover | A failed verification/reset email is only logged; the user can request another link | `outbox-and-job-runner` (6a, Sprint 3) | Open |
 | DEBT-12 | A `429` from the identity library is not translated to a rate-limit response; it surfaces as a generic `500` | A throttled client sees "unexpected error", not "try again later". The library's own limiter is the only throttle today | Sprint 7 rate limiting | Open |
 | DEBT-13 | `database-probe` swallows a pool-close error (`client.end().catch(() => undefined)`) | A cleanup failure is invisible; the probe result is unaffected | Sprint 7 observability pass | Open |
+| DEBT-14 | Role-keyed MFA enforcement, role authorization (`FR-AUTH-07`), profile visibility, and the admin idle/absolute session timeouts are not implemented | A mentor or admin is not yet forced to enroll, and no endpoint is role-gated beyond the session guard | `roles-and-profile-visibility` (4c, Sprint 2, before `#5`); D-47 | Open |
+| DEBT-15 | The provider sign-in success path is not exercised end to end by a test | The state, refusal, and unconfigured paths are covered; the token exchange needs real Google credentials and a reachable provider | Owner supplies `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`; manual acceptance before Gate 2 | Open |
 
 ## 2. Not debt
 

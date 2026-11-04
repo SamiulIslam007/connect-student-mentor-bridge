@@ -1,4 +1,4 @@
-import { boolean, index, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { boolean, index, integer, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
 import { accountStatus } from "./enums.js";
 
@@ -31,6 +31,9 @@ export const users = pgTable("users", {
   ageGateVersion: text("age_gate_version"),
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
   anonymizedAt: timestamp("anonymized_at", { withTimezone: true }),
+  // Owned by the `twoFactor` plugin (`input: false`, so a request body can
+  // never set it). Written only by the library's enable/disable endpoints.
+  twoFactorEnabled: boolean("two_factor_enabled").default(false).notNull(),
 });
 
 export const sessions = pgTable(
@@ -90,4 +93,34 @@ export const verifications = pgTable(
       .notNull(),
   },
   (table) => [index("verifications_identifier_idx").on(table.identifier)],
+);
+
+/**
+ * The `twoFactor` plugin's own table (shape from
+ * `better-auth@1.7.15/dist/plugins/two-factor/schema.d.mts`). `secret` and
+ * `backupCodes` hold library-encrypted values; nothing reads them back into
+ * application code.
+ */
+export const twoFactors = pgTable(
+  "two_factors",
+  {
+    id: text("id").primaryKey(),
+    secret: text("secret").notNull(),
+    backupCodes: text("backup_codes").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    verified: boolean("verified").default(true).notNull(),
+    failedVerificationCount: integer("failed_verification_count").default(0).notNull(),
+    lockedUntil: timestamp("locked_until", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("two_factors_user_id_idx").on(table.userId),
+    index("two_factors_secret_idx").on(table.secret),
+  ],
 );

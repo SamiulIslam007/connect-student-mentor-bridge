@@ -122,7 +122,21 @@ A `403` on sign-in is returned only after the password was accepted, so it never
 
 `GET /v1/auth/verify` returns `4xx` only for a missing, invalid, or expired token; an already-verified address is not an error.
 
-**Deferred to Sprint 2 (change `access-google-mfa-and-sessions`) and not implemented:** Google sign-in and provider account linking, `POST /v1/auth/sign-in/provider`, MFA enrollment and verification (`POST /v1/auth/mfa/enroll`, `/v1/auth/mfa/verify`), the session list and per-session revoke (`GET /v1/me/sessions`, `DELETE /v1/me/sessions/{id}`), and role-based authorization beyond the session guard. There is no refresh-token family: the better-auth cookie session replaced the earlier 15-minute access token plus rotating refresh token design (D-31), and HTTP 401 plus session-row revocation are the equivalent guarantees.
+**Implemented in change `access-google-mfa-and-sessions` (2026-11-04):**
+
+| Method and path | Auth | Purpose | Success | Errors |
+|---|---|---|---|---|
+| `POST /v1/auth/sign-in/provider` | none | Start a Google sign-in. Returns the authorization URL and an opaque `state_cookie` the callback must return unaltered. `503 PROVIDER_UNAVAILABLE` means this deployment has no Google credentials; there is no built-in fallback | `200` `{ "authorization_url", "state_cookie" }` | `422 VALIDATION_FAILED`, `503 PROVIDER_UNAVAILABLE` |
+| `POST /v1/auth/provider/callback` | none | Exchange the code for a session. The provider email counts as verified, an existing account is linked rather than duplicated, and the password path's status rules apply. An account with an active second factor is refused so MFA cannot be bypassed | `200` `{ "session_token", "account" }` | `401 UNAUTHENTICATED`, `403 ACCOUNT_SUSPENDED`, `403 FORBIDDEN`, `422 VALIDATION_FAILED`, `503 PROVIDER_UNAVAILABLE` |
+| `POST /v1/auth/mfa/enroll` | bearer | Start TOTP enrollment. The password is re-checked; the URI and the backup codes are returned once and never again | `200` `{ "totp_uri", "backup_codes" }` | `401 UNAUTHENTICATED`, `422 VALIDATION_FAILED` |
+| `POST /v1/auth/mfa/verify` | bearer or challenge | Confirm an enrollment (bearer) or complete a challenged sign-in (`mfa_challenge` from the sign-in response, single-use). The code is 6 digits, or a backup code with `method: "backup_code"` | `200` `{ "session_token", "account_status" }` | `401 UNAUTHENTICATED`, `422 VALIDATION_FAILED` |
+| `POST /v1/auth/mfa/disable` | bearer | Remove the factor and its backup codes after the password is confirmed. The session is rotated, so the response carries a new token | `200` `{ "status": "disabled", "session_token" }` | `401 UNAUTHENTICATED`, `422 VALIDATION_FAILED` |
+| `GET /v1/me/sessions` | bearer | The caller's own live sessions with safe metadata only (`id`, `created_at`, `updated_at`, `expires_at`, `ip_address`, `user_agent`, `current`); never a token | `200` `{ "data": [...] }` | `401 UNAUTHENTICATED` |
+| `DELETE /v1/me/sessions/{id}` | bearer | Revoke one of the caller's own sessions. Idempotent: an already-revoked, expired, or unknown id is a success; another account's id is `404` | `204` | `401 UNAUTHENTICATED`, `404 NOT_FOUND` |
+
+A password sign-in for an account with an active second factor returns `200` `{ "mfa_required": true, "mfa_challenge": "<opaque>" }` instead of a session; no session row exists until `POST /v1/auth/mfa/verify` succeeds. The challenge is the library's own signed value, valid for ten minutes, single-use, and limited to a fixed number of attempts per challenge and per account (D-45).
+
+Still deferred (change `roles-and-profile-visibility`, 4c, D-47): role-based and object-level authorization beyond the session guard, profile visibility, and the admin session timeouts. There is no refresh-token family: the better-auth cookie session replaced the earlier 15-minute access token plus rotating refresh token design (D-31), and HTTP 401 plus session-row revocation are the equivalent guarantees.
 
 ## 3. Idempotency
 
@@ -224,7 +238,7 @@ Roles: **S** Student, **M** Mentor, **IA** Institution Admin, **PA** Platform Ad
 | `POST /v1/me/deactivate` | all | yes | Deactivate the account (`account_status = deactivated`); sessions revoked | `200` |
 | `GET /v1/me/consents` | all | no | Current consents. **Not built yet** | `200` |
 | `PUT /v1/me/consents/{purpose}` | all | yes | Give or withdraw one consent. Appends a ledger record. **Not built yet** | `200` |
-| `GET /v1/me/sessions` and `DELETE /v1/me/sessions/{id}` | all | no | List and revoke own sessions. **Not built yet** | `200`, `204` |
+| `GET /v1/me/sessions` and `DELETE /v1/me/sessions/{id}` | all | no | List and revoke own sessions. Built in `access-google-mfa-and-sessions`: the list carries no token, and revoking an already-gone id of your own is a success | `200`, `204` |
 
 **Profile saves (`200`, `401`, `422`).** Both `PUT` bodies use snake_case and `additionalProperties: false` in `openapi.yaml`:
 
@@ -475,6 +489,7 @@ Default limits are configuration, not code (SEC-ABUSE-4). Endpoints with stricte
 | `EMAIL_NOT_VERIFIED` | 403 | Verification required for this action |
 | `ACCOUNT_SUSPENDED` | 403 | The account is suspended; every session was revoked |
 | `MFA_REQUIRED` | 403 | MFA needed for this role or action |
+| `PROVIDER_UNAVAILABLE` | 503 | This sign-in provider is not configured in this deployment |
 | `REAUTH_REQUIRED` | 403 | Recent re-authentication needed |
 | `MENTOR_NOT_VERIFIED` | 409 | Mentor is below affiliation Level 1 |
 | `MENTOR_AT_CAPACITY` | 409 | Weekly capacity reached |

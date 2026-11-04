@@ -2,7 +2,7 @@ import { Body, Controller, Get, HttpCode, Inject, Post, Query, Req } from "@nest
 
 import { IdentityError, type IdentityService } from "@connect/domain";
 
-import { bearerToken } from "../http/bearer.js";
+import { bearerToken, optionalBearerToken } from "../http/bearer.js";
 import type { RequestWithId } from "../http/request-id.middleware.js";
 import { IDENTITY_SERVICE } from "./identity.tokens.js";
 
@@ -99,7 +99,13 @@ export class AuthController {
       password: textField(body, "password"),
       requestId: request.requestId,
     });
+    // A withheld session is not a failure: the caller now owes a second factor
+    // (spec: "Sign-in returns a challenge, not a session").
+    if (result.mfaRequired) {
+      return { mfa_required: true, mfa_challenge: result.mfaChallenge };
+    }
     return {
+      mfa_required: false,
       session_token: result.sessionToken,
       account: {
         id: result.account.id,
@@ -107,6 +113,84 @@ export class AuthController {
         email: result.account.email,
         email_verified: result.account.emailVerified,
         // The client never has to guess the status (spec: "Sign-in reports the status").
+        account_status: result.account.accountStatus.toLowerCase(),
+        timezone: result.account.timezone,
+      },
+    };
+  }
+
+  @Post("mfa/enroll")
+  @HttpCode(200)
+  async enrollMfa(@Body() body: unknown, @Req() request: RequestWithId) {
+    const enrollment = await this.identity.enrollMfa({
+      sessionToken: bearerToken(request),
+      password: textField(body, "password"),
+      requestId: request.requestId,
+    });
+    return { totp_uri: enrollment.totpUri, backup_codes: enrollment.backupCodes };
+  }
+
+  @Post("mfa/verify")
+  @HttpCode(200)
+  async verifyMfa(@Body() body: unknown, @Req() request: RequestWithId) {
+    const method = optionalTextField(body, "method") === "backup_code" ? "backup_code" : "totp";
+    const verification = await this.identity.verifyMfa({
+      code: textField(body, "code"),
+      mfaChallenge: optionalTextField(body, "mfa_challenge"),
+      sessionToken: optionalBearerToken(request),
+      method,
+      requestId: request.requestId,
+    });
+    return {
+      session_token: verification.sessionToken,
+      account_status: verification.account.accountStatus.toLowerCase(),
+    };
+  }
+
+  @Post("mfa/disable")
+  @HttpCode(200)
+  async disableMfa(@Body() body: unknown, @Req() request: RequestWithId) {
+    const result = await this.identity.disableMfa({
+      sessionToken: bearerToken(request),
+      password: textField(body, "password"),
+      requestId: request.requestId,
+    });
+    // Removing the factor rotated the session; the client must adopt the new one.
+    return { status: "disabled", session_token: result.sessionToken };
+  }
+
+  @Post("sign-in/provider")
+  @HttpCode(200)
+  async startProviderSignIn(@Body() body: unknown, @Req() request: RequestWithId) {
+    const started = await this.identity.startProviderSignIn({
+      provider: textField(body, "provider"),
+      callbackUrl: textField(body, "callback_url"),
+      requestId: request.requestId,
+    });
+    return { authorization_url: started.authorizationUrl, state_cookie: started.stateCookie };
+  }
+
+  @Post("provider/callback")
+  @HttpCode(200)
+  async completeProviderSignIn(@Body() body: unknown, @Req() request: RequestWithId) {
+    const result = await this.identity.completeProviderSignIn({
+      provider: textField(body, "provider"),
+      code: textField(body, "code"),
+      state: textField(body, "state"),
+      stateCookie: textField(body, "state_cookie"),
+      requestId: request.requestId,
+    });
+    if (result.mfaRequired) {
+      return { mfa_required: true, mfa_challenge: result.mfaChallenge };
+    }
+    return {
+      mfa_required: false,
+      session_token: result.sessionToken,
+      account: {
+        id: result.account.id,
+        display_name: result.account.displayName,
+        email: result.account.email,
+        email_verified: result.account.emailVerified,
         account_status: result.account.accountStatus.toLowerCase(),
         timezone: result.account.timezone,
       },

@@ -14,12 +14,12 @@ sources: [README.md, connect-research-report.md (Sections 5, 6, 7, 9, 10)]
 
 | Field | Value |
 |---|---|
-| Updated | 2026-11-03 (update at every apply and every archive, `AGENTS.local.md` section 4) |
+| Updated | 2026-11-04 (update at every apply and every archive, `AGENTS.local.md` section 4) |
 | Phase | 1a - MVP build (about 8 sprints, 1 week each, 3 working days) |
-| Current sprint | **Sprint 1 complete; Sprint 2 planning.** Sprint 1 shipped identity (changes #2 and #3) and profiles (change #4), with the partials listed under 5.2 |
-| Last archived change | `sprint1-hardening-and-plan-closure` (2026-11-03) - `DONE`: closes the Sprint 0/1 audit findings (app-role grants, CI database tests, audit FK `RESTRICT`, email/transport hardening, taxonomy bounds and pagination, forgot-password and under-18 UI). Four gates green locally, 147 tests with 0 skipped under `CI=true` |
-| In flight | None. Sprint 2 planning resumes with `access-google-mfa-and-sessions` |
-| Next change | `access-google-mfa-and-sessions` (4a), then `profile-availability-and-access-mode` (4b), then `affiliation-and-mentor-onboarding` (#5) |
+| Current sprint | **Sprint 2 in progress.** Sprint 1 closed (identity, account status, profiles). 4a `access-google-mfa-and-sessions` is `DONE` (Google sign-in, TOTP second factor, session list and revoke). Next: 4c `roles-and-profile-visibility`, then 4b `profile-availability-and-access-mode` |
+| Last archived change | `access-google-mfa-and-sessions` (2026-11-04) - `DONE`: Google sign-in and provider linking (environment-gated), TOTP enrollment/verification with backup codes and attempt limits, session list and idempotent per-session revoke, two additive migrations with app-role grants. Role authorization, profile visibility, and the admin session timeouts moved to 4c (D-47) |
+| In flight | None. Sprint 2 continues with `roles-and-profile-visibility` (4c) |
+| Next change | `roles-and-profile-visibility` (4c, role model and MFA enforcement by role), then `profile-availability-and-access-mode` (4b), then `affiliation-and-mentor-onboarding` (#5) |
 | Open blockers | None |
 
 ## 1. Purpose and scope
@@ -114,7 +114,8 @@ Mapping to README: README Phase 1 = our 1a + 1b + the pilot run. The partner-val
 
 **Sprint 1 partials and their homes:**
 
-- **FR-AUTH-05**: password reset and sign-out-everywhere ship; the session list/per-session revoke moves to `access-google-mfa-and-sessions` (4a), and the forgot-password **web page** is added by `sprint1-hardening-and-plan-closure`.
+- **FR-AUTH-05**: password reset, sign-out-everywhere, the session list and per-session revoke all ship; the list and revoke landed with `access-google-mfa-and-sessions` (4a).
+- **FR-AUTH-02 / FR-AUTH-04**: Google sign-in and TOTP enrollment/verification ship with 4a. Enforcement keyed on a role (Mentor, Institution Admin, Platform Admin) needs the role model, so it ships with `roles-and-profile-visibility` (4c) before #5.
 - **FR-PROF-01**: goals, primary/interest fields, and languages ship; availability windows move to `profile-availability-and-access-mode` (4b) and institution affiliation to `affiliation-and-mentor-onboarding` (#5).
 - **FR-PROF-02**: profile content and the capacity bound ship; availability and `access_mode` move to 4b, and capacity enforcement (the row lock and `CAPACITY_BELOW_ACTIVE`) to `requests-and-capacity` (#7).
 - **FR-VER-01**: only the institution/domain seed ships; the claim flow moves to #5.

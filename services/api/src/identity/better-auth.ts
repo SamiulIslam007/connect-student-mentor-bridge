@@ -1,7 +1,7 @@
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { betterAuth } from "better-auth";
 import { APIError } from "better-auth/api";
-import { bearer } from "better-auth/plugins";
+import { bearer, twoFactor } from "better-auth/plugins";
 import { eq } from "drizzle-orm";
 
 import { decideSignIn } from "@connect/domain";
@@ -28,6 +28,11 @@ export interface IdentityAuthDependencies {
   emailSender: EmailSender;
   secret: string;
   baseUrl: string;
+  /**
+   * Present only when both variables are set (design D3). Absent, the provider
+   * is not registered at all, so no placeholder client id can reach a URL.
+   */
+  google?: { clientId: string; clientSecret: string };
 }
 
 /**
@@ -39,13 +44,21 @@ export function createIdentityAuth({
   emailSender,
   secret,
   baseUrl,
+  google,
 }: IdentityAuthDependencies) {
   return betterAuth({
     database: drizzleAdapter(database, { provider: "pg", usePlural: true, transaction: true }),
     secret,
     baseURL: baseUrl,
     trustedOrigins: [baseUrl],
-    plugins: [bearer()],
+    plugins: [
+      bearer(),
+      // TOTP second factor (design D1). The plugin owns secret encryption,
+      // backup codes, the sign-in gate, and the attempt limits; nothing here
+      // re-implements them.
+      twoFactor({ issuer: "connect" }),
+    ],
+    ...(google ? { socialProviders: { google } } : {}),
     user: {
       // Server-owned columns; a request body can never set them (design D4).
       additionalFields: {

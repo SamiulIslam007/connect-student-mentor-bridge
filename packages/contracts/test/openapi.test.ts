@@ -96,7 +96,7 @@ test("every self-service account route implemented by the controller appears in 
     const suffix = match[2].replaceAll('"', "").trim();
     return `/v1/me${suffix ? `/${suffix}` : ""}`;
   });
-  assert.deepEqual([...routes].sort(), ["/v1/me", "/v1/me/deactivate"]);
+  assert.deepEqual([...routes].sort(), ["/v1/me", "/v1/me/deactivate", "/v1/me/sessions"]);
 
   for (const route of routes) {
     assert.ok(document.paths[route], `${route} is implemented but missing from openapi.yaml`);

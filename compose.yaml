@@ -149,6 +149,8 @@ services:
       API_INTERNAL_URL: http://api:3001
       # The verify redirect is built from this origin, never from a request header.
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
     ports:
       - "${WEB_PORT:-3000}:3000"
     healthcheck:

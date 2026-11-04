@@ -25,6 +25,7 @@ const authProvider: Provider = {
       emailSender,
       secret: config.secret,
       baseUrl: config.baseUrl,
+      google: config.google,
     });
   },
 };
@@ -32,12 +33,15 @@ const authProvider: Provider = {
 const identityServiceProvider: Provider = {
   provide: IDENTITY_SERVICE,
   inject: [IDENTITY_AUTH, DATABASE],
-  useFactory: (auth: IdentityAuth, database: Database): BetterAuthIdentityService =>
-    new BetterAuthIdentityService({
+  useFactory: (auth: IdentityAuth, database: Database): BetterAuthIdentityService => {
+    const config = readIdentityConfig();
+    return new BetterAuthIdentityService({
       auth,
       database,
-      secret: readIdentityConfig().secret,
-    }),
+      secret: config.secret,
+      providerIds: config.google ? ["google"] : [],
+    });
+  },
 };
 
 @Module({

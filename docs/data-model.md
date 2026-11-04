@@ -15,7 +15,7 @@ sources: [README.md (sections 5, 10, 12), connect-research-report.md v1.1 (secti
 |---|---|
 | **Authority** | Subordinate to [README.md](../README.md) section 10. Rules about reputation and verification come from `reputation-and-verification-policy.md`; if they differ, **the policy wins** and this file is updated. |
 | **Companion documents** | [system-architecture.md](system-architecture.md), [non-functional-requirements.md](non-functional-requirements.md), `data-privacy-and-retention.md`, `glossary.md` |
-| **Status** | **Partly built.** `users`, `sessions`, `accounts`, `verifications`, `consent_records`, `audit_logs`, `signup_blocks`, `institutions`, `institution_domains`, `fields`, `student_profiles`, `student_field_interests`, `mentor_profiles`, and `mentor_fields` exist in migrations `0000` to `0002`. Everything else here is the design target, refined by each migration and by pilot findings. |
+| **Status** | **Partly built.** `users`, `sessions`, `accounts`, `verifications`, `two_factors`, `consent_records`, `audit_logs`, `signup_blocks`, `institutions`, `institution_domains`, `fields`, `student_profiles`, `student_field_interests`, `mentor_profiles`, and `mentor_fields` exist in migrations `0000` to `0006`. Everything else here is the design target, refined by each migration and by pilot findings. |
 
 ---
 
@@ -311,6 +311,8 @@ Common columns `id uuid PK`, `created_at`, and (mutable tables) `updated_at` are
 | `created_at`, `updated_at` | `timestamptz` | |
 
 The project columns are declared to the library with `input: false`, so no request body can set them.
+
+**`two_factors`** (library-native, added by `access-google-mfa-and-sessions`): `id text PK`, `secret text` (library-encrypted), `backup_codes text` (library-encrypted), `user_id text` FK to `users.id` (cascade), `verified boolean`, `failed_verification_count integer`, `locked_until timestamptz?`, `created_at`, `updated_at`. `users.two_factor_enabled boolean` mirrors the active factor. No application code reads `secret` or `backup_codes` back.
 
 **`sessions`** (library-native): `id text PK`, `token text` unique, `user_id text` FK to `users.id` (cascade), `expires_at`, `ip_address?`, `user_agent?`, `created_at`, `updated_at`. Rows are the source of truth for authentication and revocation: 30-day lifetime, refreshed at most once a day, and a revoked row fails the next request immediately.
 
