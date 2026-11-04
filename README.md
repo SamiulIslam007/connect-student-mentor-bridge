@@ -5,7 +5,7 @@
 
 | | |
 |---|---|
-| **Status** | **Sprint 1 identity archived (2026-11-03); account-status lifecycle archived (2026-11-03); profiles and dynamic fields archived (2026-11-03).** Sprint 0 baseline plus email/password auth, verification, the 18+ gate, Postgres sessions, consent and audit rows, the database foundation, and the institution seed. The lifecycle change adds activation on email verification, the sign-in status gate (`EMAIL_NOT_VERIFIED`, `ACCOUNT_SUSPENDED`), suspension and self-deactivation with session revocation, `GET /v1/me` and `POST /v1/me/deactivate`, the blocked-signup read, and an `ACTIVE` backfill. The profile change adds student and mentor profiles, a create-on-save field taxonomy with a normalized slug, `GET /v1/fields`, the two profile `PUT`s, and the `/v1/me` profile extension. Google sign-in, MFA, and the session list move to the Sprint 2 change `access-google-mfa-and-sessions`. A hardening and plan-closure change (`sprint1-hardening-and-plan-closure`) archived 2026-11-03 closes the independent Sprint 0/1 audit findings: application-role grants for the profile tables, database integration tests in the required CI job, the audit foreign key restricted from rewriting history, email/transport hardening, bounded and paginated field taxonomy, and the forgot-password and under-18 UI. See `docs/known-debt.md`. No deployment yet |
+| **Status** | **Sprint 2 access change archived (2026-11-04); Sprint 1 identity archived (2026-11-03); account-status lifecycle archived (2026-11-03); profiles and dynamic fields archived (2026-11-03).** Sprint 0 baseline plus email/password auth, verification, the 18+ gate, Postgres sessions, consent and audit rows, the database foundation, and the institution seed. The lifecycle change adds activation on email verification, the sign-in status gate (`EMAIL_NOT_VERIFIED`, `ACCOUNT_SUSPENDED`), suspension and self-deactivation with session revocation, `GET /v1/me` and `POST /v1/me/deactivate`, the blocked-signup read, and an `ACTIVE` backfill. The profile change adds student and mentor profiles, a create-on-save field taxonomy with a normalized slug, `GET /v1/fields`, the two profile `PUT`s, and the `/v1/me` profile extension. The Sprint 2 change `access-google-mfa-and-sessions` (archived 2026-11-04) adds Google sign-in behind the environment-gated provider, TOTP enrollment/verification with backup codes and attempt limits, the sign-in second-factor challenge, the session list, and idempotent per-session revoke; role-keyed MFA enforcement, role authorization, and profile visibility move to `roles-and-profile-visibility` (4c). A hardening and plan-closure change (`sprint1-hardening-and-plan-closure`) archived 2026-11-03 closes the independent Sprint 0/1 audit findings: application-role grants for the profile tables, database integration tests in the required CI job, the audit foreign key restricted from rewriting history, email/transport hardening, bounded and paginated field taxonomy, and the forgot-password and under-18 UI. See `docs/known-debt.md`. No deployment yet |
 | **Document role** | **Master README, the main source of truth** for the connect project |
 | **Audience** | Builder, future engineers, designers, advisors, pilot institutions, AI coding agents |
 | **Last reviewed** | 2026-11-03 |
@@ -401,7 +401,7 @@ connect/
 - Email and password with verification and forgot-password, plus Google sign-in.
 - Works for the web PWA and one backend.
 - Role-based access: Student, Mentor, Institution Admin, Employer (Later), Platform Admin.
-- MFA for mentors, admins, and institution admins — **target, not built yet** (Sprint 2, `access-google-mfa-and-sessions`).
+- MFA for mentors, admins, and institution admins — **TOTP enrollment and verification are built** (2026-11-04); enforcement keyed on a role needs the role model and arrives with `roles-and-profile-visibility` (4c).
 - Verified affiliation: proof that a mentor belongs to an institution.
 - **Not in the MVP:** Facebook and LinkedIn sign-in (Later), Microsoft sign-in (removed), phone OTP (removed), SAML (Later).
 
@@ -420,7 +420,7 @@ connect/
 
 **Use `better-auth`, embedded in the NestJS API, behind an internal `IdentityService` interface.**
 
-1. **Target (not current):** better-auth handles Google, email/password, email verification, forgot-password, sessions, and MFA. Email/password, verification, forgot-password, and sessions are built; Google and MFA arrive with Sprint 2 (`access-google-mfa-and-sessions`). NestJS validates the session and resolves roles from the database on every request.
+1. **Built, with one part still target:** better-auth handles Google, email/password, email verification, forgot-password, sessions, and MFA. Email/password, verification, forgot-password, sessions, Google sign-in, and TOTP MFA are built (Sprint 2, `access-google-mfa-and-sessions`). NestJS validates the session on every request; role resolution from the database lands with `roles-and-profile-visibility` (4c).
 2. **Keycloak or WorkOS only if SAML is ever needed.** The OIDC boundary and the stable user UUID make that a configuration and adapter change, not a rewrite.
 3. **Authorization is separate from authentication.** Roles come from the database; fine-grained permissions (for example "this mentor may confirm this outcome") are enforced in NestJS and tested.
 4. **Wrap the provider behind `IdentityService`** so a vendor change does not touch domain code.
@@ -769,9 +769,13 @@ The **Sprint 1 work is archived** (2026-11-03):
 - `account-status-lifecycle`: activation on email verification, the sign-in status gate, suspension and self-deactivation with session revocation, `GET /v1/me`, `POST /v1/me/deactivate`, the blocked-signup read, and the `ACTIVE` backfill.
 - `profiles-and-dynamic-fields`: student and mentor profiles, the create-on-save field taxonomy with a normalized slug, `GET /v1/fields`, the two profile `PUT`s, and the `/v1/me` profile extension.
 
+The **Sprint 2 access change is archived** (2026-11-04):
+
+- `access-google-mfa-and-sessions`: Google sign-in through an environment-gated provider (no fallback client id), TOTP enrollment, the sign-in second-factor challenge relayed as an opaque value, backup codes, password-confirmed disable, `GET /v1/me/sessions`, idempotent `DELETE /v1/me/sessions/{id}`, the `two_factors` table with app-role grants, and the BFF routes plus the MFA and session pages. Provider sign-in is refused for an account with an active factor, so MFA cannot be bypassed.
+
 Test evidence and the exact scope live in `openspec/changes/archive/` and `docs/milestones-and-phases.md`.
 
-**Not built yet:** Google sign-in, MFA, the session list and per-session revoke (Sprint 2, `access-google-mfa-and-sessions`); availability windows, `access_mode`, and pause/resume (Sprint 2, `profile-availability-and-access-mode`); affiliation and mentor onboarding (change #5); matching, requests, outcomes, reputation, notifications, and admin; the outbox and pg-boss queues (Sprint 3, `outbox-and-job-runner`); malware-scan integration; and any deployment, staging, or production environment.
+**Not built yet:** role authorization and role-keyed MFA enforcement, profile visibility, and the admin session timeouts (Sprint 2, `roles-and-profile-visibility`, 4c); availability windows, `access_mode`, and pause/resume (Sprint 2, `profile-availability-and-access-mode`); affiliation and mentor onboarding (change #5); matching, requests, outcomes, reputation, notifications, and admin; the outbox and pg-boss queues (Sprint 3, `outbox-and-job-runner`); malware-scan integration; and any deployment, staging, or production environment.
 
 The independent Sprint 0/1 audit findings and their owners are tracked in [`docs/known-debt.md`](docs/known-debt.md).
 

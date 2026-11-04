@@ -1,4 +1,4 @@
-import { Controller, Get, HttpCode, Inject, Post, Req } from "@nestjs/common";
+import { Controller, Delete, Get, HttpCode, Inject, Param, Post, Req } from "@nestjs/common";
 
 import { IdentityError, type IdentityService } from "@connect/domain";
 
@@ -55,5 +55,39 @@ export class MeController {
       requestId: request.requestId,
     });
     return { status: "deactivated" };
+  }
+
+  /** `GET /v1/me/sessions` — safe metadata only, never a token (spec: session list). */
+  @Get("sessions")
+  async sessions(@Req() request: RequestWithId) {
+    const rows = await this.identity.listSessions({ sessionToken: bearerToken(request) });
+    return {
+      data: rows.map((row) => ({
+        id: row.id,
+        created_at: row.createdAt,
+        updated_at: row.updatedAt,
+        expires_at: row.expiresAt,
+        ip_address: row.ipAddress,
+        user_agent: row.userAgent,
+        current: row.current,
+      })),
+    };
+  }
+
+  /**
+   * `DELETE /v1/me/sessions/{id}` — idempotent for the caller's own ids, `404`
+   * for another account's id (design D5).
+   */
+  @Delete("sessions/:id")
+  @HttpCode(204)
+  async revokeSession(
+    @Param("id") id: string,
+    @Req() request: RequestWithId,
+  ): Promise<void> {
+    await this.identity.revokeSession({
+      sessionToken: bearerToken(request),
+      sessionId: id,
+      requestId: request.requestId,
+    });
   }
 }

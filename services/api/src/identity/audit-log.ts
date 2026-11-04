@@ -12,7 +12,13 @@ export type AuditAction =
   | "PASSWORD_RESET_REQUESTED"
   | "PASSWORD_RESET_COMPLETED"
   | "SIGNED_OUT"
-  | "SIGNED_OUT_EVERYWHERE";
+  | "SIGNED_OUT_EVERYWHERE"
+  | "MFA_ENROLLED"
+  | "MFA_VERIFIED"
+  | "MFA_VERIFICATION_FAILED"
+  | "MFA_DISABLED"
+  | "SESSION_REVOKED"
+  | "PROVIDER_SIGN_IN";
 
 export interface AuditEntry {
   action: AuditAction;

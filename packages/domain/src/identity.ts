@@ -40,14 +40,102 @@ export interface SignInInput {
   requestId: string;
 }
 
-export interface SignInResult {
-  /** Opaque session token; the browser never sees it (httpOnly BFF cookie). */
+/**
+ * A password sign-in either issues a session or stops at the second factor.
+ * `mfaChallenge` is an opaque value the caller returns with the verification
+ * code; it carries no token and expires with the library's own challenge.
+ */
+export type SignInResult =
+  | { mfaRequired: false; sessionToken: string; account: AccountSummary }
+  | { mfaRequired: true; mfaChallenge: string };
+
+export interface SessionInput {
+  sessionToken: string;
+  requestId: string;
+}
+
+export interface EnrollMfaInput {
+  sessionToken: string;
+  /** The library re-checks the account password before creating a secret. */
+  password: string;
+  requestId: string;
+}
+
+export interface MfaEnrollment {
+  /** `otpauth://` URI for an authenticator application; shown once. */
+  totpUri: string;
+  /** Single-use recovery codes; shown once. */
+  backupCodes: string[];
+}
+
+export interface VerifyMfaInput {
+  code: string;
+  /** Present when verifying a sign-in challenge (no session yet). */
+  mfaChallenge?: string;
+  /** Present when confirming an enrollment for the signed-in account. */
+  sessionToken?: string;
+  /** `totp` (default) or `backup_code`. */
+  method?: "totp" | "backup_code";
+  requestId: string;
+}
+
+export interface VerifyMfaResult {
   sessionToken: string;
   account: AccountSummary;
 }
 
-export interface SessionInput {
+export interface DisableMfaInput {
   sessionToken: string;
+  password: string;
+  requestId: string;
+}
+
+export interface DisableMfaResult {
+  /** The library rotates the session when the factor is removed. */
+  sessionToken: string;
+}
+
+export interface SessionSummary {
+  id: string;
+  createdAt: string;
+  updatedAt: string;
+  expiresAt: string;
+  ipAddress: string | null;
+  userAgent: string | null;
+  /** True for the session that made this request. */
+  current: boolean;
+}
+
+export interface ListSessionsInput {
+  sessionToken: string;
+}
+
+export interface RevokeSessionInput {
+  sessionToken: string;
+  sessionId: string;
+  requestId: string;
+}
+
+export interface ProviderSignInStartInput {
+  provider: string;
+  /** Where the provider sends the browser back to. */
+  callbackUrl: string;
+  requestId: string;
+}
+
+export interface ProviderSignInStart {
+  authorizationUrl: string;
+  /** Opaque: the state cookie the callback must return unaltered. */
+  stateCookie: string;
+}
+
+export interface ProviderSignInCallbackInput {
+  provider: string;
+  code: string;
+  /** The provider's `state` query parameter. */
+  state: string;
+  /** The opaque `state` value from the start response. */
+  stateCookie: string;
   requestId: string;
 }
 
@@ -99,7 +187,9 @@ export type IdentityErrorCode =
   | "SESSION_INVALID"
   | "EMAIL_NOT_VERIFIED"
   | "ACCOUNT_SUSPENDED"
-  | "FORBIDDEN";
+  | "FORBIDDEN"
+  | "PROVIDER_UNAVAILABLE"
+  | "SESSION_NOT_FOUND";
 
 /** A failure a feature module may map to a response, with no library detail. */
 export class IdentityError extends Error {
@@ -125,4 +215,12 @@ export interface IdentityService {
   activateAccount(input: ActivateAccountInput): Promise<AccountSummary>;
   suspendAccount(input: SuspendAccountInput): Promise<AccountSummary>;
   deactivateAccount(input: DeactivateAccountInput): Promise<void>;
+  /** Sprint 2 (`access-google-mfa-and-sessions`): second factor and sessions. */
+  enrollMfa(input: EnrollMfaInput): Promise<MfaEnrollment>;
+  verifyMfa(input: VerifyMfaInput): Promise<VerifyMfaResult>;
+  disableMfa(input: DisableMfaInput): Promise<DisableMfaResult>;
+  listSessions(input: ListSessionsInput): Promise<SessionSummary[]>;
+  revokeSession(input: RevokeSessionInput): Promise<void>;
+  startProviderSignIn(input: ProviderSignInStartInput): Promise<ProviderSignInStart>;
+  completeProviderSignIn(input: ProviderSignInCallbackInput): Promise<SignInResult>;
 }

@@ -5,6 +5,8 @@ import {
   IdentityError,
   type AccountSummary,
   type IdentityService,
+  type SessionSummary,
+  type SignInResult,
 } from "../src/index.js";
 
 /**
@@ -18,7 +20,7 @@ class FakeIdentityService implements IdentityService {
 
   async verifyEmail(): Promise<void> {}
 
-  async signIn(): Promise<{ sessionToken: string; account: AccountSummary }> {
+  async signIn(): Promise<SignInResult> {
     throw new IdentityError("INVALID_CREDENTIALS", "invalid email or password");
   }
 
@@ -50,6 +52,32 @@ class FakeIdentityService implements IdentityService {
   }
 
   async deactivateAccount(): Promise<void> {}
+
+  async enrollMfa(): Promise<{ totpUri: string; backupCodes: string[] }> {
+    throw new IdentityError("VALIDATION_ERROR", "not implemented in the fake");
+  }
+
+  async verifyMfa(): Promise<{ sessionToken: string; account: AccountSummary }> {
+    throw new IdentityError("INVALID_CREDENTIALS", "not implemented in the fake");
+  }
+
+  async disableMfa(): Promise<{ sessionToken: string }> {
+    throw new IdentityError("VALIDATION_ERROR", "not implemented in the fake");
+  }
+
+  async listSessions(): Promise<SessionSummary[]> {
+    return [];
+  }
+
+  async revokeSession(): Promise<void> {}
+
+  async startProviderSignIn(): Promise<{ authorizationUrl: string; stateCookie: string }> {
+    throw new IdentityError("PROVIDER_UNAVAILABLE", "not configured in the fake");
+  }
+
+  async completeProviderSignIn(): Promise<SignInResult> {
+    throw new IdentityError("INVALID_CREDENTIALS", "not implemented in the fake");
+  }
 }
 
 test("a second implementation satisfies the identity interface", async () => {

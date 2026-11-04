@@ -114,11 +114,13 @@ paths:
               $ref: "#/components/schemas/SignInRequest"
       responses:
         "200":
-          description: A Postgres-backed session was created
+          description: >-
+            A Postgres-backed session, or a second-factor challenge when the
+            account has an active factor. A challenged sign-in creates no session.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SessionResponse"
+                $ref: "#/components/schemas/SignInResponse"
         "401":
           $ref: "#/components/responses/Problem"
         "403":
@@ -201,6 +203,144 @@ paths:
           $ref: "#/components/responses/Problem"
         "422":
           $ref: "#/components/responses/Problem"
+  /v1/auth/mfa/enroll:
+    post:
+      operationId: enrollMfa
+      summary: Start TOTP enrollment for the signed-in account
+      description: >-
+        The account password is re-checked before a secret is created. The
+        response carries the authenticator URI and the single-use backup codes
+        exactly once; the factor stays inactive until a valid code is verified.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MfaEnrollRequest"
+      responses:
+        "200":
+          description: The enrollment secret and backup codes, shown once
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MfaEnrollmentResponse"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+  /v1/auth/mfa/verify:
+    post:
+      operationId: verifyMfa
+      summary: Verify a second-factor code
+      description: >-
+        Two uses. With a bearer session it confirms an enrollment. Without one it
+        completes a challenged sign-in: the mfa_challenge field is the opaque
+        value the sign-in returned and is single-use. A wrong code, a replayed
+        challenge, and an exhausted attempt allowance are all 401. Attempts are
+        limited per challenge and per account.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MfaVerifyRequest"
+      responses:
+        "200":
+          description: A session token; enrollment verification rotates the session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MfaVerifyResponse"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+  /v1/auth/mfa/disable:
+    post:
+      operationId: disableMfa
+      summary: Remove the second factor
+      description: >-
+        Requires the account password. The factor and its backup codes are
+        deleted, the session is rotated, and the next sign-in is single-step.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MfaDisableRequest"
+      responses:
+        "200":
+          description: The factor is removed; the returned token replaces the old session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MfaDisableResponse"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+  /v1/auth/sign-in/provider:
+    post:
+      operationId: startProviderSignIn
+      summary: Start a Google sign-in
+      description: >-
+        Returns the provider authorization URL and an opaque state_cookie the
+        callback must return unaltered. 503 PROVIDER_UNAVAILABLE means this
+        deployment has no Google credentials; there is no built-in fallback.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProviderStartRequest"
+      responses:
+        "200":
+          description: The authorization URL to send the browser to
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProviderStartResponse"
+        "422":
+          $ref: "#/components/responses/Problem"
+        "503":
+          $ref: "#/components/responses/Problem"
+  /v1/auth/provider/callback:
+    post:
+      operationId: completeProviderSignIn
+      summary: Complete a Google sign-in from the callback parameters
+      description: >-
+        Exchanges the authorization code for a session. The provider email is
+        treated as verified, an existing account is linked rather than
+        duplicated, and the same account-status rules apply as the password path.
+        An account with an active second factor is refused with 403 FORBIDDEN: it
+        must sign in with the password so the factor cannot be bypassed.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProviderCallbackRequest"
+      responses:
+        "200":
+          description: A session for the linked or created account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionResponse"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        "503":
+          $ref: "#/components/responses/Problem"
   /v1/me:
     get:
       operationId: getCurrentAccount
@@ -278,6 +418,48 @@ paths:
         "401":
           $ref: "#/components/responses/Problem"
         "422":
+          $ref: "#/components/responses/Problem"
+  /v1/me/sessions:
+    get:
+      operationId: listSessions
+      summary: List the caller's own live sessions
+      description: >-
+        Safe metadata only: never a session token or token hash. Expired rows are
+        omitted and the caller's current session is marked.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The caller's live sessions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionListResponse"
+        "401":
+          $ref: "#/components/responses/Problem"
+  /v1/me/sessions/{id}:
+    delete:
+      operationId: revokeSession
+      summary: Revoke one of the caller's own sessions
+      description: >-
+        Idempotent: an id that is already revoked, expired, or unknown answers
+        204 with no error. A session id belonging to another account answers 404
+        and is left untouched. Revoking the current session is allowed; the
+        caller's next request is then 401.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: The session is gone
+        "401":
+          $ref: "#/components/responses/Problem"
+        "404":
           $ref: "#/components/responses/Problem"
   /v1/fields:
     get:
@@ -452,6 +634,150 @@ components:
           description: Opaque bearer token for the BFF; never placed in client storage.
         account:
           $ref: "#/components/schemas/AccountSummary"
+    MfaChallengeResponse:
+      type: object
+      additionalProperties: false
+      required: [mfa_required, mfa_challenge]
+      properties:
+        mfa_required:
+          type: boolean
+        mfa_challenge:
+          type: string
+          description: Opaque, single-use, and valid for ten minutes.
+    SignInResponse:
+      oneOf:
+        - $ref: "#/components/schemas/SessionResponse"
+        - $ref: "#/components/schemas/MfaChallengeResponse"
+    MfaEnrollRequest:
+      type: object
+      additionalProperties: false
+      required: [password]
+      properties:
+        password:
+          type: string
+          minLength: 12
+    MfaEnrollmentResponse:
+      type: object
+      additionalProperties: false
+      required: [totp_uri, backup_codes]
+      properties:
+        totp_uri:
+          type: string
+          description: otpauth URI for an authenticator application; shown once.
+        backup_codes:
+          type: array
+          items:
+            type: string
+    MfaVerifyRequest:
+      type: object
+      additionalProperties: false
+      required: [code]
+      properties:
+        code:
+          type: string
+          minLength: 6
+        mfa_challenge:
+          type: string
+          description: The value a challenged sign-in returned; required without a session.
+        method:
+          type: string
+          enum: [totp, backup_code]
+          default: totp
+    MfaVerifyResponse:
+      type: object
+      additionalProperties: false
+      required: [session_token, account_status]
+      properties:
+        session_token:
+          type: string
+        account_status:
+          $ref: "#/components/schemas/AccountStatus"
+    MfaDisableRequest:
+      type: object
+      additionalProperties: false
+      required: [password]
+      properties:
+        password:
+          type: string
+          minLength: 12
+    MfaDisableResponse:
+      type: object
+      additionalProperties: false
+      required: [status, session_token]
+      properties:
+        status:
+          type: string
+          enum: [disabled]
+        session_token:
+          type: string
+    ProviderStartRequest:
+      type: object
+      additionalProperties: false
+      required: [provider, callback_url]
+      properties:
+        provider:
+          type: string
+          enum: [google]
+        callback_url:
+          type: string
+          format: uri
+          description: Where the browser returns after the exchange completes.
+    ProviderStartResponse:
+      type: object
+      additionalProperties: false
+      required: [authorization_url, state_cookie]
+      properties:
+        authorization_url:
+          type: string
+          format: uri
+        state_cookie:
+          type: string
+          description: Opaque; return it unaltered on the callback.
+    ProviderCallbackRequest:
+      type: object
+      additionalProperties: false
+      required: [provider, code, state, state_cookie]
+      properties:
+        provider:
+          type: string
+          enum: [google]
+        code:
+          type: string
+        state:
+          type: string
+        state_cookie:
+          type: string
+    SessionSummary:
+      type: object
+      additionalProperties: false
+      required: [id, created_at, updated_at, expires_at, current]
+      properties:
+        id:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        ip_address:
+          type: [string, "null"]
+        user_agent:
+          type: [string, "null"]
+        current:
+          type: boolean
+    SessionListResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/SessionSummary"
     AccountStatus:
       type: string
       description: Account lifecycle state (docs/data-model.md §4.1, lowercase API form).

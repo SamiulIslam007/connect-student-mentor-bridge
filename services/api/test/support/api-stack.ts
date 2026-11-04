@@ -72,6 +72,10 @@ export interface StartApiStackOptions {
   requestIdRoutes: Type<unknown>[];
   /** Extra providers, built from the same database handle the API uses. */
   providers?: (database: Database) => Provider[];
+  /** Stub provider credentials; omitted means the provider is not registered. */
+  google?: { clientId: string; clientSecret: string };
+  /** Replay the migrations before booting (default true). */
+  reset?: boolean;
 }
 
 /**
@@ -86,7 +90,9 @@ export async function startApiStack(
   if (database.skipped) {
     return { skipped: true, reason: database.reason ?? "connect_test is not reachable" };
   }
-  await resetDatabase(database.client);
+  if (options.reset !== false) {
+    await resetDatabase(database.client);
+  }
 
   const connection = createDatabaseConnection(testDatabaseUrl());
   const sender = new RecordingEmailSender();
@@ -95,11 +101,13 @@ export async function startApiStack(
     emailSender: sender,
     secret: TEST_AUTH_SECRET,
     baseUrl: APP_ORIGIN,
+    google: options.google,
   });
   const identity = new BetterAuthIdentityService({
     auth,
     database: connection.db,
     secret: TEST_AUTH_SECRET,
+    providerIds: options.google ? ["google"] : [],
   });
 
   const controllers = options.controllers;
@@ -148,7 +156,7 @@ export interface HttpResult {
 
 export async function apiRequest(
   stack: TestApiStack,
-  method: "GET" | "POST" | "PUT",
+  method: "GET" | "POST" | "PUT" | "DELETE",
   path: string,
   body?: unknown,
   sessionToken?: string,

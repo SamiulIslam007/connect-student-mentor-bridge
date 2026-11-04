@@ -24,6 +24,8 @@ const PROBLEMS: Record<IdentityErrorCode, ProblemMapping> = {
   EMAIL_NOT_VERIFIED: { status: 403, code: "EMAIL_NOT_VERIFIED", title: "Confirm your email address before signing in" },
   ACCOUNT_SUSPENDED: { status: 403, code: "ACCOUNT_SUSPENDED", title: "This account is suspended" },
   FORBIDDEN: { status: 403, code: "FORBIDDEN", title: "This account cannot sign in" },
+  PROVIDER_UNAVAILABLE: { status: 503, code: "PROVIDER_UNAVAILABLE", title: "This sign-in provider is not configured" },
+  SESSION_NOT_FOUND: { status: 404, code: "NOT_FOUND", title: "Not found" },
 };
 
 const PROBLEM_BASE = "https://docs.connect.example/problems/";

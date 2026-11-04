@@ -88,7 +88,7 @@ The system SHALL provide a reset flow that returns the same response whether or 
 
 ### Requirement: Sign-in and sign-out
 
-The system SHALL authenticate with email and password, SHALL not reveal whether an email exists on failure, SHALL evaluate account status only after the password is accepted, and SHALL support signing out of the current session and of every session.
+The system SHALL authenticate with email and password, SHALL not reveal whether an email exists on failure, SHALL evaluate account status only after the password is accepted, SHALL withhold a session when the account has an active second factor until that factor is verified, and SHALL support signing out of the current session and of every session.
 
 #### Scenario: Wrong password
 
@@ -104,6 +104,11 @@ The system SHALL authenticate with email and password, SHALL not reveal whether 
 
 - **WHEN** an `ACTIVE` account signs in successfully
 - **THEN** the response includes the account's `account_status` alongside the session, so the client never has to guess it
+
+#### Scenario: Second factor admits no session
+
+- **WHEN** an `ACTIVE` account with an active second factor submits the correct password
+- **THEN** no session row is created by the sign-in itself, and the response asks for the second step instead of returning a session token
 
 #### Scenario: Sign out everywhere
 

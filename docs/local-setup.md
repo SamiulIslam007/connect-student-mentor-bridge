@@ -101,6 +101,11 @@ Replace `connect` with `POSTGRES_USER` if it differs. The tests reset the `conne
 | `BETTER_AUTH_SECRET` | Session signing and the keyed hash in `signup_blocks`. Generate a local value with `openssl rand -base64 32`; at least 32 characters. Never commit it |
 | `BETTER_AUTH_URL` | Public application origin used in verification and reset links (`http://localhost:3000` locally) |
 
+`GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are optional: set both to enable
+Google sign-in, leave both empty to keep it disabled. A half-set pair is treated as
+unset, and the start endpoint then answers `503 PROVIDER_UNAVAILABLE`. No value is
+ever committed.
+
 `BETTER_AUTH_SECRET` has no default: the API refuses to start when it is missing or shorter than 32 characters. Verification links point at `apps/web/api/auth/verify`, and reset links at the `/reset` page.
 
 The `web` container calls the API at `http://api:3001` (`API_INTERNAL_URL` in `compose.yaml`). The browser-facing `NEXT_PUBLIC_API_BASE_URL` is the published port (`http://localhost:3001`); a container must never be pointed at `localhost` for the API, because that resolves to the container itself.

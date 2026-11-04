@@ -115,4 +115,22 @@ export const strings = {
     signOutEverywhere: "Sign out of all sessions",
     signedOutEverywhere: "Every session has been signed out.",
   },
+  mfa: {
+    title: "Enter your verification code",
+    intro: "Open your authenticator app and enter the six-digit code for connect.",
+    code: "Six-digit code",
+    submit: "Verify",
+    invalid: "That code is not valid. Check your authenticator app and try again.",
+    error: "The code could not be verified. Try again.",
+    backToSignIn: "Back to sign in",
+  },
+  sessions: {
+    title: "Your sessions",
+    intro: "Every device currently signed in to your account.",
+    current: "This device",
+    revoke: "Revoke",
+    revoked: "That session has been revoked.",
+    loadError: "Your sessions could not be loaded.",
+    signedOut: "You are signed out. Sign in to see your sessions.",
+  },
 } as const;

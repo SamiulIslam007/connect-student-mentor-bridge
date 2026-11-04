@@ -1,6 +1,8 @@
 export interface IdentityConfig {
   secret: string;
   baseUrl: string;
+  /** Both set or both absent (design D3); never a placeholder. */
+  google?: { clientId: string; clientSecret: string };
 }
 
 /** Fail loudly at boot when the auth configuration is missing or too weak. */
@@ -18,8 +20,16 @@ export function readIdentityConfig(environment: NodeJS.ProcessEnv = process.env)
     throw new Error("BETTER_AUTH_URL must be set outside development");
   }
 
+  const googleClientId = environment.GOOGLE_CLIENT_ID?.trim() ?? "";
+  const googleClientSecret = environment.GOOGLE_CLIENT_SECRET?.trim() ?? "";
+
   return {
     secret,
     baseUrl: configuredBaseUrl ?? "http://localhost:3000",
+    // A half-configured provider is treated as unconfigured: registering it
+    // would send users to Google with an empty secret.
+    ...(googleClientId && googleClientSecret
+      ? { google: { clientId: googleClientId, clientSecret: googleClientSecret } }
+      : {}),
   };
 }

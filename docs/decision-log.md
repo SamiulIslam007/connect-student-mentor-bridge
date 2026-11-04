@@ -331,3 +331,24 @@ date: 2026-10-29
 - Status: Decided
 - Affects: `docs/local-setup.md`, `docs/milestones-and-phases.md`, `docs/mvp-build-plan.md`, `docs/known-debt.md`, `openspec/changes/sprint1-hardening-and-plan-closure/design.md`
 
+### D-45: The second-factor challenge is relayed, not re-implemented
+- Date: 2026-11-04
+- Decision: A password sign-in for an account with an active TOTP factor returns `mfa_required` plus an opaque `mfa_challenge`. The value is the `better-auth` two-factor cookie pair the library issued; `POST /v1/auth/mfa/verify` replays it as the `Cookie` header and the library consumes its own verification row. The API's `IdentityService` never mints a challenge of its own.
+- Reason: The API holds no browser cookies (`docs/auth-and-access-control.md` §5), so the challenge cannot live in a cookie between the two calls. Relaying keeps the HMAC, the ten-minute expiry, the single-use consume, the per-challenge attempt counter, and the account lockout in the library that already implements them, instead of duplicating them beside the trust core.
+- Status: Decided
+- Affects: `openspec/changes/access-google-mfa-and-sessions/design.md`, `docs/auth-and-access-control.md`, `packages/contracts/openapi.yaml`
+
+### D-46: Google sign-in is registered from the environment and MFA cannot be bypassed by it
+- Date: 2026-11-04
+- Decision: `socialProviders.google` is configured only when both `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are non-empty; otherwise `POST /v1/auth/sign-in/provider` answers `503 PROVIDER_UNAVAILABLE` and the initiator never leaves the server. There is no default, placeholder, or committed client id. An account with an active second factor is refused (`403 FORBIDDEN`) on the provider path and must sign in with the password, because the library gates only the password path on the second factor.
+- Reason: A boot failure without credentials would break every local stack and CI run; a fallback client id would be a committed secret-shaped value. The bypass would apply to exactly the accounts that must have MFA (Mentors, Institution Admins, Platform Admins), so it is closed rather than documented as a known gap.
+- Status: Decided
+- Affects: `openspec/changes/access-google-mfa-and-sessions/design.md`, `docs/auth-and-access-control.md`, `docs/api-contracts.md`
+
+### D-47: Role authorization and profile visibility move to `roles-and-profile-visibility` (4c)
+- Date: 2026-11-04
+- Decision: `access-google-mfa-and-sessions` (4a) ships Google sign-in, TOTP enrollment/verification, and the session list/revoke. Role-based authorization beyond the session guard (`FR-AUTH-07`), profile visibility, the permission-matrix test, and the admin idle/absolute session timeouts move to a new Sprint 2 change `roles-and-profile-visibility` (4c), ordered before `#5 affiliation-and-mentor-onboarding`.
+- Reason: Enforcement needs the `role_assignments` table *and* an endpoint whose policy it guards. Shipping the table alone would be untested policy, and shipping a guard with no consumer is dead code. The three security-sensitive pieces of 4a are not deferred.
+- Status: Decided
+- Affects: `docs/mvp-build-plan.md` §5, `docs/milestones-and-phases.md` §5.2, `docs/known-debt.md`
+

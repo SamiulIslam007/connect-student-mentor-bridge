@@ -44,7 +44,7 @@ async function expectPermissionDenied(client: TestDatabase["client"], sql: strin
   }
 }
 
-test("the migrations create the fourteen tables and protect the ledger", async (context) => {
+test("the migrations create the fifteen tables and protect the ledger", async (context) => {
   const current = requireDatabase(context);
   if (!current) {
     return;
@@ -69,6 +69,7 @@ test("the migrations create the fourteen tables and protect the ledger", async (
       "signup_blocks",
       "student_field_interests",
       "student_profiles",
+      "two_factors",
       "users",
       "verifications",
     ],
@@ -129,6 +130,14 @@ test("the application role can use every profile table and nothing else", async 
       ).rows,
       [{ name: "Grants field renamed" }],
     );
+
+    // `0006` grants the second-factor table (the Sprint 1 audit lesson: a new
+    // table that the application role cannot use is a latent outage).
+    await client.query(
+      "INSERT INTO two_factors (id, secret, backup_codes, user_id) VALUES ('factor-grants', 'enc-secret', 'enc-codes', 'user-grants')",
+    );
+    await client.query("UPDATE two_factors SET verified = false WHERE id = 'factor-grants'");
+    await client.query("DELETE FROM two_factors WHERE id = 'factor-grants'");
 
     const student = await client.query<{ id: string }>(
       "INSERT INTO student_profiles (user_id, goals, primary_field_id) VALUES ('user-grants', 'Goals', $1) RETURNING id",
