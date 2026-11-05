@@ -1,3 +1,4 @@
+import type { MentorAccessModeChoice } from "./availability.js";
 import { FIELD_NAME_MAX_LENGTH, isAcceptableFieldName, normalizeFieldName } from "./fields.js";
 
 /**
@@ -34,6 +35,8 @@ export interface MentorProfileDraft {
   languages: string[];
   /** Raw body value: a string such as `"3"` is not a capacity. */
   weeklyCapacity: unknown;
+  /** Absent leaves the stored mode alone; PAUSED is never accepted here. */
+  accessMode?: MentorAccessModeChoice;
 }
 
 /** True only for a whole number inside the capacity policy range. */

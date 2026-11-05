@@ -48,6 +48,15 @@ export const mentorStatus = pgEnum("mentor_status", [
   "REMOVED",
 ]);
 
+export const availabilityContext = pgEnum("availability_context", ["STUDENT", "MENTOR"]);
+
+/** `PAUSED` is set by pause/resume; the other two are chosen on the profile save. */
+export const mentorAccessMode = pgEnum("mentor_access_mode", [
+  "OPEN",
+  "APPLICATION_ONLY",
+  "PAUSED",
+]);
+
 /** Canonical role values (docs/data-model.md §4.1). `EMPLOYER` is reserved. */
 export const role = pgEnum("role", [
   "STUDENT",
