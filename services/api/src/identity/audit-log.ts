@@ -18,6 +18,7 @@ export type AuditAction =
   | "MFA_VERIFICATION_FAILED"
   | "MFA_DISABLED"
   | "SESSION_REVOKED"
+  | "ROLE_GRANTED"
   | "PROVIDER_SIGN_IN";
 
 export interface AuditEntry {

@@ -11,6 +11,22 @@ export type AccountStatus =
   | "DELETION_PENDING"
   | "ANONYMIZED";
 
+/** Canonical roles (docs/data-model.md §4.1), in declaration order. */
+export const ROLES = [
+  "STUDENT",
+  "MENTOR",
+  "INSTITUTION_ADMIN",
+  "PLATFORM_ADMIN",
+  "EMPLOYER",
+] as const;
+
+export type Role = (typeof ROLES)[number];
+
+/** FR-AUTH-04: the roles that may act on other people's data need a factor. */
+export function requiresMfa(role: Role): boolean {
+  return role === "MENTOR" || role === "INSTITUTION_ADMIN" || role === "PLATFORM_ADMIN";
+}
+
 export interface AccountSummary {
   id: string;
   displayName: string;
@@ -190,6 +206,8 @@ export type IdentityErrorCode =
   | "EMAIL_NOT_VERIFIED"
   | "ACCOUNT_SUSPENDED"
   | "FORBIDDEN"
+  | "ROLE_REQUIRED"
+  | "MFA_REQUIRED"
   | "PROVIDER_UNAVAILABLE"
   | "SESSION_NOT_FOUND";
 
@@ -202,6 +220,14 @@ export class IdentityError extends Error {
     super(message);
     this.name = "IdentityError";
   }
+}
+
+export interface GrantRoleInput {
+  /** The caller's own account id; a body can never name another account. */
+  userId: string;
+  role: Role;
+  actorUserId?: string;
+  requestId: string;
 }
 
 export interface IdentityService {
@@ -223,6 +249,10 @@ export interface IdentityService {
   disableMfa(input: DisableMfaInput): Promise<DisableMfaResult>;
   listSessions(input: ListSessionsInput): Promise<SessionSummary[]>;
   revokeSession(input: RevokeSessionInput): Promise<void>;
+  /** Active roles for one account, in declaration order (design D4). */
+  listRoles(userId: string): Promise<Role[]>;
+  /** Idempotent; one `ROLE_GRANTED` audit entry on an actual grant only. */
+  grantRole(input: GrantRoleInput): Promise<Role[]>;
   startProviderSignIn(input: ProviderSignInStartInput): Promise<ProviderSignInStart>;
   completeProviderSignIn(input: ProviderSignInCallbackInput): Promise<SignInResult>;
 }
