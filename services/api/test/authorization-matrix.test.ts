@@ -3,6 +3,9 @@ import { after, before, beforeEach, test, type TestContext } from "node:test";
 
 import type { Role } from "@connect/domain";
 
+import { AvailabilityController } from "../src/availability/availability.controller.js";
+import { AVAILABILITY_SERVICE } from "../src/availability/availability.tokens.js";
+import { DrizzleAvailabilityService } from "../src/availability/drizzle-availability.service.js";
 import { AuthController } from "../src/identity/auth.controller.js";
 import { MeController } from "../src/me/me.controller.js";
 import { MeRolesController } from "../src/me/roles.controller.js";
@@ -62,6 +65,13 @@ const MATRIX: Requirement[] = [
   { route: /^POST \/v1\/me\/roles\/mentor$/, access: "signed-in", mutating: true },
   { route: /^PUT \/v1\/me\/student-profile$/, access: "signed-in", mutating: true },
   { route: /^PUT \/v1\/me\/mentor-profile$/, access: "MENTOR", mutating: true },
+  { route: /^POST \/v1\/me\/mentor-profile\/pause$/, access: "MENTOR", mutating: true },
+  { route: /^POST \/v1\/me\/mentor-profile\/resume$/, access: "MENTOR", mutating: true },
+  // The mentor context inside this route is role-gated; the student context is
+  // not, so the route's requirement is a session (the per-context refusal is
+  // asserted in availability.integration.test.ts).
+  { route: /^GET \/v1\/me\/availability$/, access: "signed-in" },
+  { route: /^PUT \/v1\/me\/availability$/, access: "signed-in", mutating: true },
   { route: /^GET \/v1\/fields$/, access: "signed-in" },
 ];
 
@@ -73,10 +83,23 @@ let institutionId: string | undefined;
 
 before(async () => {
   const started = await startApiStack({
-    controllers: [AuthController, MeController, MeRolesController, ProfilesController],
-    requestIdRoutes: [AuthController, MeController, MeRolesController, ProfilesController],
+    controllers: [
+      AuthController,
+      MeController,
+      MeRolesController,
+      ProfilesController,
+      AvailabilityController,
+    ],
+    requestIdRoutes: [
+      AuthController,
+      MeController,
+      MeRolesController,
+      ProfilesController,
+      AvailabilityController,
+    ],
     providers: (database) => [
       { provide: PROFILES_SERVICE, useValue: new DrizzleProfilesService(database) },
+      { provide: AVAILABILITY_SERVICE, useValue: new DrizzleAvailabilityService(database) },
     ],
   });
   if (started.skipped) {

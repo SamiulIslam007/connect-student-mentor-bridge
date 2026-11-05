@@ -227,3 +227,55 @@ test("profile request bodies document account_status as an accepted no-op", () =
     assert.match(String(property.description), /ignored/i);
   }
 });
+
+test("availability and access-mode routes are documented and session-guarded", () => {
+  const document = contract();
+
+  for (const [path, method] of [
+    ["/v1/me/availability", "get"],
+    ["/v1/me/availability", "put"],
+    ["/v1/me/mentor-profile/pause", "post"],
+    ["/v1/me/mentor-profile/resume", "post"],
+  ] as const) {
+    const operation = document.paths[path][method];
+    assert.deepEqual(operation.security, [{ bearerAuth: [] }], `${method} ${path} needs a session`);
+    assert.ok(operation.responses["401"], `${method} ${path} documents 401`);
+  }
+
+  const availabilityGet = document.paths["/v1/me/availability"].get;
+  const parameters = (availabilityGet as { parameters?: { name: string; required?: boolean }[] })
+    .parameters;
+  assert.deepEqual(
+    (parameters ?? []).map((parameter) => [parameter.name, parameter.required]),
+    [["context", true]],
+  );
+
+  const availabilityRequest = document.components.schemas.AvailabilityRequest as unknown as {
+    properties: { windows: { maxItems: number } };
+  };
+  assert.equal(
+    availabilityRequest.properties.windows.maxItems,
+    21,
+    "the per-context cap is documented",
+  );
+
+  const mentorProfile = document.components.schemas.MentorProfile as unknown as {
+    properties: Record<string, { $ref?: string }>;
+  };
+  assert.equal(
+    mentorProfile.properties.access_mode.$ref,
+    "#/components/schemas/MentorAccessMode",
+  );
+
+  const mentorRequest = document.components.schemas.MentorProfileRequest as unknown as {
+    required: string[];
+  };
+  assert.ok(
+    !mentorRequest.required.includes("access_mode"),
+    "access_mode stays optional on the full replace, so an old client cannot unpause a mentor",
+  );
+  assert.deepEqual(
+    (document.components.schemas.MentorAccessMode as unknown as { enum: string[] }).enum,
+    ["OPEN", "APPLICATION_ONLY", "PAUSED"],
+  );
+});

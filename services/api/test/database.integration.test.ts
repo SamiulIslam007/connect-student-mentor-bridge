@@ -44,7 +44,7 @@ async function expectPermissionDenied(client: TestDatabase["client"], sql: strin
   }
 }
 
-test("the migrations create the sixteen tables and protect the ledger", async (context) => {
+test("the migrations create the seventeen tables and protect the ledger", async (context) => {
   const current = requireDatabase(context);
   if (!current) {
     return;
@@ -59,6 +59,7 @@ test("the migrations create the sixteen tables and protect the ledger", async (c
     [
       "accounts",
       "audit_logs",
+      "availability_windows",
       "consent_records",
       "fields",
       "institution_domains",
@@ -156,6 +157,15 @@ test("the application role can use every profile table and nothing else", async 
       assignment.rows[0].id,
     ]);
     await client.query("DELETE FROM role_assignments WHERE id = $1", [assignment.rows[0].id]);
+
+    // `0008` grants the availability table.
+    const window = await client.query<{ id: string }>(
+      "INSERT INTO availability_windows (user_id, context, weekday, start_minute, end_minute, timezone) VALUES ('user-grants', 'STUDENT', 1, 540, 600, 'Asia/Dhaka') RETURNING id",
+    );
+    await client.query("UPDATE availability_windows SET end_minute = 610 WHERE id = $1", [
+      window.rows[0].id,
+    ]);
+    await client.query("DELETE FROM availability_windows WHERE id = $1", [window.rows[0].id]);
 
     const student = await client.query<{ id: string }>(
       "INSERT INTO student_profiles (user_id, goals, primary_field_id) VALUES ('user-grants', 'Goals', $1) RETURNING id",

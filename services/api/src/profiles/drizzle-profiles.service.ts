@@ -27,6 +27,7 @@ import type {
   OwnProfiles,
   ProfilesService,
   SaveMentorProfileInput,
+  SetMentorAccessModeInput,
   SaveStudentProfileInput,
   StudentProfileRecord,
 } from "./profiles.service.js";
@@ -151,6 +152,7 @@ export class DrizzleProfilesService implements ProfilesService {
       throw new IdentityError("VALIDATION_ERROR", "weekly_capacity must be a number");
     }
     const languages = normalizeLanguages(draft.languages);
+    const accessMode = draft.accessMode;
 
     return await this.db.transaction(async (tx) => {
       const primaryField = await upsertField(tx, draft.primaryField, userId);
@@ -167,6 +169,7 @@ export class DrizzleProfilesService implements ProfilesService {
           scopeStatement: draft.scopeStatement,
           languages,
           weeklyCapacity,
+          accessMode: accessMode ?? "OPEN",
         })
         .onConflictDoUpdate({
           target: mentorProfiles.userId,
@@ -178,10 +181,13 @@ export class DrizzleProfilesService implements ProfilesService {
             scopeStatement: draft.scopeStatement,
             languages,
             weeklyCapacity,
+            // Absent means "leave the stored mode alone", so an old client cannot
+            // accidentally unpause a mentor (design D3).
+            ...(accessMode ? { accessMode } : {}),
             updatedAt: new Date(),
           },
         })
-        .returning({ id: mentorProfiles.id });
+        .returning({ id: mentorProfiles.id, accessMode: mentorProfiles.accessMode });
       if (!profile) {
         throw new Error("the mentor profile upsert returned no row");
       }
@@ -205,8 +211,36 @@ export class DrizzleProfilesService implements ProfilesService {
         fields: additionalFields,
         languages,
         weeklyCapacity,
+        // The stored mode, not the draft: an absent field leaves it alone.
+        accessMode: profile.accessMode,
       };
     });
+  }
+
+  /** Idempotent: setting the mode it already has is a success (design D4). */
+  async setMentorAccessMode({
+    userId,
+    accessMode,
+  }: SetMentorAccessModeInput): Promise<MentorProfileRecord> {
+    // No capacity check here on purpose: `CAPACITY_BELOW_ACTIVE` needs
+    // mentorships, which `requests-and-capacity` (#7) introduces and adds here.
+    const updated = await this.db
+      .update(mentorProfiles)
+      .set({ accessMode, updatedAt: new Date() })
+      .where(eq(mentorProfiles.userId, userId))
+      .returning({ id: mentorProfiles.id });
+    if (updated.length === 0) {
+      throw new IdentityError(
+        "VALIDATION_ERROR",
+        "a mentor profile is required before the access mode can change",
+      );
+    }
+
+    const { mentorProfile } = await this.readProfiles(userId);
+    if (!mentorProfile) {
+      throw new Error("the mentor profile disappeared during the access-mode change");
+    }
+    return mentorProfile;
   }
 
   async listFields({ limit, cursor }: ListFieldsInput): Promise<FieldPage> {
@@ -260,6 +294,7 @@ export class DrizzleProfilesService implements ProfilesService {
         scopeStatement: mentorProfiles.scopeStatement,
         languages: mentorProfiles.languages,
         weeklyCapacity: mentorProfiles.weeklyCapacity,
+        accessMode: mentorProfiles.accessMode,
         primaryFieldId: mentorProfiles.primaryFieldId,
         primaryFieldName: fields.name,
       })
@@ -278,6 +313,7 @@ export class DrizzleProfilesService implements ProfilesService {
           fields: await this.readJoinFields(this.db, "mentor", mentor.id),
           languages: mentor.languages,
           weeklyCapacity: mentor.weeklyCapacity,
+          accessMode: mentor.accessMode,
         }
       : null;
 

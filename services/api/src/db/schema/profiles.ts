@@ -11,7 +11,7 @@ import {
 
 import { users } from "./auth.js";
 import { timestamps } from "./columns.js";
-import { mentorStatus } from "./enums.js";
+import { mentorAccessMode, mentorStatus } from "./enums.js";
 import { fields } from "./fields.js";
 
 export const studentProfiles = pgTable(
@@ -65,6 +65,8 @@ export const mentorProfiles = pgTable(
     languages: text("languages").array().notNull().default(sql`'{}'::text[]`),
     // Only the lower bound is DDL; the upper bound is policy (D-38, MENTOR_WEEKLY_CAPACITY_MAX).
     weeklyCapacity: smallint("weekly_capacity").notNull(),
+    /** OPEN or APPLICATION_ONLY on save; PAUSED only through pause/resume. */
+    accessMode: mentorAccessMode("access_mode").default("OPEN").notNull(),
     ...timestamps,
   },
   (table) => [

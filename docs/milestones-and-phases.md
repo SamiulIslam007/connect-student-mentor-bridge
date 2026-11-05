@@ -16,10 +16,10 @@ sources: [README.md, connect-research-report.md (Sections 5, 6, 7, 9, 10)]
 |---|---|
 | Updated | 2026-11-05 (update at every apply and every archive, `AGENTS.local.md` section 4) |
 | Phase | 1a - MVP build (about 8 sprints, 1 week each, 3 working days) |
-| Current sprint | **Sprint 2 in progress.** Sprint 1 closed (identity, account status, profiles). `access-google-mfa-and-sessions` (4a), `account-access-ui`, and 4c `roles-and-profile-visibility` are `DONE`. Next: 4b `profile-availability-and-access-mode` |
-| Last archived change | `roles-and-profile-visibility` (2026-11-05) - `DONE`: `role_assignments` with the partial unique index and migration `0007` (app-role grant, `STUDENT` backfill with one `ROLE_GRANTED` audit row each), the registration default role, the opt-in `MENTOR` grant, `requireRole` with `ROLE_REQUIRED`/`MFA_REQUIRED`, `requiresMfa`, the permission-matrix test, `canViewProfile`, `roles` on `GET /v1/me`, and the profile-page opt-in. The admin idle/absolute timeouts stay in Sprint 7 (D-48) |
-| In flight | None. Sprint 2 continues with `profile-availability-and-access-mode` (4b) |
-| Next change | `profile-availability-and-access-mode` (4b: availability windows, access mode, pause/resume), then `affiliation-and-mentor-onboarding` (#5) |
+| Current sprint | **Sprint 2 in progress.** Sprint 1 closed (identity, account status, profiles). `access-google-mfa-and-sessions` (4a), `account-access-ui`, 4c `roles-and-profile-visibility`, and 4b `profile-availability-and-access-mode` are `DONE`. Next: #5 `affiliation-and-mentor-onboarding` |
+| Last archived change | `profile-availability-and-access-mode` (2026-11-05) - `DONE`: `availability_windows` with its checks and index (migration `0008` plus the app-role grant), `GET`/`PUT /v1/me/availability` with the pure validator (bounds, overlap, 21-window cap, IANA zone), `mentor_profiles.access_mode` with pause/resume, `isDiscoverable`, and the profile-page availability editor and access-mode controls. `APPLICATION_ONLY` is stored only and resume runs no capacity check until #7 (DEBT-17) |
+| In flight | None. Sprint 2 continues with `affiliation-and-mentor-onboarding` (#5) |
+| Next change | `affiliation-and-mentor-onboarding` (#5: Level 1 affiliation, mentor activation gate, onboarding), then `matching-and-discovery` (#6) |
 | Open blockers | None |
 
 ## 1. Purpose and scope

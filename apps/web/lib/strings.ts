@@ -102,6 +102,32 @@ export const strings = {
     mentorRoleRequired:
       "Saving a mentor profile needs the mentor role. Choose “Become a mentor” and try again.",
     mentorRoleError: "The mentor role could not be granted. Try again in a moment.",
+    availabilityTitle: "Weekly availability",
+    availabilityIntro:
+      "Add the weekly windows when you can meet. Times are wall-clock times in the zone you name.",
+    availabilityEmpty: "No availability is set yet.",
+    addWindow: "Add a window",
+    removeWindow: "Remove",
+    weekday: "Weekday",
+    startTime: "From",
+    endTime: "To",
+    timezone: "Time zone",
+    saveAvailability: "Save availability",
+    availabilitySaved: "Your availability was saved.",
+    availabilityError: "The availability could not be saved.",
+    accessModeTitle: "Access mode",
+    accessModeIntro:
+      "Students cannot apply yet, so this setting is only recorded now. Pausing hides you from discovery later.",
+    accessModeOpen: "Open",
+    accessModeApplicationOnly: "Application only",
+    accessModePaused: "Paused",
+    accessModeLabel: "Who can reach you",
+    applicationsNotBuilt:
+      "Applications are not built yet: application only is stored for when they are.",
+    pause: "Pause",
+    resume: "Resume",
+    accessModeSaved: "Your access mode was saved.",
+    accessModeError: "The access mode could not be changed.",
   },
   verify: {
     title: "Email verification",

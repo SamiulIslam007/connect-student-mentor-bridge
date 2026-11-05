@@ -165,9 +165,9 @@ Authentication internals are **library-native** better-auth tables in the same s
 | `affiliation_status` | `PENDING`, `VERIFIED`, `REJECTED`, `REVOKED`, `EXPIRED` |
 | `mentor_onboarding_status` | `APPLIED`, `EMAIL_VERIFIED`, `AFFILIATION_VERIFIED`, `EMPLOYER_CHECKED` (verification progress only) |
 | `field_status` | `ACTIVE`, `RETIRED`. Field taxonomy only. Nothing writes `RETIRED` yet: field merge, rename, and retirement are Phase 1b (D-23), and retiring never deletes a field or its historical references |
-| `availability_context` | `STUDENT`, `MENTOR`. The `availability_windows` table is deferred to `profile-availability-and-access-mode`; the enum is documented now so the follow-up needs no enum migration |
+| `availability_context` | `STUDENT`, `MENTOR`. **Built** by `profile-availability-and-access-mode` (4b) together with `availability_windows` |
 | `mentor_status` | `DRAFT`, `PENDING`, `ACTIVE`, `SUSPENDED`, `REMOVED` (operating status only). Written by `profiles-and-dynamic-fields` with default `DRAFT`; nothing transitions it in that change |
-| `mentor_access_mode` | `OPEN`, `APPLICATION_ONLY`, `PAUSED` (mentor-selected) |
+| `mentor_access_mode` | `OPEN`, `APPLICATION_ONLY`, `PAUSED` (mentor-selected). **Built** by `profile-availability-and-access-mode` (4b) |
 | `access_state` (derived) | `AVAILABLE`, `FULL`, `APPLICATION_ONLY`, plus hidden when paused or not active |
 | `request_status` | `PENDING`, `ACCEPTED`, `DECLINED`, `REDIRECTED`, `EXPIRED`, `WITHDRAWN` |
 | `mentorship_status` | `ACTIVE`, `COMPLETED`, `ENDED_EARLY` |
@@ -367,14 +367,14 @@ Check: `institution_id IS NOT NULL OR organization_name IS NOT NULL`. Edits to a
 | `created_at`, `updated_at` | `timestamptz` | |
 | `onboarding_status` | `mentor_onboarding_status` | **Not yet created**; owning change #5 (`affiliation-and-mentor-onboarding`) |
 | `current_role_title`, `current_organization` | `text?` | **Not yet created**; owning change #5 |
-| `access_mode` | `mentor_access_mode` | **Not yet created**; owning change `profile-availability-and-access-mode` |
+| `access_mode` | `mentor_access_mode` | **Built** by `profile-availability-and-access-mode` (4b); default `OPEN`. `PAUSED` is written only by pause/resume, and a save that omits it leaves it alone |
 | `orientation_completed_at`, `activated_at` | `timestamptz?` | **Not yet created**; owning change #5 |
 
 **`mentor_fields`** (**built**): (`mentor_profile_id uuid` FK on delete `cascade`, `field_id uuid` FK on delete `restrict`) composite key. Holds **additional** fields only; the primary field is `mentor_profiles.primary_field_id`, so one fact has one writer. Reputation is later keyed by the same `field_id`.
 
 `student_profiles.onboarding_completed_at` is **not yet created**; owning change #5.
 
-**`availability_windows`** (**not yet created**; owning change `profile-availability-and-access-mode`): `user_id text`, `context` (`availability_context`: `STUDENT` or `MENTOR`), `weekday smallint` (1 to 7), `start_minute smallint`, `end_minute smallint`, `timezone text`. Check `end_minute > start_minute`. Generalizes the README's `MentorAvailability` to both sides so the availability-match factor can compare them.
+**`availability_windows`** (**built** by `profile-availability-and-access-mode`, 4b): `id uuid PK`, `user_id text` FK `users.id` (cascade), `context` (`availability_context`: `STUDENT` or `MENTOR`), `weekday smallint` (1 to 7), `start_minute smallint` (0 to 1440), `end_minute smallint` (0 to 1440), `timezone text` (IANA), `created_at`, `updated_at`. Checks `end_minute > start_minute` plus the weekday and minute bounds; index on (`user_id`, `context`). Minutes are wall-clock minutes in the row's own zone, so the availability-match factor in #6 is a pure comparison. At most 21 windows per context (Proposed default, policy not DDL). Generalizes the README's `MentorAvailability` to both sides.
 
 ### 5.3 Requests, suggestions, mentorships
 

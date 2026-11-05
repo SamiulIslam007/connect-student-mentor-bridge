@@ -1,6 +1,8 @@
 import { Module, type MiddlewareConsumer, type NestModule } from "@nestjs/common";
 import { APP_FILTER } from "@nestjs/core";
 
+import { AvailabilityController } from "./availability/availability.controller.js";
+import { AvailabilityModule } from "./availability/availability.module.js";
 import { DatabaseModule } from "./db/database.module.js";
 import { DATABASE_PROBE, defaultProbe, HealthController } from "./health/health.controller.js";
 import { RequestIdMiddleware } from "./http/request-id.middleware.js";
@@ -18,7 +20,7 @@ import { ProfilesModule } from "./profiles/profiles.module.js";
  * reputation, notifications, admin, audit) are added by later changes.
  */
 @Module({
-  imports: [DatabaseModule, IdentityModule, MeModule, ProfilesModule],
+  imports: [DatabaseModule, IdentityModule, MeModule, ProfilesModule, AvailabilityModule],
   controllers: [HealthController],
   providers: [
     { provide: DATABASE_PROBE, useValue: defaultProbe },
@@ -29,6 +31,13 @@ export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
     consumer
       .apply(RequestIdMiddleware)
-      .forRoutes(HealthController, AuthController, MeController, MeRolesController, ProfilesController);
+      .forRoutes(
+        HealthController,
+        AuthController,
+        MeController,
+        MeRolesController,
+        ProfilesController,
+        AvailabilityController,
+      );
   }
 }
