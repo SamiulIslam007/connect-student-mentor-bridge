@@ -70,6 +70,7 @@ interface AuthUser {
   emailVerified: boolean;
   timezone?: string | null;
   status?: string | null;
+  twoFactorEnabled?: boolean | null;
 }
 
 function toAccountStatus(value: string | null | undefined): AccountStatus {
@@ -87,6 +88,7 @@ function toAccount(user: AuthUser): AccountSummary {
     emailVerified: user.emailVerified,
     timezone: user.timezone ?? "Asia/Dhaka",
     accountStatus: toAccountStatus(user.status),
+    mfaEnabled: user.twoFactorEnabled === true,
   };
 }
 

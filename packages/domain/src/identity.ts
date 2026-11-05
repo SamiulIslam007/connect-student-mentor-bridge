@@ -18,6 +18,8 @@ export interface AccountSummary {
   emailVerified: boolean;
   timezone: string;
   accountStatus: AccountStatus;
+  /** True when a verified second factor is active (D-48, `mfa_enrollment_ui`). */
+  mfaEnabled: boolean;
 }
 
 export interface RegisterAccountInput {

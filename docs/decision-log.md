@@ -352,3 +352,10 @@ date: 2026-10-29
 - Status: Decided
 - Affects: `docs/mvp-build-plan.md` §5, `docs/milestones-and-phases.md` §5.2, `docs/known-debt.md`
 
+### D-48: Second-factor enrollment lives in the web app; the admin timeouts move to Sprint 7
+- Date: 2026-11-05
+- Decision: `account-access-ui` adds the enrollment, verification, and disable UI at `/account/security` using the endpoints 4a already ships, and adds one additive field, `mfa_enabled`, to the `GET /v1/me` response so the page can tell an enrolled account from an unenrolled one. The sign-in response keeps its narrower shape. Signing out of the current session is a header action that ends only that session; the "sign out of all sessions" action moves from the sign-in page to `/account/sessions`. The admin idle and absolute session timeouts belong to Sprint 7 with the admin surface, not to 4c, superseding the 4c mention in D-47 for those two items.
+- Reason: The 4a backend was reachable only through the API, so no user could create a factor and 4c's role-keyed enforcement would have been a lockout. One boolean on the caller's own record is cheaper than a new endpoint and does not widen the sign-in contract. A timeout policy with no admin surface is untestable policy, and Sprint 7 is where the admin session settings land.
+- Status: Decided
+- Affects: `openspec/changes/account-access-ui/design.md`, `docs/auth-and-access-control.md` §4.5 and §5, `docs/api-contracts.md`, `packages/contracts/openapi.yaml`, `docs/known-debt.md`
+

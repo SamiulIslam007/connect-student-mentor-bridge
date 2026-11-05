@@ -44,6 +44,7 @@ class FakeIdentityService implements IdentityService {
       emailVerified: true,
       timezone: "Asia/Dhaka",
       accountStatus: "ACTIVE",
+      mfaEnabled: false,
     };
   }
 

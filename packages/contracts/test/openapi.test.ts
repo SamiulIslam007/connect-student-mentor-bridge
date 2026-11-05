@@ -169,6 +169,7 @@ test("MeResponse is standalone and both profile properties are nullable", () => 
     "email_verified",
     "id",
     "mentor_profile",
+    "mfa_enabled",
     "student_profile",
     "timezone",
   ]);

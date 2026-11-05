@@ -42,6 +42,7 @@ export class MeController {
       email_verified: account.emailVerified,
       account_status: account.accountStatus.toLowerCase(),
       timezone: account.timezone,
+      mfa_enabled: account.mfaEnabled,
       student_profile: studentProfile ? studentProfilePayload(studentProfile) : null,
       mentor_profile: mentorProfile ? mentorProfilePayload(mentorProfile) : null,
     };
