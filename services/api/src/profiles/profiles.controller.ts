@@ -1,9 +1,10 @@
-import { Body, Controller, Get, Inject, Put, Query, Req } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Inject, Post, Put, Query, Req } from "@nestjs/common";
 
 import {
   IdentityError,
   type AccountSummary,
   type IdentityService,
+  type MentorAccessModeChoice,
   type MentorProfileDraft,
   type StudentProfileDraft,
 } from "@connect/domain";
@@ -50,6 +51,17 @@ function readStudentDraft(body: unknown): StudentProfileDraft {
   };
 }
 
+/** Absent leaves the stored mode alone; `PAUSED` is not a save-time choice. */
+function readAccessMode(value: unknown): MentorAccessModeChoice | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (value === "OPEN" || value === "APPLICATION_ONLY") {
+    return value;
+  }
+  throw new IdentityError("VALIDATION_ERROR", "access_mode must be OPEN or APPLICATION_ONLY");
+}
+
 function readMentorDraft(body: unknown): MentorProfileDraft {
   return {
     headline: textOf(body, "headline"),
@@ -60,6 +72,7 @@ function readMentorDraft(body: unknown): MentorProfileDraft {
     additionalFields: stringArrayOf(body, "fields"),
     languages: stringArrayOf(body, "languages"),
     weeklyCapacity: bodyRecord(body).weekly_capacity,
+    accessMode: readAccessMode(bodyRecord(body).access_mode),
   };
 }
 
@@ -149,6 +162,33 @@ export class ProfilesController {
     const saved = await this.profiles.saveMentorProfile({
       userId: acting.account.id,
       draft: readMentorDraft(body),
+    });
+    return mentorProfilePayload(saved);
+  }
+
+  /** Pause keeps the profile and only hides it from discovery (design D4). */
+  @Post("me/mentor-profile/pause")
+  @HttpCode(200)
+  async pauseMentorProfile(@Req() request: RequestWithId): Promise<Record<string, unknown>> {
+    const acting = await requireRole(this.identity, request, "MENTOR");
+    const saved = await this.profiles.setMentorAccessMode({
+      userId: acting.account.id,
+      accessMode: "PAUSED",
+    });
+    return mentorProfilePayload(saved);
+  }
+
+  /** Resume defaults to OPEN and never reports a capacity decision (design D4). */
+  @Post("me/mentor-profile/resume")
+  @HttpCode(200)
+  async resumeMentorProfile(
+    @Body() body: unknown,
+    @Req() request: RequestWithId,
+  ): Promise<Record<string, unknown>> {
+    const acting = await requireRole(this.identity, request, "MENTOR");
+    const saved = await this.profiles.setMentorAccessMode({
+      userId: acting.account.id,
+      accessMode: readAccessMode(bodyRecord(body).access_mode) ?? "OPEN",
     });
     return mentorProfilePayload(saved);
   }

@@ -1,4 +1,9 @@
-import type { MentorProfileDraft, StudentProfileDraft } from "@connect/domain";
+import type {
+  MentorAccessMode,
+  MentorAccessModeChoice,
+  MentorProfileDraft,
+  StudentProfileDraft,
+} from "@connect/domain";
 
 /** What `GET /v1/fields` and every profile response expose. Ids are opaque. */
 export interface FieldSummary {
@@ -22,6 +27,7 @@ export interface MentorProfileRecord {
   fields: FieldSummary[];
   languages: string[];
   weeklyCapacity: number;
+  accessMode: MentorAccessMode;
 }
 
 export interface OwnProfiles {
@@ -37,6 +43,11 @@ export interface SaveStudentProfileInput {
 export interface SaveMentorProfileInput {
   userId: string;
   draft: MentorProfileDraft;
+}
+
+export interface SetMentorAccessModeInput {
+  userId: string;
+  accessMode: MentorAccessModeChoice | "PAUSED";
 }
 
 export interface ListFieldsInput {
@@ -71,6 +82,7 @@ export function mentorProfilePayload(profile: MentorProfileRecord): Record<strin
     fields: profile.fields,
     languages: profile.languages,
     weekly_capacity: profile.weeklyCapacity,
+    access_mode: profile.accessMode,
   };
 }
 
@@ -83,4 +95,6 @@ export interface ProfilesService {
   saveMentorProfile(input: SaveMentorProfileInput): Promise<MentorProfileRecord>;
   listFields(input: ListFieldsInput): Promise<FieldPage>;
   readProfiles(userId: string): Promise<OwnProfiles>;
+  /** Pause or resume without resaving the profile; idempotent. */
+  setMentorAccessMode(input: SetMentorAccessModeInput): Promise<MentorProfileRecord>;
 }

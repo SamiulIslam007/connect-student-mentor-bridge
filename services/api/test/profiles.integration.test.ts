@@ -667,3 +667,130 @@ test("three interest fields are refused and leave nothing behind", async (contex
   );
   assert.deepEqual(counts.rows[0], { profiles: 0, fields: 0 });
 });
+
+
+// --- access mode (4b) ------------------------------------------------------
+
+test("a new mentor profile is OPEN and the mode can be chosen on save", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const token = await mentorTokenFor(current, "access-mode@example.com");
+
+  const created = await apiRequest(current, "PUT", "/v1/me/mentor-profile", validMentor, token);
+  assert.equal(created.status, 200, created.text);
+  assert.equal(created.body?.access_mode, "OPEN", "a new profile defaults to OPEN");
+
+  const applicationOnly = await apiRequest(
+    current,
+    "PUT",
+    "/v1/me/mentor-profile",
+    { ...validMentor, access_mode: "APPLICATION_ONLY" },
+    token,
+  );
+  assert.equal(applicationOnly.status, 200, applicationOnly.text);
+  assert.equal(applicationOnly.body?.access_mode, "APPLICATION_ONLY");
+  assert.equal(applicationOnly.body?.headline, validMentor.headline, "the other fields are unchanged");
+
+  const refused = await apiRequest(
+    current,
+    "PUT",
+    "/v1/me/mentor-profile",
+    { ...validMentor, access_mode: "PAUSED" },
+    token,
+  );
+  assert.equal(refused.status, 422, "PAUSED is not a save-time choice");
+});
+
+test("pause then resume-with-mode, and resume without a mode gives OPEN", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const token = await mentorTokenFor(current, "pause-resume@example.com");
+  await apiRequest(current, "PUT", "/v1/me/mentor-profile", validMentor, token);
+
+  const paused = await apiRequest(current, "POST", "/v1/me/mentor-profile/pause", undefined, token);
+  assert.equal(paused.status, 200, paused.text);
+  assert.equal(paused.body?.access_mode, "PAUSED");
+
+  const resumed = await apiRequest(
+    current,
+    "POST",
+    "/v1/me/mentor-profile/resume",
+    { access_mode: "APPLICATION_ONLY" },
+    token,
+  );
+  assert.equal(resumed.status, 200, resumed.text);
+  assert.equal(resumed.body?.access_mode, "APPLICATION_ONLY");
+
+  const resumedDefault = await apiRequest(
+    current,
+    "POST",
+    "/v1/me/mentor-profile/resume",
+    undefined,
+    token,
+  );
+  assert.equal(resumedDefault.status, 200, resumedDefault.text);
+  assert.equal(resumedDefault.body?.access_mode, "OPEN");
+});
+
+test("pause is idempotent and an older save leaves a paused profile paused", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const token = await mentorTokenFor(current, "pause-idempotent@example.com");
+  await apiRequest(current, "PUT", "/v1/me/mentor-profile", validMentor, token);
+
+  const first = await apiRequest(current, "POST", "/v1/me/mentor-profile/pause", undefined, token);
+  const second = await apiRequest(current, "POST", "/v1/me/mentor-profile/pause", undefined, token);
+  assert.equal(first.status, 200);
+  assert.equal(second.status, 200);
+  assert.equal(second.body?.access_mode, "PAUSED");
+
+  // An old client that does not send access_mode must not unpause the mentor.
+  const older = await apiRequest(current, "PUT", "/v1/me/mentor-profile", validMentor, token);
+  assert.equal(older.status, 200, older.text);
+  assert.equal(older.body?.access_mode, "PAUSED");
+
+  const me = await apiRequest(current, "GET", "/v1/me", undefined, token);
+  const mentorProfile = me.body?.mentor_profile as { access_mode: string };
+  assert.equal(mentorProfile.access_mode, "PAUSED");
+});
+
+test("pause and resume run no capacity check in this change (#7 owns it)", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const token = await mentorTokenFor(current, "no-capacity@example.com");
+  await apiRequest(current, "PUT", "/v1/me/mentor-profile", validMentor, token);
+
+  const paused = await apiRequest(current, "POST", "/v1/me/mentor-profile/pause", undefined, token);
+  const resumed = await apiRequest(current, "POST", "/v1/me/mentor-profile/resume", undefined, token);
+
+  // `requests-and-capacity` (#7) adds CAPACITY_BELOW_ACTIVE to the resume handler;
+  // until then neither response may claim a capacity decision.
+  assert.ok(!paused.text.includes("CAPACITY"));
+  assert.ok(!resumed.text.includes("CAPACITY"));
+});
+
+test("pause and resume require the mentor role and a profile", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+
+  const studentToken = await tokenFor(current, "pause-no-role@example.com");
+  const refused = await apiRequest(
+    current,
+    "POST",
+    "/v1/me/mentor-profile/pause",
+    undefined,
+    studentToken,
+  );
+  assert.equal(refused.status, 403);
+  assert.equal(refused.body?.code, "ROLE_REQUIRED");
+
+  const mentorToken = await mentorTokenFor(current, "pause-no-profile@example.com");
+  const noProfile = await apiRequest(
+    current,
+    "POST",
+    "/v1/me/mentor-profile/pause",
+    undefined,
+    mentorToken,
+  );
+  assert.equal(noProfile.status, 422, "there is nothing to pause without a profile");
+});
