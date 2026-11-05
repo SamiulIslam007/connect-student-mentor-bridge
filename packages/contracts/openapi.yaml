@@ -481,6 +481,114 @@ paths:
           $ref: "#/components/responses/Problem"
         "404":
           $ref: "#/components/responses/Problem"
+  /v1/me/mentor-profile/pause:
+    post:
+      operationId: pauseMentorProfile
+      summary: Hide the mentor from discovery without resaving the profile
+      description: >-
+        Sets the access mode to `PAUSED`. Idempotent. No capacity check runs in
+        this change: `requests-and-capacity` (#7) adds `CAPACITY_BELOW_ACTIVE`
+        here once mentorships exist.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The mentor profile with its new access mode
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MentorProfile"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+  /v1/me/mentor-profile/resume:
+    post:
+      operationId: resumeMentorProfile
+      summary: Clear the paused access mode
+      description: >-
+        Sets the body's `access_mode` (`OPEN` or `APPLICATION_ONLY`), default
+        `OPEN`. Idempotent, and subject to no capacity check until #7.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MentorAccessModeRequest"
+      responses:
+        "200":
+          description: The mentor profile with its new access mode
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MentorProfile"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+  /v1/me/availability:
+    get:
+      operationId: getAvailability
+      summary: The caller's own weekly availability for one context
+      description: >-
+        Windows come back ordered by weekday, then start minute, then end minute.
+        The mentor context requires the mentor role; the student context requires
+        only a session. The user always comes from the session.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: context
+          in: query
+          required: true
+          schema:
+            $ref: "#/components/schemas/AvailabilityContext"
+      responses:
+        "200":
+          description: The caller's windows for that context
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AvailabilityResponse"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+    put:
+      operationId: replaceAvailability
+      summary: Replace the caller's availability for one context
+      description: >-
+        Full replace: windows absent from the body are removed, and the other
+        context is untouched. Validated before any write (bounds, overlap, cap,
+        IANA zone); a refused save leaves the stored set unchanged.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AvailabilityRequest"
+      responses:
+        "200":
+          description: The stored windows for that context
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AvailabilityResponse"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
   /v1/fields:
     get:
       operationId: listFields
@@ -907,10 +1015,95 @@ components:
             description: >-
               Mentoring language, lowercased. The code format is not validated in
               this change.
+    MentorAccessMode:
+      type: string
+      description: >-
+        OPEN and APPLICATION_ONLY are chosen on the profile save; PAUSED is set
+        by pause and cleared by resume.
+      enum: [OPEN, APPLICATION_ONLY, PAUSED]
+    MentorAccessModeRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        access_mode:
+          type: string
+          enum: [OPEN, APPLICATION_ONLY]
+    AvailabilityContext:
+      type: string
+      enum: [STUDENT, MENTOR]
+    AvailabilityWindow:
+      type: object
+      additionalProperties: false
+      required: [id, context, weekday, start_minute, end_minute, timezone]
+      properties:
+        id:
+          type: string
+          format: uuid
+        context:
+          $ref: "#/components/schemas/AvailabilityContext"
+        weekday:
+          type: integer
+          minimum: 1
+          maximum: 7
+          description: 1 is Monday.
+        start_minute:
+          type: integer
+          minimum: 0
+          maximum: 1440
+          description: Wall-clock minute in the window's own zone.
+        end_minute:
+          type: integer
+          minimum: 1
+          maximum: 1440
+          description: Strictly after start_minute.
+        timezone:
+          type: string
+          description: IANA zone, for example Asia/Dhaka.
+    AvailabilityResponse:
+      type: object
+      additionalProperties: false
+      required: [context, windows]
+      properties:
+        context:
+          $ref: "#/components/schemas/AvailabilityContext"
+        windows:
+          type: array
+          items:
+            $ref: "#/components/schemas/AvailabilityWindow"
+    AvailabilityRequest:
+      type: object
+      additionalProperties: false
+      required: [context, windows]
+      properties:
+        context:
+          $ref: "#/components/schemas/AvailabilityContext"
+        windows:
+          type: array
+          maxItems: 21
+          description: At most 21 per context (Proposed default); a full replace.
+          items:
+            type: object
+            additionalProperties: false
+            required: [weekday, start_minute, end_minute, timezone]
+            properties:
+              weekday:
+                type: integer
+                minimum: 1
+                maximum: 7
+              start_minute:
+                type: integer
+                minimum: 0
+                maximum: 1440
+              end_minute:
+                type: integer
+                minimum: 1
+                maximum: 1440
+              timezone:
+                type: string
     MentorProfile:
       type: object
       additionalProperties: false
-      required: [headline, bio, expertise_summary, scope_statement, primary_field, fields, languages, weekly_capacity]
+      required: [headline, bio, expertise_summary, scope_statement, primary_field, fields, languages, weekly_capacity, access_mode]
       properties:
         headline:
           type: string
@@ -934,6 +1127,8 @@ components:
           type: integer
           minimum: 1
           maximum: 5
+        access_mode:
+          $ref: "#/components/schemas/MentorAccessMode"
     StudentProfileRequest:
       type: object
       additionalProperties: false
@@ -1000,6 +1195,12 @@ components:
           minimum: 1
           maximum: 5
           description: Proposed default maximum 5 (D-38); Sprint 7 moves it to configuration.
+        access_mode:
+          type: string
+          enum: [OPEN, APPLICATION_ONLY]
+          description: >-
+            Optional. Absent leaves the stored mode alone, so an older client
+            cannot unpause a mentor. PAUSED is set only by pause/resume.
         account_status:
           type: string
           description: Accepted and ignored, as on the student profile save.

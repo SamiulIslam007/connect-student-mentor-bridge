@@ -236,8 +236,10 @@ Roles: **S** Student, **M** Mentor, **IA** Institution Admin, **PA** Platform Ad
 | `GET /v1/me` | all | no | The signed-in account record (id, display name, email, verification state, `account_status`, timezone, `mfa_enabled`, `roles`) plus the caller's own `student_profile` and `mentor_profile`, each nullable. The sign-in response keeps the narrower `AccountSummary` shape | `200` |
 | `PUT /v1/me/student-profile` | S | no (last write wins, D-39) | Create or fully replace the caller's student profile: goals, primary field, up to two interest fields, mentoring languages | `200` |
 | `PUT /v1/me/mentor-profile` | M | no (last write wins, D-39) | Create or fully replace the caller's mentor profile: headline, bio, expertise summary, scope statement, primary field, additional fields, languages, weekly capacity | `200` |
-| `POST /v1/me/mentor-profile/pause` | M | yes | Set access mode to `PAUSED` (hidden from discovery, no new requests). **Not built yet** (`profile-availability-and-access-mode`) | `200` |
-| `POST /v1/me/mentor-profile/resume` | M | yes | Clear `PAUSED`, subject to capacity. **Not built yet** | `200` |
+| `POST /v1/me/mentor-profile/pause` | M | yes | Set access mode to `PAUSED` (hidden from discovery, no new requests). Idempotent; no capacity check until #7. Built in `profile-availability-and-access-mode` | `200` |
+| `POST /v1/me/mentor-profile/resume` | M | yes | Clear `PAUSED` to the body's `access_mode` (`OPEN` default). Idempotent; the capacity subjection belongs to #7. Built in `profile-availability-and-access-mode` | `200` |
+| `GET /v1/me/availability?context=STUDENT\|MENTOR` | all (MENTOR context: M) | no | The caller's own weekly windows for one context, ordered by weekday, start, end | `200` `{ context, windows: [...] }` | `401`, `403 ROLE_REQUIRED` (mentor context), `422` |
+| `PUT /v1/me/availability` | all (MENTOR context: M) | yes | Full replace for the body's `context`. Refused with `422` for a bad bound, overlapping windows, the 21-window cap, or an unknown zone; the stored set is unchanged then | `200` `{ context, windows: [...] }` | `401`, `403 ROLE_REQUIRED` (mentor context), `422` |
 | `POST /v1/me/deactivate` | all | yes | Deactivate the account (`account_status = deactivated`); sessions revoked | `200` |
 | `GET /v1/me/consents` | all | no | Current consents. **Not built yet** | `200` |
 | `PUT /v1/me/consents/{purpose}` | all | yes | Give or withdraw one consent. Appends a ledger record. **Not built yet** | `200` |

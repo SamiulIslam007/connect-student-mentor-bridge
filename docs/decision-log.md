@@ -380,3 +380,24 @@ date: 2026-10-29
 - Status: Decided
 - Affects: `docs/api-contracts.md`, `packages/contracts/openapi.yaml`, `apps/web/app/profile/page.tsx`
 
+### D-52: Each availability window carries its own time zone
+- Date: 2026-11-05
+- Decision: `availability_windows.timezone` is per row (IANA zone), and the form defaults new rows to the account's `timezone` from `GET /v1/me`. `start_minute` and `end_minute` are wall-clock minutes in that zone; nothing is stored converted.
+- Reason: A mentor travelling or a student in another zone makes one account-level zone wrong, and the availability-match factor in #6 stays a pure comparison when the minutes are already local to their own zone.
+- Status: Decided
+- Affects: `openspec/changes/profile-availability-and-access-mode/design.md`, `docs/data-model.md` §5.2, `packages/contracts/openapi.yaml`
+
+### D-53: `access_mode` is optional on the full-replace profile save
+- Date: 2026-11-05
+- Decision: `PUT /v1/me/mentor-profile` accepts an optional `access_mode` (`OPEN` or `APPLICATION_ONLY`). Absent leaves the stored mode alone, and `PAUSED` is not accepted there; pause and resume own it.
+- Reason: The save is a full replace, so a required field would break every existing client and test, and an optional one that reset to `OPEN` would silently unpause a mentor. `PAUSED` is a separate act with a separate route.
+- Status: Decided
+- Affects: `docs/api-contracts.md`, `packages/contracts/openapi.yaml`, `apps/web/app/profile/page.tsx`
+
+### D-54: 21 availability windows per context is a Proposed default
+- Date: 2026-11-05
+- Decision: `MAX_AVAILABILITY_WINDOWS_PER_CONTEXT = 21` (three a day across seven days) is enforced by the pure validator and documented in the contract as a maximum, not by a database constraint. Sprint 7 moves it to versioned configuration with the other D-38 defaults.
+- Reason: The cap is policy, not data integrity: a legitimate three-a-day pattern must be expressible, and changing a policy number should not need a migration.
+- Status: Decided
+- Affects: `docs/functional-requirements.md` (FR-PROF-01), `packages/contracts/openapi.yaml`, `docs/known-debt.md`
+
