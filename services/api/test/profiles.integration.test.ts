@@ -3,6 +3,7 @@ import { after, before, beforeEach, test, type TestContext } from "node:test";
 
 import { AuthController } from "../src/identity/auth.controller.js";
 import { MeController } from "../src/me/me.controller.js";
+import { MeRolesController } from "../src/me/roles.controller.js";
 import { DrizzleProfilesService } from "../src/profiles/drizzle-profiles.service.js";
 import { ProfilesController } from "../src/profiles/profiles.controller.js";
 import { PROFILES_SERVICE } from "../src/profiles/profiles.tokens.js";
@@ -20,8 +21,8 @@ let skipReason = "connect_test is not reachable";
 
 before(async () => {
   const started = await startApiStack({
-    controllers: [AuthController, MeController, ProfilesController],
-    requestIdRoutes: [AuthController, MeController, ProfilesController],
+    controllers: [AuthController, MeController, MeRolesController, ProfilesController],
+    requestIdRoutes: [AuthController, MeController, MeRolesController, ProfilesController],
     providers: (database) => [
       { provide: PROFILES_SERVICE, useValue: new DrizzleProfilesService(database) },
     ],
@@ -58,6 +59,17 @@ async function tokenFor(current: TestApiStack, email: string): Promise<string> {
   return String(signedIn.body?.session_token);
 }
 
+/**
+ * The mentor role is opt-in (4c), so a token that saves a mentor profile has to
+ * hold it. Student-only flows keep using `tokenFor`.
+ */
+async function mentorTokenFor(current: TestApiStack, email: string): Promise<string> {
+  const token = await tokenFor(current, email);
+  const granted = await apiRequest(current, "POST", "/v1/me/roles/mentor", undefined, token);
+  assert.equal(granted.status, 200, granted.text);
+  return token;
+}
+
 async function userIdFor(current: TestApiStack, email: string): Promise<string> {
   const result = await current.client.query<{ id: string }>("SELECT id FROM users WHERE email = $1", [
     email,
@@ -82,7 +94,7 @@ test("a mentor profile is created and its additional fields are replaced", async
   if (!current) {
     return;
   }
-  const token = await tokenFor(current, "mentor@example.com");
+  const token = await mentorTokenFor(current, "mentor@example.com");
 
   const created = await apiRequest(
     current,
@@ -122,7 +134,7 @@ test("weekly capacity accepts 1 and 5 and refuses everything else", async (conte
   if (!current) {
     return;
   }
-  const token = await tokenFor(current, "capacity@example.com");
+  const token = await mentorTokenFor(current, "capacity@example.com");
 
   for (const capacity of [1, 5]) {
     const saved = await apiRequest(
@@ -157,7 +169,7 @@ test("a refused mentor save leaves no orphan field", async (context) => {
   if (!current) {
     return;
   }
-  const token = await tokenFor(current, "atomic@example.com");
+  const token = await mentorTokenFor(current, "atomic@example.com");
 
   const refused = await apiRequest(
     current,
@@ -179,7 +191,7 @@ test("an empty required mentor field is refused", async (context) => {
   if (!current) {
     return;
   }
-  const token = await tokenFor(current, "blank@example.com");
+  const token = await mentorTokenFor(current, "blank@example.com");
 
   const refused = await apiRequest(
     current,
@@ -297,7 +309,7 @@ test("a mentor has at most five fields in total and six writes nothing", async (
   if (!current) {
     return;
   }
-  const token = await tokenFor(current, "sixfields@example.com");
+  const token = await mentorTokenFor(current, "sixfields@example.com");
 
   const five = await apiRequest(
     current,
@@ -330,7 +342,7 @@ test("languages are capped at five and a refused save keeps the previous profile
   if (!current) {
     return;
   }
-  const token = await tokenFor(current, "languages@example.com");
+  const token = await mentorTokenFor(current, "languages@example.com");
   const five = ["en", "bn", "hi", "ur", "fr"];
 
   const student = await apiRequest(
@@ -375,7 +387,7 @@ test("a zero-width-only field name is refused and creates no field", async (cont
   if (!current) {
     return;
   }
-  const token = await tokenFor(current, "zero-width@example.com");
+  const token = await mentorTokenFor(current, "zero-width@example.com");
 
   const refused = await apiRequest(
     current,
@@ -426,7 +438,7 @@ test("GET /v1/me returns both profiles and ignores account-level body properties
   if (!current) {
     return;
   }
-  const token = await tokenFor(current, "both@example.com");
+  const token = await mentorTokenFor(current, "both@example.com");
 
   const student = await apiRequest(
     current,

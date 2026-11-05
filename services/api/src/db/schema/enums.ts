@@ -47,3 +47,12 @@ export const mentorStatus = pgEnum("mentor_status", [
   "SUSPENDED",
   "REMOVED",
 ]);
+
+/** Canonical role values (docs/data-model.md §4.1). `EMPLOYER` is reserved. */
+export const role = pgEnum("role", [
+  "STUDENT",
+  "MENTOR",
+  "INSTITUTION_ADMIN",
+  "PLATFORM_ADMIN",
+  "EMPLOYER",
+]);

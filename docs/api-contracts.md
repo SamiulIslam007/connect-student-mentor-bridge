@@ -115,8 +115,11 @@ Identity is implemented with better-auth behind `IdentityService` (ADR-003) and 
 
 | Method and path | Auth | Purpose | Success | Errors |
 |---|---|---|---|---|
-| `GET /v1/me` | bearer | The signed-in account's own record only: `id`, `display_name`, `email`, `email_verified`, `account_status`, `timezone`, `mfa_enabled`. No profile fields and no other user's data. `mfa_enabled` is true when a verified second factor is active. The account comes from the session token | `200` account summary | `401 UNAUTHENTICATED` |
+| `GET /v1/me` | bearer | The signed-in account's own record only: `id`, `display_name`, `email`, `email_verified`, `account_status`, `timezone`, `mfa_enabled`, `roles`. No profile fields and no other user's data. `mfa_enabled` is true when a verified second factor is active; `roles` lists the caller's own active roles in declaration order. The account comes from the session token | `200` account summary | `401 UNAUTHENTICATED` |
 | `POST /v1/me/deactivate` | bearer | Set the account to `deactivated` and revoke every session for it, including the caller's. Signing in again with the correct password returns the account to `active` | `200` `{ "status": "deactivated" }` | `401 UNAUTHENTICATED` |
+| `POST /v1/me/roles/mentor` | bearer | Grant `MENTOR` to the calling account. Idempotent; one `ROLE_GRANTED` audit entry on an actual grant. The account always comes from the session, so a body cannot name another user. Grants no visibility, activation, or discoverability | `200` `{ "roles": [...] }` | `401 UNAUTHENTICATED` |
+
+`403 ROLE_REQUIRED` means the account is signed in and lacks the role the action needs; `403 MFA_REQUIRED` means it holds the role but has no enrolled second factor. Neither is a sign-in failure; `FORBIDDEN` keeps that meaning.
 
 A `403` on sign-in is returned only after the password was accepted, so it never reveals whether an address exists. `EMAIL_NOT_VERIFIED` means the account has not opened its verification link; `ACCOUNT_SUSPENDED` means a sanction is in force; `FORBIDDEN` covers the remaining non-active states (`deletion_pending`, `anonymized`).
 
@@ -230,7 +233,7 @@ Roles: **S** Student, **M** Mentor, **IA** Institution Admin, **PA** Platform Ad
 
 | Method and path | Roles | Idem | Purpose | Success |
 |---|---|---|---|---|
-| `GET /v1/me` | all | no | The signed-in account record (id, display name, email, verification state, `account_status`, timezone) plus the caller's own `student_profile` and `mentor_profile`, each nullable. The sign-in response keeps the narrower `AccountSummary` shape | `200` |
+| `GET /v1/me` | all | no | The signed-in account record (id, display name, email, verification state, `account_status`, timezone, `mfa_enabled`, `roles`) plus the caller's own `student_profile` and `mentor_profile`, each nullable. The sign-in response keeps the narrower `AccountSummary` shape | `200` |
 | `PUT /v1/me/student-profile` | S | no (last write wins, D-39) | Create or fully replace the caller's student profile: goals, primary field, up to two interest fields, mentoring languages | `200` |
 | `PUT /v1/me/mentor-profile` | M | no (last write wins, D-39) | Create or fully replace the caller's mentor profile: headline, bio, expertise summary, scope statement, primary field, additional fields, languages, weekly capacity | `200` |
 | `POST /v1/me/mentor-profile/pause` | M | yes | Set access mode to `PAUSED` (hidden from discovery, no new requests). **Not built yet** (`profile-availability-and-access-mode`) | `200` |

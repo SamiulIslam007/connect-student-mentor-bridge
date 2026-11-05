@@ -95,6 +95,13 @@ export const strings = {
     signedOut: "Sign in to edit your profiles.",
     saveError: "The profile could not be saved.",
     backToAccount: "Back to your account",
+    becomeMentor: "Become a mentor",
+    becomeMentorIntro:
+      "The mentor role is opt-in. You need it before you can save a mentor profile.",
+    mentorRoleGranted: "The mentor role is on. You can save your mentor profile now.",
+    mentorRoleRequired:
+      "Saving a mentor profile needs the mentor role. Choose “Become a mentor” and try again.",
+    mentorRoleError: "The mentor role could not be granted. Try again in a moment.",
   },
   verify: {
     title: "Email verification",
