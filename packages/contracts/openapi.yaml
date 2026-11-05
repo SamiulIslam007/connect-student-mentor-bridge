@@ -807,7 +807,7 @@ components:
         The signed-in account plus its own profiles. Declared standalone rather
         than composed from AccountSummary, because AccountSummary declares
         additionalProperties false and is shared with the sign-in response.
-      required: [id, display_name, email, email_verified, account_status, timezone, student_profile, mentor_profile]
+      required: [id, display_name, email, email_verified, account_status, timezone, mfa_enabled, student_profile, mentor_profile]
       properties:
         id:
           type: string
@@ -822,6 +822,11 @@ components:
           $ref: "#/components/schemas/AccountStatus"
         timezone:
           type: string
+        mfa_enabled:
+          type: boolean
+          description: >-
+            True when a verified second factor is active, so the next password
+            sign-in asks for a code. The sign-in response does not carry it.
         student_profile:
           description: Null until the owner saves a student profile.
           anyOf:

@@ -377,6 +377,7 @@ test("disable requires the password and restores a single-step sign-in", async (
     String(disabled.body?.session_token),
   );
   assert.equal(rotated.status, 200, rotated.text);
+  assert.equal(rotated.body?.mfa_enabled, false, "a disabled factor is reported off");
 
   const plain = await apiRequest(stack, "POST", "/v1/auth/sign-in", {
     email: "disable@example.com",
@@ -385,6 +386,21 @@ test("disable requires the password and restores a single-step sign-in", async (
   assert.equal(plain.status, 200);
   assert.equal(plain.body?.mfa_required, false);
   assert.ok(plain.body?.session_token);
+});
+
+test("GET /v1/me reports whether a second factor is active", async (t) => {
+  const stack = requireStacks(t);
+  if (!stack) return;
+
+  const fresh = await activeSession(stack, "me-mfa-off@example.com");
+  const off = await apiRequest(stack, "GET", "/v1/me", undefined, fresh);
+  assert.equal(off.status, 200, off.text);
+  assert.equal(off.body?.mfa_enabled, false);
+
+  const enrolled = await enrolledMfa(stack, "me-mfa-on@example.com");
+  const on = await apiRequest(stack, "GET", "/v1/me", undefined, enrolled.sessionToken);
+  assert.equal(on.status, 200, on.text);
+  assert.equal(on.body?.mfa_enabled, true);
 });
 
 // --- sessions --------------------------------------------------------------
