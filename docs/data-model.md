@@ -155,7 +155,7 @@ Authentication internals are **library-native** better-auth tables in the same s
 
 | Enum | Values |
 |---|---|
-| `role` | `STUDENT`, `MENTOR`, `INSTITUTION_ADMIN`, `PLATFORM_ADMIN`, `EMPLOYER` (reserved, Phase 3) |
+| `role` | `STUDENT`, `MENTOR`, `INSTITUTION_ADMIN`, `PLATFORM_ADMIN`, `EMPLOYER` (reserved, Phase 3). **Built** by `roles-and-profile-visibility` (4c) |
 | `account_status` | `PENDING`, `ACTIVE`, `SUSPENDED`, `DEACTIVATED`, `DELETION_PENDING`, `ANONYMIZED`. Account lifecycle only. Verification progress is stored in separate fields (`email_verified`, `age_gate_passed_at`), never as an account state. `PENDING` is the state of a new account until email verification activates it (`PENDING` → `ACTIVE`, idempotent, and never applied to any other state). `SUSPENDED` and `DEACTIVATED` are each written with a `DELETE` of every `sessions` row for the account in the same transaction, so only an `ACTIVE` account can hold a session; signing in with the correct password returns a `DEACTIVATED` account to `ACTIVE`. `DELETION_PENDING` and `ANONYMIZED` are defined but no code path writes them yet |
 | `institution_kind` | `UNIVERSITY`, `BOOTCAMP`, `TRAINING_INSTITUTE`, `OTHER` |
 | `institution_status` | `ONBOARDING`, `ACTIVE`, `SUSPENDED` |
@@ -320,7 +320,7 @@ The project columns are declared to the library with `input: false`, so no reque
 
 **`verifications`** (library-native): email-verification and password-reset token records — `id`, `identifier`, `value`, `expires_at`, timestamps. Reset tokens are single-use; verification links are stateless and idempotent.
 
-**`role_assignments`**: `user_id`, `role`, `institution_id?` (required when `role = INSTITUTION_ADMIN`), `granted_by_user_id?`, `granted_at`, `revoked_at?`. Unique active row per (`user_id`, `role`, `institution_id`). Roles are revoked, never deleted.
+**`role_assignments`** (**built** by `roles-and-profile-visibility`, 4c): `id uuid PK`, `user_id text` FK `users.id` (cascade), `role` (`role`), `institution_id uuid?` (required when `role = INSTITUTION_ADMIN`, checked by `role_assignments_institution_required`), `granted_by_user_id text?` FK `users.id` (`set null`), `granted_at timestamptz`, `revoked_at timestamptz?`. The partial unique index `role_assignments_active_unique` covers (`user_id`, `role`, `COALESCE(institution_id, '000…0')`) `WHERE revoked_at IS NULL`, so Postgres' NULL-distinct rule cannot admit a second active row. Roles are revoked, never deleted, and the migration backfilled `STUDENT` for every pre-existing account with one `ROLE_GRANTED` audit row each.
 
 **`signup_blocks`**: `email_hash text` unique (hex HMAC-SHA-256 keyed with `BETTER_AUTH_SECRET`; the address is not recoverable from it), `reason` (`UNDER_18`), `expires_at` (**Proposed**: 12 months), `created_at`. Exists only to stop immediate re-registration after an under-18 attempt: registration reads it before the age gate and refuses a live entry with `422 UNDER_MINIMUM_AGE`, whatever date of birth is submitted. An expired entry no longer blocks.
 

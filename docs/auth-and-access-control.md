@@ -43,7 +43,7 @@ sources: README.md (sections 8, 12.1); connect-research-report.md (Sections 5.4,
 |---|---|
 | `User` | UUID primary key. This UUID is the stable `sub` for every token and never changes across identity providers (ADR-003). |
 | `AuthAccount` | Links a user to a sign-in method (password, Google) |
-| `RoleAssignment` | `user_id`, `role`, optional `institution_id`, `granted_by`, `granted_at`, `revoked_at` |
+| `RoleAssignment` | `user_id`, `role`, optional `institution_id`, `granted_by`, `granted_at`, `revoked_at`. Read from the table on every request, never trusted from a token (**built** by `roles-and-profile-visibility`, 4c) |
 | `Affiliation` | `user_id`, `institution_id`, `level` (0, 1, 2), evidence method, `verified_by`, `verified_at` |
 | `ConsentRecord` | Append-only record of each consent given or withdrawn |
 | `AuditLog` | Append-only record of security-relevant actions (section 12) |
@@ -164,6 +164,8 @@ Only `active` mentors may receive requests. A `suspended` mentor receives no new
 4. **State guard:** the object's state machine allows the action now. Otherwise `409`.
 5. **Audit:** security-relevant actions write an `AuditLog` entry (section 12).
 
+**Implemented (`roles-and-profile-visibility`, 4c):** layers 1 and 2 live in `services/api/src/authorization/authorize.ts`. `requireRole` resolves the session, reads the account's active assignments from `role_assignments`, and refuses with `403 ROLE_REQUIRED` (an empty role set is a refusal). `PUT /v1/me/mentor-profile` is its first consumer. The MFA branch refuses with `403 MFA_REQUIRED` when a route declares `requiresMfa` and `users.two_factor_enabled` is false; no route sets that flag in 4c.
+
 ### 8.2 Policy rules (examples written as testable predicates)
 
 | Policy | Rule |
@@ -180,6 +182,8 @@ Only `active` mentors may receive requests. A `suspended` mentor receives no new
 | `canViewEvidenceFile` | Participants of that outcome, and the platform reviewer on a dispute or audit; via short-lived signed URL only |
 
 All predicates are **pure functions** with unit tests (ADR-012).
+
+**Implemented so far:** `canViewProfile` in `packages/domain/src/visibility.ts` encodes the FR-PROF-04 profile-visibility matrix (`VISIBLE` / `HIDDEN`), with the documented nine rows plus the exhaustive cross-product asserted in `packages/domain/test/visibility.test.ts`. A `HIDDEN` answer means the caller answers `404`, as section 8.1 requires. No read endpoint consumes it yet; discovery (#6) and mentor onboarding (#5) are its first callers.
 
 ## 9. Permission matrix
 
