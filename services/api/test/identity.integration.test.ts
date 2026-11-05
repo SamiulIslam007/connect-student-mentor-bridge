@@ -716,6 +716,7 @@ test("GET /v1/me returns the account record and the caller's own (null) profiles
     "id",
     "mentor_profile",
     "mfa_enabled",
+    "roles",
     "student_profile",
     "timezone",
   ]);
@@ -724,6 +725,7 @@ test("GET /v1/me returns the account record and the caller's own (null) profiles
   assert.equal(body.account_status, "active");
   assert.equal(body.timezone, "Asia/Dhaka");
   assert.equal(body.mfa_enabled, false, "no factor is enrolled at registration");
+  assert.deepEqual(body.roles, ["STUDENT"], "registration grants the default role");
   assert.equal(body.student_profile, null, "no profile exists until one is saved");
   assert.equal(body.mentor_profile, null, "no profile exists until one is saved");
   // The sign-in response is unchanged: `AccountSummary` gained no properties.

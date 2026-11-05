@@ -44,7 +44,7 @@ async function expectPermissionDenied(client: TestDatabase["client"], sql: strin
   }
 }
 
-test("the migrations create the fifteen tables and protect the ledger", async (context) => {
+test("the migrations create the sixteen tables and protect the ledger", async (context) => {
   const current = requireDatabase(context);
   if (!current) {
     return;
@@ -65,6 +65,7 @@ test("the migrations create the fifteen tables and protect the ledger", async (c
       "institutions",
       "mentor_fields",
       "mentor_profiles",
+      "role_assignments",
       "sessions",
       "signup_blocks",
       "student_field_interests",
@@ -138,6 +139,23 @@ test("the application role can use every profile table and nothing else", async 
     );
     await client.query("UPDATE two_factors SET verified = false WHERE id = 'factor-grants'");
     await client.query("DELETE FROM two_factors WHERE id = 'factor-grants'");
+
+    // `0007` grants the role table; registration writes the default role through it.
+    const assignment = await client.query<{ id: string }>(
+      "INSERT INTO role_assignments (user_id, role) VALUES ('user-grants', 'STUDENT') RETURNING id",
+    );
+    assert.deepEqual(
+      (
+        await client.query<{ role: string }>(
+          "SELECT role FROM role_assignments WHERE user_id = 'user-grants'",
+        )
+      ).rows,
+      [{ role: "STUDENT" }],
+    );
+    await client.query("UPDATE role_assignments SET revoked_at = now() WHERE id = $1", [
+      assignment.rows[0].id,
+    ]);
+    await client.query("DELETE FROM role_assignments WHERE id = $1", [assignment.rows[0].id]);
 
     const student = await client.query<{ id: string }>(
       "INSERT INTO student_profiles (user_id, goals, primary_field_id) VALUES ('user-grants', 'Goals', $1) RETURNING id",
