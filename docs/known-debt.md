@@ -36,7 +36,7 @@ sources: [docs/milestones-and-phases.md, docs/decision-log.md, docs/security-req
 
 - **`@types/nodemailer` stays.** `nodemailer@10.3.1` ships no bundled type declarations, so the package is required for `tsc`.
 - **Outbox and pg-boss are not debt.** They are scheduled as `outbox-and-job-runner` (6a, Sprint 3) in `docs/mvp-build-plan.md`.
-- **Availability and access mode are not debt.** They are scheduled as `profile-availability-and-access-mode` (4b, Sprint 2).
+- **Availability and access mode are not debt.** Delivered by `profile-availability-and-access-mode` (4b, archived 2026-11-05); the inert `APPLICATION_ONLY` and the missing capacity check are DEBT-17.
 - **Google, MFA, and the session list are not debt.** Delivered by `access-google-mfa-and-sessions` (4a, archived 2026-11-04); the web surfaces that reach them ship with `account-access-ui`.
 
 ## 3. Rules
