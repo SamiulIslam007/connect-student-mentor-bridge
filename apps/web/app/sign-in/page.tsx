@@ -8,8 +8,6 @@ const FORM_ID = "sign-in-form";
 
 export default function SignInPage() {
   const [message, setMessage] = useState<string | null>(null);
-  const [signedIn, setSignedIn] = useState(false);
-  const [signedOut, setSignedOut] = useState(false);
   const [emailNotVerified, setEmailNotVerified] = useState(false);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -28,13 +26,15 @@ export default function SignInPage() {
       return;
     }
 
-    setSignedIn(response.ok);
-    setSignedOut(false);
+    // Same destination as the provider callback (spec: sign-in lands on the account).
+    if (response.ok) {
+      window.location.assign("/account");
+      return;
+    }
+
     setEmailNotVerified(response.status === 403 && body.code === "EMAIL_NOT_VERIFIED");
 
-    if (response.ok) {
-      setMessage(strings.signIn.success);
-    } else if (response.status === 403 && body.code === "EMAIL_NOT_VERIFIED") {
+    if (response.status === 403 && body.code === "EMAIL_NOT_VERIFIED") {
       setMessage(strings.signIn.emailNotVerified);
     } else if (response.status === 403 && body.code === "ACCOUNT_SUSPENDED") {
       setMessage(strings.signIn.suspended);
@@ -59,17 +59,6 @@ export default function SignInPage() {
       }
       setMessage(strings.signIn.googleError);
     })();
-  }
-
-  async function signOutEverywhere(): Promise<void> {
-    const response = await fetch("/api/auth/sign-out-everywhere", { method: "POST" });
-    if (response.ok) {
-      setSignedIn(false);
-      setSignedOut(true);
-      setMessage(strings.session.signedOutEverywhere);
-    } else {
-      setMessage(strings.signIn.error);
-    }
   }
 
   return (
@@ -102,13 +91,6 @@ export default function SignInPage() {
           {/* The API re-sends the verification link on every refused sign-in. */}
           <button type="submit" form={FORM_ID}>
             {strings.signIn.resendVerification}
-          </button>
-        </p>
-      ) : null}
-      {signedIn && !signedOut ? (
-        <p>
-          <button type="button" onClick={signOutEverywhere}>
-            {strings.session.signOutEverywhere}
           </button>
         </p>
       ) : null}

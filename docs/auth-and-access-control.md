@@ -92,17 +92,18 @@ sources: README.md (sections 8, 12.1); connect-research-report.md (Sections 5.4,
 - Lost-device recovery for admins requires a second platform admin or a documented identity check. **Open decision:** the recovery procedure while there is only one platform admin.
 - Sensitive actions (change email, change password, disable MFA, export data) require recent re-authentication (**Proposed default: within 10 minutes**).
 - **Implemented 2026-11-04** (`access-google-mfa-and-sessions`): TOTP enrollment, verification at sign-in and during enrollment, backup codes, password-confirmed disable, per-challenge attempt limits and account lockout (D-45). A sign-in for an account with an active factor returns `mfa_required` and no session. Provider sign-in is refused for such an account so the factor cannot be bypassed (D-46). Enforcement keyed on `role_assignments` (mentor and admin roles) arrives with 4c.
+- **Implemented 2026-11-05** (`account-access-ui`): enrollment and disable happen in the web app at `/account/security`, and `GET /v1/me` reports `mfa_enabled` so the page can tell an enrolled account from an unenrolled one. The secret and the backup codes are shown once, in page state only. Signing out of the current session (the app header) is separate from signing out of every session (`/account/sessions`) (D-48).
 
 ## 5. Sessions and tokens
 
 | Item | Implemented (2026-11-03) |
 |---|---|
 | Session model | Postgres-backed cookie session held by better-auth; the session row is the source of truth. No access/refresh token pair (D-31) |
-| Session lifetime | 30 days, refreshed at most once a day (`updateAge` 1 day). A revoked row fails the next request immediately. Admin idle and absolute timeouts remain deferred to `roles-and-profile-visibility` (4c, D-47) |
+| Session lifetime | 30 days, refreshed at most once a day (`updateAge` 1 day). A revoked row fails the next request immediately. Admin idle and absolute timeouts arrive in Sprint 7 with the admin surface (D-48) |
 | Web storage | **httpOnly, Secure outside development, SameSite=Lax cookie** set by the `apps/web` route handlers. No token in `localStorage`, `sessionStorage`, or any response body the browser can read |
 | CSRF | Next.js same-origin form handling plus SameSite=Lax during the pilot; a dedicated token is a Sprint 7 hardening item |
-| Idle timeout | 30 minutes (admin) and 8 hours (privileged roles) are **deferred to Sprint 2** with MFA; Student and Mentor have no shorter idle timeout in Sprint 1 |
-| Absolute lifetime | 30 days for every role in Sprint 1; admin 8 hours arrives with MFA in Sprint 2 |
+| Idle timeout | 30 minutes (admin) and 8 hours (privileged roles) are **deferred to Sprint 7** with the admin surface (D-48); Student and Mentor have no shorter idle timeout in Sprint 1 |
+| Absolute lifetime | 30 days for every role in Sprint 1; the admin 8-hour absolute lifetime arrives in Sprint 7 with the admin surface (D-48) |
 | Revocation | Sign-out, sign-out-everywhere, and password reset delete session rows. Password reset revokes every session for the account (SEC-AUTH-5 maps to session-row revocation, not a refresh-token family) |
 | Concurrent sessions | Allowed. `GET /v1/me/sessions` lists the caller's live sessions with safe metadata only (no token), and `DELETE /v1/me/sessions/{id}` is idempotent for the caller's own ids and `404` for another account's id (implemented 2026-11-04, `access-google-mfa-and-sessions`) |
 

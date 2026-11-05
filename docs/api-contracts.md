@@ -115,7 +115,7 @@ Identity is implemented with better-auth behind `IdentityService` (ADR-003) and 
 
 | Method and path | Auth | Purpose | Success | Errors |
 |---|---|---|---|---|
-| `GET /v1/me` | bearer | The signed-in account's own record only: `id`, `display_name`, `email`, `email_verified`, `account_status`, `timezone`. No profile fields and no other user's data. The account comes from the session token | `200` account summary | `401 UNAUTHENTICATED` |
+| `GET /v1/me` | bearer | The signed-in account's own record only: `id`, `display_name`, `email`, `email_verified`, `account_status`, `timezone`, `mfa_enabled`. No profile fields and no other user's data. `mfa_enabled` is true when a verified second factor is active. The account comes from the session token | `200` account summary | `401 UNAUTHENTICATED` |
 | `POST /v1/me/deactivate` | bearer | Set the account to `deactivated` and revoke every session for it, including the caller's. Signing in again with the correct password returns the account to `active` | `200` `{ "status": "deactivated" }` | `401 UNAUTHENTICATED` |
 
 A `403` on sign-in is returned only after the password was accepted, so it never reveals whether an address exists. `EMAIL_NOT_VERIFIED` means the account has not opened its verification link; `ACCOUNT_SUSPENDED` means a sanction is in force; `FORBIDDEN` covers the remaining non-active states (`deletion_pending`, `anonymized`).
