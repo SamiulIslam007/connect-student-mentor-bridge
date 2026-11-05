@@ -4,7 +4,7 @@
 
 Connect has no authorization layer. Every endpoint trusts a valid session and nothing else: `PUT /v1/me/mentor-profile` is open to any signed-in account, roles do not exist in the database (`role_assignments` has never been created), and `audit_logs.actor_role` is a free-text value written as `"USER"` by registration. FR-AUTH-07 (`Must`, "role-based and object-level authorization on every endpoint") and SEC-AUTH-2 (MFA enforced for Mentor, Institution Admin, and Platform Admin) are therefore unmet, and DEBT-14 records it.
 
-This is the last Sprint 2 change before affiliation and mentor onboarding (#5), and #5 depends on it: a mentor is activated only when Level 1 affiliation, MFA, and the agreements are all present (FR-PROF-03), which needs a role to key that rule on. Building #5 first would ship activation against a role that does not exist.
+This is the next Sprint 2 change and the one #5 depends on: a mentor is activated only when Level 1 affiliation, MFA, and the agreements are all present (FR-PROF-03), which needs a role to key that rule on. Building #5 first would ship activation against a role that does not exist. The plan's Sprint 2 order is 4a → 4c → 4b → #5 → #6, so 4b follows this change and uses the role it introduces.
 
 ## What Changes
 
