@@ -10,6 +10,7 @@ import {
 
 import { bearerToken } from "../http/bearer.js";
 import type { RequestWithId } from "../http/request-id.middleware.js";
+import { requireRole } from "../authorization/authorize.js";
 import { IDENTITY_SERVICE } from "../identity/identity.tokens.js";
 import type {
   FieldSummary,
@@ -142,9 +143,11 @@ export class ProfilesController {
     @Body() body: unknown,
     @Req() request: RequestWithId,
   ): Promise<Record<string, unknown>> {
-    const account = await this.actingAccount(request);
+    // Not MFA-gated in this change: #5 owns the first MFA-required mentor action,
+    // and gating the save would lock a new mentor out of their own form (design D6).
+    const acting = await requireRole(this.identity, request, "MENTOR");
     const saved = await this.profiles.saveMentorProfile({
-      userId: account.id,
+      userId: acting.account.id,
       draft: readMentorDraft(body),
     });
     return mentorProfilePayload(saved);

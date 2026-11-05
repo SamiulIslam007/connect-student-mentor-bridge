@@ -24,6 +24,8 @@ const PROBLEMS: Record<IdentityErrorCode, ProblemMapping> = {
   EMAIL_NOT_VERIFIED: { status: 403, code: "EMAIL_NOT_VERIFIED", title: "Confirm your email address before signing in" },
   ACCOUNT_SUSPENDED: { status: 403, code: "ACCOUNT_SUSPENDED", title: "This account is suspended" },
   FORBIDDEN: { status: 403, code: "FORBIDDEN", title: "This account cannot sign in" },
+  ROLE_REQUIRED: { status: 403, code: "ROLE_REQUIRED", title: "This action requires a role the account does not hold" },
+  MFA_REQUIRED: { status: 403, code: "MFA_REQUIRED", title: "This action requires an enrolled second factor" },
   PROVIDER_UNAVAILABLE: { status: 503, code: "PROVIDER_UNAVAILABLE", title: "This sign-in provider is not configured" },
   SESSION_NOT_FOUND: { status: 404, code: "NOT_FOUND", title: "Not found" },
 };
