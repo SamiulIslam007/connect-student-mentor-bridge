@@ -30,9 +30,11 @@ interface MentorProfile {
 interface MeResponse {
   student_profile: StudentProfile | null;
   mentor_profile: MentorProfile | null;
+  roles?: string[];
 }
 
 interface Problem {
+  code?: string;
   detail?: unknown;
 }
 
@@ -76,6 +78,7 @@ export default function ProfilePage() {
   const [fields, setFields] = useState<FieldSummary[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [signedOut, setSignedOut] = useState(false);
+  const [mentorRole, setMentorRole] = useState(false);
 
   const [studentGoals, setStudentGoals] = useState("");
   const [studentPrimary, setStudentPrimary] = useState("");
@@ -117,6 +120,7 @@ export default function ProfilePage() {
         }
 
         const me = (await meResponse.json()) as MeResponse;
+        setMentorRole((me.roles ?? []).includes("MENTOR"));
         if (me.student_profile) {
           setStudentGoals(me.student_profile.goals);
           setStudentPrimary(me.student_profile.primary_field.name);
@@ -203,10 +207,33 @@ export default function ProfilePage() {
         }),
       });
       const payload = (await response.json().catch(() => ({}))) as Problem;
+      // A stale page can still post without the role; recover through the opt-in
+      // instead of showing a dead form (design D8).
+      if (response.status === 403 && payload.code === "ROLE_REQUIRED") {
+        setMentorRole(false);
+        setMentorStatus(strings.profile.mentorRoleRequired);
+        return;
+      }
       setMentorStatus(response.ok ? strings.profile.mentorSaved : savedMessage(false, payload));
     } catch (error) {
       logFailure("web.mentor_profile_save_failed", error);
       setMentorStatus(strings.profile.saveError);
+    }
+  }
+
+  async function becomeMentor(): Promise<void> {
+    setMentorStatus(null);
+    try {
+      const response = await fetch("/api/me/roles/mentor", { method: "POST" });
+      if (!response.ok) {
+        setMentorStatus(strings.profile.mentorRoleError);
+        return;
+      }
+      setMentorRole(true);
+      setMentorStatus(strings.profile.mentorRoleGranted);
+    } catch (error) {
+      logFailure("web.mentor_role_grant_failed", error);
+      setMentorStatus(strings.profile.mentorRoleError);
     }
   }
 
@@ -275,7 +302,17 @@ export default function ProfilePage() {
 
           <section>
             <h2>{strings.profile.mentorTitle}</h2>
+            {mentorRole ? null : (
+              <div>
+                <p>{strings.profile.becomeMentorIntro}</p>
+                <button type="button" onClick={() => void becomeMentor()}>
+                  {strings.profile.becomeMentor}
+                </button>
+              </div>
+            )}
             <form onSubmit={saveMentor}>
+              {/* The role is the gate: the fields stay visible but not editable. */}
+              <fieldset disabled={!mentorRole} style={{ border: 0, padding: 0, margin: 0 }}>
               <label>
                 {strings.profile.headline}
                 <input
@@ -345,6 +382,7 @@ export default function ProfilePage() {
                 />
               </label>
               <button type="submit">{strings.profile.saveMentor}</button>
+              </fieldset>
             </form>
             <p role="status">{mentorStatus}</p>
           </section>
