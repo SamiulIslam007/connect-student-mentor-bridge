@@ -3,8 +3,11 @@ import { test } from "node:test";
 
 import {
   IdentityError,
+  requiresMfa,
+  ROLES,
   type AccountSummary,
   type IdentityService,
+  type Role,
   type SessionSummary,
   type SignInResult,
 } from "../src/index.js";
@@ -44,6 +47,7 @@ class FakeIdentityService implements IdentityService {
       emailVerified: true,
       timezone: "Asia/Dhaka",
       accountStatus: "ACTIVE",
+      mfaEnabled: false,
     };
   }
 
@@ -71,6 +75,14 @@ class FakeIdentityService implements IdentityService {
 
   async revokeSession(): Promise<void> {}
 
+  async listRoles(): Promise<Role[]> {
+    return ["STUDENT"];
+  }
+
+  async grantRole(): Promise<Role[]> {
+    return ["STUDENT", "MENTOR"];
+  }
+
   async startProviderSignIn(): Promise<{ authorizationUrl: string; stateCookie: string }> {
     throw new IdentityError("PROVIDER_UNAVAILABLE", "not configured in the fake");
   }
@@ -97,4 +109,22 @@ test("a second implementation satisfies the identity interface", async () => {
     code: "INVALID_CREDENTIALS",
   });
   assert.equal(await service.getSession({ sessionToken: "token" }), null);
+});
+
+test("the second-factor policy answers for each of the five roles", () => {
+  assert.deepEqual(
+    ROLES.map((role) => [role, requiresMfa(role)]),
+    [
+      ["STUDENT", false],
+      ["MENTOR", true],
+      ["INSTITUTION_ADMIN", true],
+      ["PLATFORM_ADMIN", true],
+      ["EMPLOYER", false],
+    ],
+  );
+});
+
+test("a role denial is its own error code, not the sign-in refusal", () => {
+  assert.equal(new IdentityError("ROLE_REQUIRED", "needs the mentor role").code, "ROLE_REQUIRED");
+  assert.equal(new IdentityError("MFA_REQUIRED", "needs a factor").code, "MFA_REQUIRED");
 });

@@ -16,8 +16,8 @@ import { PROFILES_SERVICE } from "../profiles/profiles.tokens.js";
  * `GET /v1/me` and `POST /v1/me/deactivate` (docs/api-contracts.md §5.1).
  *
  * `MeResponse` restates the account fields and adds the caller's own profiles
- * (nullable). It is not composed from `AccountSummary`, because the sign-in
- * response must not gain profile properties (design D4).
+ * (nullable) and active roles. It is not composed from `AccountSummary`,
+ * because the sign-in response must not gain profile or role properties (D4).
  */
 @Controller("v1/me")
 export class MeController {
@@ -42,6 +42,9 @@ export class MeController {
       email_verified: account.emailVerified,
       account_status: account.accountStatus.toLowerCase(),
       timezone: account.timezone,
+      mfa_enabled: account.mfaEnabled,
+      // The caller's own active roles only, in declaration order (FR-AUTH-07).
+      roles: await this.identity.listRoles(account.id),
       student_profile: studentProfile ? studentProfilePayload(studentProfile) : null,
       mentor_profile: mentorProfile ? mentorProfilePayload(mentorProfile) : null,
     };

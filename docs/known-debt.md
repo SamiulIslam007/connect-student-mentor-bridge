@@ -27,15 +27,16 @@ sources: [docs/milestones-and-phases.md, docs/decision-log.md, docs/security-req
 | DEBT-11 | SMTP has no retry and no provider failover | A failed verification/reset email is only logged; the user can request another link | `outbox-and-job-runner` (6a, Sprint 3) | Open |
 | DEBT-12 | A `429` from the identity library is not translated to a rate-limit response; it surfaces as a generic `500` | A throttled client sees "unexpected error", not "try again later". The library's own limiter is the only throttle today | Sprint 7 rate limiting | Open |
 | DEBT-13 | `database-probe` swallows a pool-close error (`client.end().catch(() => undefined)`) | A cleanup failure is invisible; the probe result is unaffected | Sprint 7 observability pass | Open |
-| DEBT-14 | Role-keyed MFA enforcement, role authorization (`FR-AUTH-07`), profile visibility, and the admin idle/absolute session timeouts are not implemented | A mentor or admin is not yet forced to enroll, and no endpoint is role-gated beyond the session guard | `roles-and-profile-visibility` (4c, Sprint 2, before `#5`); D-47 | Open |
+| DEBT-14 | Profile visibility is not wired to a read endpoint, the MFA-by-role guard has no route that sets the flag, and the admin idle/absolute session timeouts are not implemented | The policy and the guard exist and are tested, but discovery (#6) and mentor activation (#5) are the first consumers; nothing yet forces a mentor to enroll before acting | `#5`/`#6` for the consumers; Sprint 7 with the admin surface for the timeouts (D-48, D-49) | Narrowed 2026-11-05: `roles-and-profile-visibility` (4c) shipped the role model, the role guard, `requiresMfa`, the permission-matrix test, and `canViewProfile` |
 | DEBT-15 | The provider sign-in success path is not exercised end to end by a test | The state, refusal, and unconfigured paths are covered; the token exchange needs real Google credentials and a reachable provider | Owner supplies `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`; manual acceptance before Gate 2 | Narrowed 2026-11-04: verified live to Google's consent screen (authorization URL accepted, `client_id` and `redirect_uri` registered correctly); completing the exchange still needs a real Google account login + consent, so the session/DB/outcome leg of the success path remains unverified by test |
+| DEBT-16 | The session cookie is `Secure` when `NODE_ENV=production`, so a plain-`http` LAN address (for example `http://192.168.1.10:3000`) loses the session | The page loads but every authenticated call answers `401`, so a device on the LAN cannot stay signed in | Owner; before any LAN or device testing | Open |
 
 ## 2. Not debt
 
 - **`@types/nodemailer` stays.** `nodemailer@10.3.1` ships no bundled type declarations, so the package is required for `tsc`.
 - **Outbox and pg-boss are not debt.** They are scheduled as `outbox-and-job-runner` (6a, Sprint 3) in `docs/mvp-build-plan.md`.
 - **Availability and access mode are not debt.** They are scheduled as `profile-availability-and-access-mode` (4b, Sprint 2).
-- **Google, MFA, and the session list are not debt.** They are scheduled as `access-google-mfa-and-sessions` (4a, Sprint 2).
+- **Google, MFA, and the session list are not debt.** Delivered by `access-google-mfa-and-sessions` (4a, archived 2026-11-04); the web surfaces that reach them ship with `account-access-ui`.
 
 ## 3. Rules
 

@@ -59,6 +59,8 @@ export interface TestApiStack {
   baseUrl: string;
   sender: RecordingEmailSender;
   identity: BetterAuthIdentityService;
+  /** Every route the HTTP surface registered, as `METHOD /path`. */
+  routes: string[];
   close(): Promise<void>;
 }
 
@@ -76,6 +78,32 @@ export interface StartApiStackOptions {
   google?: { clientId: string; clientSecret: string };
   /** Replay the migrations before booting (default true). */
   reset?: boolean;
+}
+
+interface RouterLayer {
+  route?: { path: string; methods: Record<string, boolean> };
+  handle?: { stack?: RouterLayer[] };
+}
+
+/** Express keeps the registered routes on its router stack; the matrix test uses it. */
+function registeredRoutes(app: INestApplication): string[] {
+  const router = (app.getHttpAdapter().getInstance() as { router?: { stack?: RouterLayer[] } })
+    .router;
+  const routes: string[] = [];
+  const walk = (stack: RouterLayer[]): void => {
+    for (const layer of stack) {
+      if (layer.route) {
+        for (const method of Object.keys(layer.route.methods)) {
+          const path = layer.route.path === "/" ? "/" : layer.route.path.replace(/\/$/, "");
+          routes.push(`${method.toUpperCase()} ${path}`);
+        }
+      } else if (layer.handle?.stack) {
+        walk(layer.handle.stack);
+      }
+    }
+  };
+  walk(router?.stack ?? []);
+  return routes;
 }
 
 /**
@@ -139,6 +167,7 @@ export async function startApiStack(
       baseUrl,
       sender,
       identity,
+      routes: registeredRoutes(app),
       async close(): Promise<void> {
         await app.close();
         await connection.pool.end();

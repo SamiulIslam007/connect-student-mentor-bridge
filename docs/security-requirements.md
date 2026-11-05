@@ -88,7 +88,7 @@ Each requirement has an ID, a priority (**Must**, **Should**, **Could**), and th
 | ID | Requirement | Priority | Verification |
 |---|---|---|---|
 | SEC-AUTH-1 | Mentors cannot receive requests until affiliation Level 1 is verified | Must | Integration test |
-| SEC-AUTH-2 | MFA is enforced for Mentor, Institution Admin, and Platform Admin | Must | Integration test |
+| SEC-AUTH-2 | MFA is enforced for Mentor, Institution Admin, and Platform Admin | Must | **Policy built** by `roles-and-profile-visibility` (4c): `requiresMfa` answers per role in `packages/domain`, and `requireRole(..., { requiresMfa: true })` refuses with `403 MFA_REQUIRED` (integration test calls the guard for an unenrolled and an enrolled account). No route sets the flag yet; the first one belongs to `affiliation-and-mentor-onboarding` (#5) |
 | SEC-AUTH-3 | Passwords are hashed with a modern algorithm (Argon2id or scrypt); minimum length 12; breached-password check | Must | Config review and test |
 | SEC-AUTH-4 | Web sessions use httpOnly, Secure, SameSite cookies; no tokens in `localStorage`; CSRF protection on cookie-authenticated writes | Must | Automated test and manual review |
 | SEC-AUTH-5 | Session revocation: sign-out, sign-out-everywhere, password reset, suspension, and deactivation delete session rows, and a revoked session fails on its next request (no refresh-token family; D-31) | Must | Test |

@@ -9,6 +9,7 @@ import { AuthController } from "./identity/auth.controller.js";
 import { IdentityModule } from "./identity/identity.module.js";
 import { MeController } from "./me/me.controller.js";
 import { MeModule } from "./me/me.module.js";
+import { MeRolesController } from "./me/roles.controller.js";
 import { ProfilesController } from "./profiles/profiles.controller.js";
 import { ProfilesModule } from "./profiles/profiles.module.js";
 
@@ -28,6 +29,6 @@ export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
     consumer
       .apply(RequestIdMiddleware)
-      .forRoutes(HealthController, AuthController, MeController, ProfilesController);
+      .forRoutes(HealthController, AuthController, MeController, MeRolesController, ProfilesController);
   }
 }

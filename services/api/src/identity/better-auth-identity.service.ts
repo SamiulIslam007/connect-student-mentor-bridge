@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 
-import { and, desc, eq, gt } from "drizzle-orm";
+import { and, desc, eq, gt, isNull } from "drizzle-orm";
 import { hashPassword } from "better-auth/crypto";
 
 import {
@@ -10,6 +10,7 @@ import {
   isAtLeast18,
   isCalendarDate,
   passwordPolicyViolation,
+  ROLES,
   type AccountStatus,
   type AccountSummary,
   type ActivateAccountInput,
@@ -17,6 +18,7 @@ import {
   type DisableMfaInput,
   type DisableMfaResult,
   type EnrollMfaInput,
+  type GrantRoleInput,
   type IdentityErrorCode,
   type IdentityService,
   type ListSessionsInput,
@@ -29,6 +31,7 @@ import {
   type RegisterAccountInput,
   type RegisterAccountResult,
   type RevokeSessionInput,
+  type Role,
   type SessionInput,
   type SessionLookupInput,
   type SessionSummary,
@@ -41,7 +44,14 @@ import {
 } from "@connect/domain";
 
 import type { Database } from "../db/database.js";
-import { auditLogs, consentRecords, sessions, signupBlocks, users } from "../db/schema/index.js";
+import {
+  auditLogs,
+  consentRecords,
+  roleAssignments,
+  sessions,
+  signupBlocks,
+  users,
+} from "../db/schema/index.js";
 import { asValidationFailure, isClientApiError } from "./api-error.js";
 import { activatePendingAccount } from "./account-activation.js";
 import type { IdentityAuth } from "./better-auth.js";
@@ -70,6 +80,7 @@ interface AuthUser {
   emailVerified: boolean;
   timezone?: string | null;
   status?: string | null;
+  twoFactorEnabled?: boolean | null;
 }
 
 function toAccountStatus(value: string | null | undefined): AccountStatus {
@@ -87,6 +98,7 @@ function toAccount(user: AuthUser): AccountSummary {
     emailVerified: user.emailVerified,
     timezone: user.timezone ?? "Asia/Dhaka",
     accountStatus: toAccountStatus(user.status),
+    mfaEnabled: user.twoFactorEnabled === true,
   };
 }
 
@@ -314,6 +326,9 @@ export class BetterAuthIdentityService implements IdentityService {
           objectId: userId,
           requestId: input.requestId,
         });
+        // The default role joins the same transaction, so no account exists
+        // without a role (spec: every account has a default role).
+        await tx.insert(roleAssignments).values({ userId, role: "STUDENT" });
       });
     } catch (error) {
       // The library owns its own transaction, so a failure here would leave an
@@ -532,6 +547,45 @@ export class BetterAuthIdentityService implements IdentityService {
 
   async getSession(input: SessionLookupInput): Promise<AccountSummary | null> {
     return (await this.readSession(input.sessionToken))?.account ?? null;
+  }
+
+  /** Active assignments only, in declaration order, so the wire shape is stable. */
+  async listRoles(userId: string): Promise<Role[]> {
+    const rows = await this.database
+      .select({ role: roleAssignments.role })
+      .from(roleAssignments)
+      .where(and(eq(roleAssignments.userId, userId), isNull(roleAssignments.revokedAt)));
+    return ROLES.filter((role) => rows.some((row) => row.role === role));
+  }
+
+  /**
+   * Idempotent: the partial unique index makes a repeat a no-op, and the audit
+   * entry is written only when a row was actually inserted (spec: repeated grant).
+   */
+  async grantRole(input: GrantRoleInput): Promise<Role[]> {
+    const inserted = await this.database
+      .insert(roleAssignments)
+      .values({
+        userId: input.userId,
+        role: input.role,
+        grantedByUserId: input.actorUserId ?? null,
+      })
+      .onConflictDoNothing()
+      .returning({ id: roleAssignments.id });
+
+    if (inserted.length > 0) {
+      await appendAuditEntry(this.database, {
+        action: "ROLE_GRANTED",
+        actorUserId: input.actorUserId ?? input.userId,
+        actorRole: "USER",
+        objectType: "role_assignments",
+        objectId: inserted[0].id,
+        requestId: input.requestId,
+        metadata: { role: input.role },
+      });
+    }
+
+    return this.listRoles(input.userId);
   }
 
   async activateAccount(input: ActivateAccountInput): Promise<AccountSummary> {

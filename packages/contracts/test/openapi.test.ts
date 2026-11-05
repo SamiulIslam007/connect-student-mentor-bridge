@@ -105,6 +105,28 @@ test("every self-service account route implemented by the controller appears in 
   }
 });
 
+test("the mentor opt-in route is implemented by its controller and documented", () => {
+  const document = contract();
+  const controller = readFileSync(
+    resolve(process.cwd(), "../../services/api/src/me/roles.controller.ts"),
+    "utf8",
+  );
+
+  const routes = [...controller.matchAll(/@(Get|Post)\(([^)]*)\)/g)].map((match) => {
+    const suffix = match[2].replaceAll('"', "").trim();
+    return `/v1/me/roles${suffix ? `/${suffix}` : ""}`;
+  });
+  assert.deepEqual(routes.sort(), ["/v1/me/roles/mentor"]);
+
+  const operation = document.paths["/v1/me/roles/mentor"].post;
+  assert.deepEqual(operation.security, [{ bearerAuth: [] }], "the opt-in requires a session");
+  const success = (
+    operation.responses["200"] as { content: Record<string, { schema: unknown }> }
+  ).content["application/json"].schema;
+  assert.deepEqual(success, { $ref: "#/components/schemas/RolesResponse" });
+  assert.ok(operation.responses["401"], "the unauthenticated response is documented");
+});
+
 test("the profile and field endpoints require a session and are documented", () => {
   const document = contract();
 
@@ -169,6 +191,8 @@ test("MeResponse is standalone and both profile properties are nullable", () => 
     "email_verified",
     "id",
     "mentor_profile",
+    "mfa_enabled",
+    "roles",
     "student_profile",
     "timezone",
   ]);

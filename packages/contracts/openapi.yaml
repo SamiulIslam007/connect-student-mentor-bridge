@@ -362,6 +362,26 @@ paths:
                 $ref: "#/components/schemas/MeResponse"
         "401":
           $ref: "#/components/responses/Problem"
+  /v1/me/roles/mentor:
+    post:
+      operationId: grantMentorRole
+      summary: Grant the mentor role to the calling account
+      description: >-
+        Self-service opt-in. The account always comes from the session, so a body
+        cannot grant a role to anyone else. Idempotent: a repeat returns the same
+        roles and writes no second assignment or audit entry. The role alone
+        grants no visibility, activation, or discoverability.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The caller's active roles after the grant
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RolesResponse"
+        "401":
+          $ref: "#/components/responses/Problem"
   /v1/me/student-profile:
     put:
       operationId: saveStudentProfile
@@ -778,6 +798,19 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/SessionSummary"
+    Role:
+      type: string
+      description: Canonical role values (docs/data-model.md §4.1). EMPLOYER is reserved.
+      enum: [STUDENT, MENTOR, INSTITUTION_ADMIN, PLATFORM_ADMIN, EMPLOYER]
+    RolesResponse:
+      type: object
+      additionalProperties: false
+      required: [roles]
+      properties:
+        roles:
+          type: array
+          items:
+            $ref: "#/components/schemas/Role"
     AccountStatus:
       type: string
       description: Account lifecycle state (docs/data-model.md §4.1, lowercase API form).
@@ -807,7 +840,7 @@ components:
         The signed-in account plus its own profiles. Declared standalone rather
         than composed from AccountSummary, because AccountSummary declares
         additionalProperties false and is shared with the sign-in response.
-      required: [id, display_name, email, email_verified, account_status, timezone, student_profile, mentor_profile]
+      required: [id, display_name, email, email_verified, account_status, timezone, mfa_enabled, roles, student_profile, mentor_profile]
       properties:
         id:
           type: string
@@ -822,6 +855,18 @@ components:
           $ref: "#/components/schemas/AccountStatus"
         timezone:
           type: string
+        mfa_enabled:
+          type: boolean
+          description: >-
+            True when a verified second factor is active, so the next password
+            sign-in asks for a code. The sign-in response does not carry it.
+        roles:
+          type: array
+          description: >-
+            The caller's own active roles in declaration order. Never another
+            account's roles, and never trusted from a token.
+          items:
+            $ref: "#/components/schemas/Role"
         student_profile:
           description: Null until the owner saves a student profile.
           anyOf:
@@ -982,6 +1027,8 @@ components:
             - EMAIL_NOT_VERIFIED
             - ACCOUNT_SUSPENDED
             - FORBIDDEN
+            - ROLE_REQUIRED
+            - MFA_REQUIRED
             - INVALID_VERIFICATION_LINK
             - INVALID_RESET_TOKEN
             - NOT_FOUND

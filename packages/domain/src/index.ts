@@ -15,3 +15,4 @@ export * from "./fields.js";
 export * from "./identity.js";
 export * from "./password-policy.js";
 export * from "./profiles.js";
+export * from "./visibility.js";
