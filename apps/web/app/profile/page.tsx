@@ -17,6 +17,7 @@ interface StudentProfile {
 }
 
 interface MentorProfile {
+  access_mode?: string;
   headline: string;
   bio: string;
   expertise_summary: string;
@@ -28,9 +29,51 @@ interface MentorProfile {
 }
 
 interface MeResponse {
+  timezone?: string;
   student_profile: StudentProfile | null;
   mentor_profile: MentorProfile | null;
   roles?: string[];
+}
+
+interface AvailabilityWindow {
+  weekday: number;
+  start_minute: number;
+  end_minute: number;
+  timezone: string;
+}
+
+/** A form row: minutes are edited as `HH:MM` in the section's zone. */
+interface DraftWindow {
+  weekday: number;
+  start: string;
+  end: string;
+}
+
+const WEEKDAYS = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+] as const;
+
+function toTime(minutes: number): string {
+  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+}
+
+function toMinutes(value: string): number | null {
+  const match = /^(\d{2}):(\d{2})$/.exec(value);
+  return match ? Number(match[1]) * 60 + Number(match[2]) : null;
+}
+
+function toDraft(window: AvailabilityWindow): DraftWindow {
+  return {
+    weekday: window.weekday,
+    start: toTime(window.start_minute),
+    end: toTime(window.end_minute),
+  };
 }
 
 interface Problem {
@@ -79,6 +122,14 @@ export default function ProfilePage() {
   const [message, setMessage] = useState<string | null>(null);
   const [signedOut, setSignedOut] = useState(false);
   const [mentorRole, setMentorRole] = useState(false);
+  const [studentZone, setStudentZone] = useState("Asia/Dhaka");
+  const [mentorZone, setMentorZone] = useState("Asia/Dhaka");
+  const [studentWindows, setStudentWindows] = useState<DraftWindow[]>([]);
+  const [mentorWindows, setMentorWindows] = useState<DraftWindow[]>([]);
+  const [studentAvailabilityStatus, setStudentAvailabilityStatus] = useState<string | null>(null);
+  const [mentorAvailabilityStatus, setMentorAvailabilityStatus] = useState<string | null>(null);
+  const [accessMode, setAccessMode] = useState("OPEN");
+  const [accessStatus, setAccessStatus] = useState<string | null>(null);
 
   const [studentGoals, setStudentGoals] = useState("");
   const [studentPrimary, setStudentPrimary] = useState("");
@@ -121,6 +172,26 @@ export default function ProfilePage() {
 
         const me = (await meResponse.json()) as MeResponse;
         setMentorRole((me.roles ?? []).includes("MENTOR"));
+        const zone = me.timezone ?? "Asia/Dhaka";
+        setStudentZone(zone);
+        setMentorZone(zone);
+        if (me.mentor_profile?.access_mode) {
+          setAccessMode(me.mentor_profile.access_mode);
+        }
+
+        // Availability is its own read: a refused save must never discard it.
+        const [studentAvailability, mentorAvailability] = await Promise.all([
+          fetch("/api/me/availability?context=STUDENT"),
+          fetch("/api/me/availability?context=MENTOR"),
+        ]);
+        if (studentAvailability.ok) {
+          const stored = (await studentAvailability.json()) as { windows?: AvailabilityWindow[] };
+          setStudentWindows((stored.windows ?? []).map(toDraft));
+        }
+        if (mentorAvailability.ok) {
+          const stored = (await mentorAvailability.json()) as { windows?: AvailabilityWindow[] };
+          setMentorWindows((stored.windows ?? []).map(toDraft));
+        }
         if (me.student_profile) {
           setStudentGoals(me.student_profile.goals);
           setStudentPrimary(me.student_profile.primary_field.name);
@@ -204,6 +275,8 @@ export default function ProfilePage() {
           fields: splitLines(mentorAdditional),
           languages: splitList(mentorLanguages),
           weekly_capacity: mentorCapacity === "" ? null : Number(mentorCapacity),
+          // A paused mentor stays paused: the save never names PAUSED.
+          ...(accessMode === "PAUSED" ? {} : { access_mode: accessMode }),
         }),
       });
       const payload = (await response.json().catch(() => ({}))) as Problem;
@@ -218,6 +291,64 @@ export default function ProfilePage() {
     } catch (error) {
       logFailure("web.mentor_profile_save_failed", error);
       setMentorStatus(strings.profile.saveError);
+    }
+  }
+
+  async function saveAvailability(kind: "STUDENT" | "MENTOR"): Promise<void> {
+    const rows = kind === "STUDENT" ? studentWindows : mentorWindows;
+    const zone = kind === "STUDENT" ? studentZone : mentorZone;
+    const setStatus =
+      kind === "STUDENT" ? setStudentAvailabilityStatus : setMentorAvailabilityStatus;
+
+    const windows = [];
+    for (const row of rows) {
+      const start = toMinutes(row.start);
+      const end = toMinutes(row.end);
+      if (start === null || end === null) {
+        setStatus(strings.profile.availabilityError);
+        return;
+      }
+      windows.push({ weekday: row.weekday, start_minute: start, end_minute: end, timezone: zone });
+    }
+
+    setStatus(null);
+    try {
+      const response = await fetch("/api/me/availability", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ context: kind, windows }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as Problem;
+      if (!response.ok) {
+        // Keep the entered rows and show the API's problem detail (spec: refused save).
+        setStatus(typeof payload.detail === "string" ? payload.detail : strings.profile.availabilityError);
+        return;
+      }
+      setStatus(strings.profile.availabilitySaved);
+    } catch (error) {
+      logFailure("web.availability_save_failed", error);
+      setStatus(strings.profile.availabilityError);
+    }
+  }
+
+  async function changeAccessMode(path: "pause" | "resume"): Promise<void> {
+    setAccessStatus(null);
+    try {
+      const response = await fetch(`/api/me/mentor-profile/${path}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: path === "resume" ? JSON.stringify({ access_mode: "OPEN" }) : undefined,
+      });
+      if (!response.ok) {
+        setAccessStatus(strings.profile.accessModeError);
+        return;
+      }
+      const payload = (await response.json()) as { access_mode?: string };
+      setAccessMode(payload.access_mode ?? (path === "pause" ? "PAUSED" : "OPEN"));
+      setAccessStatus(strings.profile.accessModeSaved);
+    } catch (error) {
+      logFailure("web.access_mode_failed", error);
+      setAccessStatus(strings.profile.accessModeError);
     }
   }
 
@@ -298,6 +429,14 @@ export default function ProfilePage() {
               <button type="submit">{strings.profile.saveStudent}</button>
             </form>
             <p role="status">{studentStatus}</p>
+            <AvailabilityEditor
+              windows={studentWindows}
+              timezone={studentZone}
+              status={studentAvailabilityStatus}
+              onChange={setStudentWindows}
+              onTimezone={setStudentZone}
+              onSave={() => void saveAvailability("STUDENT")}
+            />
           </section>
 
           <section>
@@ -385,6 +524,53 @@ export default function ProfilePage() {
               </fieldset>
             </form>
             <p role="status">{mentorStatus}</p>
+            <AvailabilityEditor
+              windows={mentorWindows}
+              timezone={mentorZone}
+              status={mentorAvailabilityStatus}
+              onChange={setMentorWindows}
+              onTimezone={setMentorZone}
+              onSave={() => void saveAvailability("MENTOR")}
+            />
+            {mentorRole ? (
+              <div>
+                <h3>{strings.profile.accessModeTitle}</h3>
+                <p>{strings.profile.accessModeIntro}</p>
+                <p>
+                  <strong>
+                    {accessMode === "PAUSED"
+                      ? strings.profile.accessModePaused
+                      : accessMode === "APPLICATION_ONLY"
+                        ? strings.profile.accessModeApplicationOnly
+                        : strings.profile.accessModeOpen}
+                  </strong>
+                </p>
+                <label>
+                  {strings.profile.accessModeLabel}
+                  <select
+                    value={accessMode}
+                    disabled={accessMode === "PAUSED"}
+                    onChange={(event) => setAccessMode(event.target.value)}
+                  >
+                    <option value="OPEN">{strings.profile.accessModeOpen}</option>
+                    <option value="APPLICATION_ONLY">
+                      {strings.profile.accessModeApplicationOnly}
+                    </option>
+                  </select>
+                </label>
+                <p>{strings.profile.applicationsNotBuilt}</p>
+                {accessMode === "PAUSED" ? (
+                  <button type="button" onClick={() => void changeAccessMode("resume")}>
+                    {strings.profile.resume}
+                  </button>
+                ) : (
+                  <button type="button" onClick={() => void changeAccessMode("pause")}>
+                    {strings.profile.pause}
+                  </button>
+                )}
+                <p role="status">{accessStatus}</p>
+              </div>
+            ) : null}
           </section>
         </>
       )}
@@ -393,5 +579,99 @@ export default function ProfilePage() {
         <a href="/account">{strings.profile.backToAccount}</a>
       </p>
     </main>
+  );
+}
+
+/**
+ * The weekly-availability editor (design D7): its own save, so a refused
+ * availability write never discards unsaved profile text.
+ */
+function AvailabilityEditor({
+  windows,
+  timezone,
+  status,
+  onChange,
+  onTimezone,
+  onSave,
+}: {
+  windows: DraftWindow[];
+  timezone: string;
+  status: string | null;
+  onChange: (windows: DraftWindow[]) => void;
+  onTimezone: (timezone: string) => void;
+  onSave: () => void;
+}) {
+  return (
+    <div>
+      <h3>{strings.profile.availabilityTitle}</h3>
+      <p>{strings.profile.availabilityIntro}</p>
+      {windows.length === 0 ? <p>{strings.profile.availabilityEmpty}</p> : null}
+      {windows.map((row, index) => (
+        <div key={index}>
+          <label>
+            {strings.profile.weekday}
+            <select
+              value={row.weekday}
+              onChange={(event) => {
+                const next = [...windows];
+                next[index] = { ...row, weekday: Number(event.target.value) };
+                onChange(next);
+              }}
+            >
+              {WEEKDAYS.map((day, dayIndex) => (
+                <option key={day} value={dayIndex + 1}>
+                  {day}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            {strings.profile.startTime}
+            <input
+              type="time"
+              value={row.start}
+              onChange={(event) => {
+                const next = [...windows];
+                next[index] = { ...row, start: event.target.value };
+                onChange(next);
+              }}
+            />
+          </label>
+          <label>
+            {strings.profile.endTime}
+            <input
+              type="time"
+              value={row.end}
+              onChange={(event) => {
+                const next = [...windows];
+                next[index] = { ...row, end: event.target.value };
+                onChange(next);
+              }}
+            />
+          </label>
+          <button type="button" onClick={() => onChange(windows.filter((_, i) => i !== index))}>
+            {strings.profile.removeWindow}
+          </button>
+        </div>
+      ))}
+      <p>
+        <label>
+          {strings.profile.timezone}
+          <input value={timezone} onChange={(event) => onTimezone(event.target.value)} />
+        </label>
+      </p>
+      <p>
+        <button
+          type="button"
+          onClick={() => onChange([...windows, { weekday: 1, start: "09:00", end: "10:00" }])}
+        >
+          {strings.profile.addWindow}
+        </button>
+        <button type="button" onClick={onSave}>
+          {strings.profile.saveAvailability}
+        </button>
+      </p>
+      <p role="status">{status}</p>
+    </div>
   );
 }
