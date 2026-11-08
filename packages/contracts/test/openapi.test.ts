@@ -414,3 +414,33 @@ test("the outcome contract carries no score and no counting route", () => {
     "REVERSED",
   ]);
 });
+
+test("the impact surface is documented, session-guarded, and exposes no score", () => {
+  const document = contract();
+  for (const path of ["/v1/me/impact", "/v1/mentors/{id}/impact"]) {
+    const operation = document.paths[path].get;
+    assert.deepEqual(operation.security, [{ bearerAuth: [] }], `${path} must require a session`);
+    assert.ok(operation.responses["401"], `${path} documents the unauthenticated response`);
+    const schema = (operation.responses["200"] as { content: Record<string, { schema: unknown }> })
+      .content["application/json"].schema;
+    assert.deepEqual(schema, { $ref: "#/components/schemas/ImpactResponse" });
+  }
+
+  const response = document.components.schemas.ImpactResponse;
+  assert.deepEqual(Object.keys(response.properties ?? {}).sort(), ["counted_outcomes", "data"]);
+  const row = document.components.schemas.ImpactRow;
+  assert.deepEqual(Object.keys(row.properties ?? {}).sort(), [
+    "count",
+    "field_id",
+    "field_name",
+    "outcome_type",
+  ]);
+  for (const forbidden of ["score", "points", "tier", "ranking"]) {
+    assert.equal(forbidden in (response.properties ?? {}), false);
+    assert.equal(forbidden in (row.properties ?? {}), false);
+  }
+
+  // No endpoint can count an outcome: counting is a job, not a route.
+  const counting = Object.keys(document.paths).filter((path) => path.endsWith("/count"));
+  assert.deepEqual(counting, []);
+});

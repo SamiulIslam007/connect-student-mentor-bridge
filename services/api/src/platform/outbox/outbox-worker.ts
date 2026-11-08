@@ -20,6 +20,11 @@ import {
   sweepRequests,
 } from "../../requests/request-sweeper.js";
 import { sweepOutcomes } from "../../outcomes/outcome-sweeper.js";
+import {
+  countDueOutcomes,
+  REPUTATION_COUNT_CRON,
+  REPUTATION_COUNT_QUEUE,
+} from "../../reputation/counting-job.js";
 
 const log = (event: string, detail: Record<string, unknown> = {}): void => {
   console.log(JSON.stringify({ event, ...detail }));
@@ -55,6 +60,7 @@ export class OutboxWorker implements OnApplicationBootstrap, OnApplicationShutdo
     await boss.start();
     await boss.createQueue(OUTBOX_QUEUE);
     await boss.createQueue(REQUEST_SWEEP_QUEUE);
+    await boss.createQueue(REPUTATION_COUNT_QUEUE);
     await boss.work(REQUEST_SWEEP_QUEUE, { batchSize: 1 }, async () => {
       const result = await sweepRequests(this.database);
       if (result.reminded > 0 || result.expired > 0) {
@@ -68,6 +74,13 @@ export class OutboxWorker implements OnApplicationBootstrap, OnApplicationShutdo
       }
     });
     await boss.schedule(REQUEST_SWEEP_QUEUE, REQUEST_SWEEP_CRON);
+    await boss.work(REPUTATION_COUNT_QUEUE, { batchSize: 1 }, async () => {
+      const result = await countDueOutcomes(this.database);
+      if (result.counted > 0) {
+        log("reputation.counted", { counted: result.counted });
+      }
+    });
+    await boss.schedule(REPUTATION_COUNT_QUEUE, REPUTATION_COUNT_CRON);
     await boss.work(
       OUTBOX_QUEUE,
       { batchSize: 1, pollingIntervalSeconds: 2 },

@@ -392,4 +392,22 @@ export const strings = {
     statusReversed: "Reversed",
     actionError: "That action could not be completed.",
   },
+  impact: {
+    title: "Verified impact",
+    intro:
+      "Counted outcomes only. These are counts, not a score: a number is never shown until the pilot sets the thresholds.",
+    loading: "Loading your impact.",
+    loadError: "Your impact could not be loaded. Try again.",
+    retry: "Try again",
+    empty: "No counted outcomes yet. A confirmed outcome counts after its cooling period.",
+    countedOutcomes: "Counted outcomes",
+    field: "Field",
+    outcomeType: "Outcome type",
+    count: "Count",
+    outcomeAdmission: "Admission",
+    outcomeInternship: "Internship",
+    outcomeJobOffer: "Job offer",
+    outcomeSkillMilestone: "Skill milestone",
+    outcomeInterview: "Interview",
+  },
 } as const;

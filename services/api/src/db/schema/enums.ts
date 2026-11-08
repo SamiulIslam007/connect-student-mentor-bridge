@@ -197,6 +197,9 @@ export const verifierDecision = pgEnum("verifier_decision", [
   "FAILED",
 ]);
 
+/** Reputation events; `REVERSAL` is reserved for the clawback change. */
+export const reputationEventType = pgEnum("reputation_event_type", ["COUNTED", "REVERSAL"]);
+
 /** Canonical role values (docs/data-model.md §4.1). `EMPLOYER` is reserved. */
 export const role = pgEnum("role", [
   "STUDENT",
