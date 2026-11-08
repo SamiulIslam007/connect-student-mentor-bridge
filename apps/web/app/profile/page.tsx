@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { strings } from "../../lib/strings";
+import { ImpactSection } from "./impact-section";
 
 interface FieldSummary {
   id: string;
@@ -723,6 +724,8 @@ export default function ProfilePage() {
           </section>
         </>
       )}
+
+      <ImpactSection />
 
       <p>
         <a href="/account">{strings.profile.backToAccount}</a>
