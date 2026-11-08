@@ -159,14 +159,14 @@ Authentication internals are **library-native** better-auth tables in the same s
 | `account_status` | `PENDING`, `ACTIVE`, `SUSPENDED`, `DEACTIVATED`, `DELETION_PENDING`, `ANONYMIZED`. Account lifecycle only. Verification progress is stored in separate fields (`email_verified`, `age_gate_passed_at`), never as an account state. `PENDING` is the state of a new account until email verification activates it (`PENDING` → `ACTIVE`, idempotent, and never applied to any other state). `SUSPENDED` and `DEACTIVATED` are each written with a `DELETE` of every `sessions` row for the account in the same transaction, so only an `ACTIVE` account can hold a session; signing in with the correct password returns a `DEACTIVATED` account to `ACTIVE`. `DELETION_PENDING` and `ANONYMIZED` are defined but no code path writes them yet |
 | `institution_kind` | `UNIVERSITY`, `BOOTCAMP`, `TRAINING_INSTITUTE`, `OTHER` |
 | `institution_status` | `ONBOARDING`, `ACTIVE`, `SUSPENDED` |
-| `affiliation_kind` | `ALUMNUS`, `STUDENT`, `FACULTY_STAFF`, `EMPLOYEE` |
-| `affiliation_level` | `LEVEL_0` (no verified affiliation), `LEVEL_1` (institutional email or admin attestation), `LEVEL_2` (employer-email check) |
-| `affiliation_method` | `INSTITUTIONAL_EMAIL`, `ADMIN_ATTESTATION`, `EMPLOYER_EMAIL`, `PROFESSIONAL_LINK` |
-| `affiliation_status` | `PENDING`, `VERIFIED`, `REJECTED`, `REVOKED`, `EXPIRED` |
-| `mentor_onboarding_status` | `APPLIED`, `EMAIL_VERIFIED`, `AFFILIATION_VERIFIED`, `EMPLOYER_CHECKED` (verification progress only) |
+| `affiliation_kind` | `ALUMNUS`, `STUDENT`, `FACULTY_STAFF`, `EMPLOYEE`. **Built** by `affiliation-and-mentor-onboarding` (#5) |
+| `affiliation_level` | `LEVEL_0` (no verified affiliation), `LEVEL_1` (institutional email or admin attestation), `LEVEL_2` (employer-email check). **Built** by #5 (`LEVEL_2` written by nothing yet) |
+| `affiliation_method` | `INSTITUTIONAL_EMAIL`, `ADMIN_ATTESTATION`, `EMPLOYER_EMAIL`, `PROFESSIONAL_LINK`. **Built** by #5 |
+| `affiliation_status` | `PENDING`, `VERIFIED`, `REJECTED`, `REVOKED`, `EXPIRED`. **Built** by #5 (`REJECTED` and `EXPIRED` written by nothing yet) |
+| `mentor_onboarding_status` | `APPLIED`, `EMAIL_VERIFIED`, `AFFILIATION_VERIFIED`, `EMPLOYER_CHECKED` (verification progress only). **Built** by #5 (`EMPLOYER_CHECKED` written by nothing yet) |
 | `field_status` | `ACTIVE`, `RETIRED`. Field taxonomy only. Nothing writes `RETIRED` yet: field merge, rename, and retirement are Phase 1b (D-23), and retiring never deletes a field or its historical references |
 | `availability_context` | `STUDENT`, `MENTOR`. **Built** by `profile-availability-and-access-mode` (4b) together with `availability_windows` |
-| `mentor_status` | `DRAFT`, `PENDING`, `ACTIVE`, `SUSPENDED`, `REMOVED` (operating status only). Written by `profiles-and-dynamic-fields` with default `DRAFT`; nothing transitions it in that change |
+| `mentor_status` | `DRAFT`, `PENDING`, `ACTIVE`, `SUSPENDED`, `REMOVED` (operating status only). Written by `profiles-and-dynamic-fields` with default `DRAFT`; **transitioned by #5** from a verified Level 1 affiliation plus an enrolled second factor |
 | `mentor_access_mode` | `OPEN`, `APPLICATION_ONLY`, `PAUSED` (mentor-selected). **Built** by `profile-availability-and-access-mode` (4b) |
 | `access_state` (derived) | `AVAILABLE`, `FULL`, `APPLICATION_ONLY`, plus hidden when paused or not active |
 | `request_status` | `PENDING`, `ACCEPTED`, `DECLINED`, `REDIRECTED`, `EXPIRED`, `WITHDRAWN` |
@@ -327,7 +327,7 @@ The project columns are declared to the library with `input: false`, so no reque
 **`institutions`**: `name`, `kind`, `country_code char(2)`, `status`, `mou_signed_on date?`, `min_cohort_size smallint?` (null means platform default, **Proposed**: 5).
 **`institution_domains`**: `institution_id`, `domain citext` unique, `verified_at?`.
 
-**`affiliations`**
+**`affiliations`** (**built** by `affiliation-and-mentor-onboarding`, #5; migration `0009`)
 
 | Column | Type | Notes |
 |---|---|---|
@@ -343,7 +343,7 @@ The project columns are declared to the library with `input: false`, so no reque
 | `decided_by_user_id`, `decision_reason` | `text?`, `text?` | For admin attestation |
 | `verified_at`, `revoked_at`, `expires_at` | `timestamptz?` | |
 
-Check: `institution_id IS NOT NULL OR organization_name IS NOT NULL`. Edits to a mentor's affiliation fields suspend Level 1 until re-verified (FR-PROF-05). **No government ID, passport, or tax ID is ever stored.**
+Check: `institution_id IS NOT NULL OR organization_name IS NOT NULL`. A partial unique index (`affiliations_one_verified_unique`) allows at most one `VERIFIED` row per account; a superseded claim is `REVOKED` with `revoked_at` rather than deleted. Edits to a mentor's affiliation fields suspend Level 1 until re-verified (FR-PROF-05). **No government ID, passport, or tax ID is ever stored.**
 
 **`fields`** (**built** by `profiles-and-dynamic-fields`): `id uuid PK`, `name text`, `normalized_slug citext` unique (created from the name; prevents duplicates), `created_by_user_id text?` FK to `users.id` on delete `set null` (null for a seeded field or after its creator's account is removed), `status` (`field_status`, default `ACTIVE`), `created_at`, `updated_at`. Fields are **fully dynamic**: a student or mentor picks an existing field or creates a new one; the normalizer keeps one row per concept. Matching uses `field_id`, never a hard-coded label. An admin merge/rename tool is **Phase 1b** (D-23); retiring never deletes history.
 
@@ -359,20 +359,21 @@ Check: `institution_id IS NOT NULL OR organization_name IS NOT NULL`. Edits to a
 | `id` | `uuid` PK | |
 | `user_id` | `text` unique FK | References `users.id`; cascade on account removal |
 | `primary_field_id` | `uuid` FK | Required; the single source of truth for the mentor's primary field |
-| `status` | `mentor_status` | Default `DRAFT`; written by this change, transitioned by later ones |
+| `status` | `mentor_status` | Default `DRAFT`. **Transitions built** by #5: `DRAFT` → `PENDING` → `ACTIVE` on a verified Level 1 affiliation plus an enrolled second factor; losing either returns it to `PENDING` and keeps `activated_at` |
 | `headline`, `bio` | `text` | Required |
 | `expertise_summary`, `scope_statement` | `text` | Required. "What I can and cannot help with" |
 | `languages` | `text[]` | Default `'{}'` |
 | `weekly_capacity` | `smallint` | Check `>= 1` only; the maximum is policy (`MENTOR_WEEKLY_CAPACITY_MAX = 5`, **Proposed default**, D-38) |
 | `created_at`, `updated_at` | `timestamptz` | |
-| `onboarding_status` | `mentor_onboarding_status` | **Not yet created**; owning change #5 (`affiliation-and-mentor-onboarding`) |
-| `current_role_title`, `current_organization` | `text?` | **Not yet created**; owning change #5 |
+| `onboarding_status` | `mentor_onboarding_status` | **Built** by #5; default `APPLIED`. Verification progress only, never the operating status |
+| `current_role_title`, `current_organization` | `text?` | **Not created**; not scheduled (no requirement asks for them) |
 | `access_mode` | `mentor_access_mode` | **Built** by `profile-availability-and-access-mode` (4b); default `OPEN`. `PAUSED` is written only by pause/resume, and a save that omits it leaves it alone |
-| `orientation_completed_at`, `activated_at` | `timestamptz?` | **Not yet created**; owning change #5 |
+| `orientation_completed_at` | `timestamptz?` | **Not created**; mentor agreements and orientation are unbuilt (DEBT-18) |
+| `activated_at` | `timestamptz?` | **Built** by #5; set once on the first `ACTIVE` and never cleared |
 
 **`mentor_fields`** (**built**): (`mentor_profile_id uuid` FK on delete `cascade`, `field_id uuid` FK on delete `restrict`) composite key. Holds **additional** fields only; the primary field is `mentor_profiles.primary_field_id`, so one fact has one writer. Reputation is later keyed by the same `field_id`.
 
-`student_profiles.onboarding_completed_at` is **not yet created**; owning change #5.
+`student_profiles.onboarding_completed_at` is **not created**; nothing schedules it (it belongs with the unbuilt agreements and orientation, DEBT-18).
 
 **`availability_windows`** (**built** by `profile-availability-and-access-mode`, 4b): `id uuid PK`, `user_id text` FK `users.id` (cascade), `context` (`availability_context`: `STUDENT` or `MENTOR`), `weekday smallint` (1 to 7), `start_minute smallint` (0 to 1440), `end_minute smallint` (0 to 1440), `timezone text` (IANA), `created_at`, `updated_at`. Checks `end_minute > start_minute` plus the weekday and minute bounds; index on (`user_id`, `context`). Minutes are wall-clock minutes in the row's own zone, so the availability-match factor in #6 is a pure comparison. At most 21 windows per context (Proposed default, policy not DDL). Generalizes the README's `MentorAvailability` to both sides.
 

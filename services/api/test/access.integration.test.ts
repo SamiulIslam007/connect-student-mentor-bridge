@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { after, before, beforeEach, test, type TestContext } from "node:test";
 
+import { AFFILIATIONS_SERVICE } from "../src/affiliations/affiliations.tokens.js";
+import { DrizzleAffiliationsService } from "../src/affiliations/drizzle-affiliations.service.js";
 import { DrizzleProfilesService } from "../src/profiles/drizzle-profiles.service.js";
 import { PROFILES_SERVICE } from "../src/profiles/profiles.tokens.js";
 import type { Database } from "../src/db/database.js";
@@ -38,6 +40,7 @@ function requireStacks(context: TestContext): TestApiStack | null {
 before(async () => {
   const providers = (database: Database) => [
     { provide: PROFILES_SERVICE, useValue: new DrizzleProfilesService(database) },
+    { provide: AFFILIATIONS_SERVICE, useValue: new DrizzleAffiliationsService(database) },
   ];
 
   const configured = await startApiStack({

@@ -5,13 +5,14 @@ import {
   primaryKey,
   smallint,
   text,
+  timestamp,
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 
 import { users } from "./auth.js";
 import { timestamps } from "./columns.js";
-import { mentorAccessMode, mentorStatus } from "./enums.js";
+import { mentorAccessMode, mentorOnboardingStatus, mentorStatus } from "./enums.js";
 import { fields } from "./fields.js";
 
 export const studentProfiles = pgTable(
@@ -58,6 +59,10 @@ export const mentorProfiles = pgTable(
       .notNull()
       .references(() => fields.id, { onDelete: "restrict" }),
     status: mentorStatus("status").default("DRAFT").notNull(),
+    /** Verification progress; never written into the operating enum (§5.2). */
+    onboardingStatus: mentorOnboardingStatus("onboarding_status").default("APPLIED").notNull(),
+    /** Set once when the mentor first becomes ACTIVE; never cleared. */
+    activatedAt: timestamp("activated_at", { withTimezone: true }),
     headline: text("headline").notNull(),
     bio: text("bio").notNull(),
     expertiseSummary: text("expertise_summary").notNull(),

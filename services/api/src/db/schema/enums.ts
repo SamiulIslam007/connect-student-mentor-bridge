@@ -57,6 +57,39 @@ export const mentorAccessMode = pgEnum("mentor_access_mode", [
   "PAUSED",
 ]);
 
+/** Affiliation enums (docs/data-model.md §4.1). */
+export const affiliationKind = pgEnum("affiliation_kind", [
+  "ALUMNUS",
+  "STUDENT",
+  "FACULTY_STAFF",
+  "EMPLOYEE",
+]);
+
+export const affiliationLevel = pgEnum("affiliation_level", ["LEVEL_0", "LEVEL_1", "LEVEL_2"]);
+
+export const affiliationMethod = pgEnum("affiliation_method", [
+  "INSTITUTIONAL_EMAIL",
+  "ADMIN_ATTESTATION",
+  "EMPLOYER_EMAIL",
+  "PROFESSIONAL_LINK",
+]);
+
+export const affiliationStatus = pgEnum("affiliation_status", [
+  "PENDING",
+  "VERIFIED",
+  "REJECTED",
+  "REVOKED",
+  "EXPIRED",
+]);
+
+/** Verification progress only; the operating status stays `mentor_status`. */
+export const mentorOnboardingStatus = pgEnum("mentor_onboarding_status", [
+  "APPLIED",
+  "EMAIL_VERIFIED",
+  "AFFILIATION_VERIFIED",
+  "EMPLOYER_CHECKED",
+]);
+
 /** Canonical role values (docs/data-model.md §4.1). `EMPLOYER` is reserved. */
 export const role = pgEnum("role", [
   "STUDENT",

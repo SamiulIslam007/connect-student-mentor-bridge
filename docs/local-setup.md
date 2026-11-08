@@ -79,8 +79,10 @@ The schema is Drizzle TypeScript in `services/api/src/db/schema/`. Generated SQL
 
 ```bash
 pnpm --filter api db:migrate   # apply pending migrations
-pnpm --filter api db:seed      # idempotent institution and domain reference data
+pnpm --filter api db:seed      # idempotent institution/domain data plus the pilot affiliation attestations
 ```
+
+The seed adds two illustrative institutions and, for the automatic Level 1 path, registers `example.edu.bd` on **Illustrative University**. That domain is a documentation placeholder (D-57), not a partnership: replace it when the pilot partner is known. `services/api/src/db/seed/affiliations.ts` also holds the checked-in pilot attestations (D-56); each entry writes one `VERIFIED`/`ADMIN_ATTESTATION` affiliation with its reason and one audit row, and an entry whose account does not exist is reported as skipped rather than failing the run. Run the seed again after the pilot accounts exist; a rerun inserts nothing new.
 
 When they run on the host, `DATABASE_URL` must point at the published port (`localhost:55432`); inside a container, Compose builds the `postgres:5432` URL. Migrations are owned by the owner/script and are never applied through the read-only `postgresql` MCP.
 

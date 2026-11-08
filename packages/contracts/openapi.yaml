@@ -362,6 +362,37 @@ paths:
                 $ref: "#/components/schemas/MeResponse"
         "401":
           $ref: "#/components/responses/Problem"
+  /v1/me/affiliations:
+    post:
+      operationId: claimAffiliation
+      summary: Claim one institution affiliation for the calling account
+      description: >-
+        The subject is the session's account only; `user_id`, `nid`, and
+        `passport_number` in the body are ignored. The level is decided by the
+        account's verified email domain against `institution_domains`: a match is
+        `level_1` / `verified` / `institutional_email`, anything else is stored
+        `level_0` / `pending`. When the body names no institution, the one
+        registered to the email domain is used. Idempotent per institution; a
+        claim for a different institution revokes the earlier verified row.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AffiliationRequest"
+      responses:
+        "200":
+          description: The stored (or already existing) affiliation and the account's resulting level
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AffiliationClaimResponse"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
   /v1/me/roles/mentor:
     post:
       operationId: grantMentorRole
@@ -948,7 +979,7 @@ components:
         The signed-in account plus its own profiles. Declared standalone rather
         than composed from AccountSummary, because AccountSummary declares
         additionalProperties false and is shared with the sign-in response.
-      required: [id, display_name, email, email_verified, account_status, timezone, mfa_enabled, roles, student_profile, mentor_profile]
+      required: [id, display_name, email, email_verified, account_status, timezone, mfa_enabled, roles, affiliations, student_profile, mentor_profile]
       properties:
         id:
           type: string
@@ -975,6 +1006,13 @@ components:
             account's roles, and never trusted from a token.
           items:
             $ref: "#/components/schemas/Role"
+        affiliations:
+          type: array
+          description: >-
+            The caller's own affiliation rows, newest first, including revoked
+            history. Never another account's rows.
+          items:
+            $ref: "#/components/schemas/Affiliation"
         student_profile:
           description: Null until the owner saves a student profile.
           anyOf:
@@ -1103,7 +1141,7 @@ components:
     MentorProfile:
       type: object
       additionalProperties: false
-      required: [headline, bio, expertise_summary, scope_statement, primary_field, fields, languages, weekly_capacity, access_mode]
+      required: [headline, bio, expertise_summary, scope_statement, primary_field, fields, languages, weekly_capacity, access_mode, status, onboarding_status]
       properties:
         headline:
           type: string
@@ -1129,6 +1167,106 @@ components:
           maximum: 5
         access_mode:
           $ref: "#/components/schemas/MentorAccessMode"
+        status:
+          type: string
+          enum: [DRAFT, PENDING, ACTIVE, SUSPENDED, REMOVED]
+          description: >-
+            Operating status. ACTIVE requires a verified Level 1 affiliation and
+            an enrolled second factor; losing either returns it to PENDING.
+        onboarding_status:
+          type: string
+          enum: [APPLIED, EMAIL_VERIFIED, AFFILIATION_VERIFIED, EMPLOYER_CHECKED]
+          description: Verification progress only, never the operating status.
+    Affiliation:
+      type: object
+      additionalProperties: false
+      required: [id, institution, kind, level, method, status, department, program, batch_year, verified_at, revoked_at]
+      properties:
+        id:
+          type: string
+        institution:
+          description: Null when the row names an organization instead of an institution.
+          anyOf:
+            - type: object
+              additionalProperties: false
+              required: [id, name]
+              properties:
+                id:
+                  type: string
+                name:
+                  type: string
+            - type: "null"
+        kind:
+          type: string
+          enum: [alumnus, student, faculty_staff, employee]
+        level:
+          type: string
+          enum: [level_0, level_1, level_2]
+        method:
+          type: string
+          enum: [institutional_email, admin_attestation, employer_email, professional_link]
+        status:
+          type: string
+          enum: [pending, verified, rejected, revoked, expired]
+        department:
+          anyOf:
+            - type: string
+            - type: "null"
+        program:
+          anyOf:
+            - type: string
+            - type: "null"
+        batch_year:
+          anyOf:
+            - type: integer
+              minimum: 1900
+              maximum: 2200
+            - type: "null"
+        verified_at:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: "null"
+        revoked_at:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: "null"
+    AffiliationRequest:
+      type: object
+      additionalProperties: false
+      required: [kind]
+      properties:
+        institution_id:
+          type: string
+          format: uuid
+          description: >-
+            Optional. When absent, the institution registered to the account's
+            verified email domain is used.
+        kind:
+          type: string
+          enum: [alumnus, student, faculty_staff, employee]
+        department:
+          type: string
+          maxLength: 120
+        program:
+          type: string
+          maxLength: 120
+        batch_year:
+          type: integer
+          minimum: 1900
+          maximum: 2200
+    AffiliationClaimResponse:
+      type: object
+      additionalProperties: false
+      required: [affiliation, level]
+      properties:
+        affiliation:
+          $ref: "#/components/schemas/Affiliation"
+        level:
+          type: string
+          enum: [level_0, level_1, level_2]
+          description: The level the claim itself supports, not an aggregate.
     StudentProfileRequest:
       type: object
       additionalProperties: false

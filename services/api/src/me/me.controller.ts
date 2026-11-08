@@ -2,6 +2,11 @@ import { Controller, Delete, Get, HttpCode, Inject, Param, Post, Req } from "@ne
 
 import { IdentityError, type IdentityService } from "@connect/domain";
 
+import {
+  affiliationPayload,
+  type AffiliationsService,
+} from "../affiliations/affiliations.service.js";
+import { AFFILIATIONS_SERVICE } from "../affiliations/affiliations.tokens.js";
 import { bearerToken } from "../http/bearer.js";
 import type { RequestWithId } from "../http/request-id.middleware.js";
 import { IDENTITY_SERVICE } from "../identity/identity.tokens.js";
@@ -24,6 +29,7 @@ export class MeController {
   constructor(
     @Inject(IDENTITY_SERVICE) private readonly identity: IdentityService,
     @Inject(PROFILES_SERVICE) private readonly profiles: ProfilesService,
+    @Inject(AFFILIATIONS_SERVICE) private readonly affiliations: AffiliationsService,
   ) {}
 
   @Get()
@@ -35,6 +41,7 @@ export class MeController {
       throw new IdentityError("SESSION_INVALID", "the session is not valid");
     }
     const { studentProfile, mentorProfile } = await this.profiles.readProfiles(account.id);
+    const affiliations = await this.affiliations.listMine(account.id);
     return {
       id: account.id,
       display_name: account.displayName,
@@ -45,6 +52,7 @@ export class MeController {
       mfa_enabled: account.mfaEnabled,
       // The caller's own active roles only, in declaration order (FR-AUTH-07).
       roles: await this.identity.listRoles(account.id),
+      affiliations: affiliations.map(affiliationPayload),
       student_profile: studentProfile ? studentProfilePayload(studentProfile) : null,
       mentor_profile: mentorProfile ? mentorProfilePayload(mentorProfile) : null,
     };

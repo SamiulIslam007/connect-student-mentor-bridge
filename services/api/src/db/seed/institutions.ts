@@ -23,7 +23,8 @@ export const INSTITUTION_SEED: readonly InstitutionSeed[] = [
     name: "Illustrative University",
     kind: "UNIVERSITY",
     countryCode: "BD",
-    domains: ["illustrative-university.example"],
+    // `example.edu.bd` is a documentation placeholder (D-57), not a partnership.
+    domains: ["illustrative-university.example", "example.edu.bd"],
   },
   {
     name: "Illustrative Training Institute",

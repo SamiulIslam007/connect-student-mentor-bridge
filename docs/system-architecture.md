@@ -583,7 +583,7 @@ The ADR log lives in `architecture-decisions.md`. All entries are **Proposed** u
 | ADR | Decision | Alternatives | Reversibility |
 |---|---|---|---|
 | 001 | Modular monolith in TypeScript (NestJS) | Microservices; Next.js-only full stack | Moderate |
-| 002 | PostgreSQL with one ORM (Prisma default; the ORM choice is superseded by 018) | Drizzle; a document database | Hard (data) |
+| 002 | PostgreSQL with one ORM (Drizzle ORM; 018 records the ORM change) | A document database | Hard (data) |
 | 003 | Embedded auth library behind `IdentityService` | Keycloak; Auth0; Clerk | Easy if the seam is honored |
 | 004 | Containerized PaaS now, AWS later | Heroku; AWS from day one | Easy if Dockerized |
 | 005 | PWA first, Flutter later | Flutter in Phase 1 | Easy |

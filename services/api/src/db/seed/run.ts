@@ -1,5 +1,9 @@
 import { createDatabaseConnection } from "../database.js";
 import { resolveDatabaseUrl } from "../database-url.js";
+import {
+  AFFILIATION_ATTESTATIONS,
+  seedAffiliationAttestations,
+} from "./affiliations.js";
 import { INSTITUTION_SEED, seedInstitutions } from "./institutions.js";
 
 async function main(): Promise<void> {
@@ -15,6 +19,18 @@ async function main(): Promise<void> {
         inserted_domains: result.inserted.domains,
       }),
     );
+
+    const attestations = await seedAffiliationAttestations(
+      connection.db,
+      AFFILIATION_ATTESTATIONS,
+    );
+    console.log(
+      JSON.stringify({
+        event: "seed.affiliations",
+        granted: attestations.granted,
+        skipped: attestations.skipped,
+      }),
+    );
   } finally {
     await connection.pool.end();
   }
@@ -22,7 +38,7 @@ async function main(): Promise<void> {
 
 main().catch((error: unknown) => {
   console.error(
-    JSON.stringify({ event: "seed.institutions_failed", message: error instanceof Error ? error.message : "unknown error" }),
+    JSON.stringify({ event: "seed.failed", message: error instanceof Error ? error.message : "unknown error" }),
   );
   process.exit(1);
 });

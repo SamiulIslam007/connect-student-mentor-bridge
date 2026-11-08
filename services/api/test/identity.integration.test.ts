@@ -12,6 +12,8 @@ import { BetterAuthIdentityService } from "../src/identity/better-auth-identity.
 import { AuthController } from "../src/identity/auth.controller.js";
 import { IDENTITY_SERVICE } from "../src/identity/identity.tokens.js";
 import { MeController } from "../src/me/me.controller.js";
+import { AFFILIATIONS_SERVICE } from "../src/affiliations/affiliations.tokens.js";
+import { DrizzleAffiliationsService } from "../src/affiliations/drizzle-affiliations.service.js";
 import { DrizzleProfilesService } from "../src/profiles/drizzle-profiles.service.js";
 import { PROFILES_SERVICE } from "../src/profiles/profiles.tokens.js";
 import { createDatabaseConnection, type DatabaseConnection } from "../src/db/database.js";
@@ -84,6 +86,7 @@ before(async () => {
     controllers: [AuthController, MeController],
     providers: [
       { provide: IDENTITY_SERVICE, useValue: service },
+      { provide: AFFILIATIONS_SERVICE, useValue: new DrizzleAffiliationsService(connection.db) },
       { provide: PROFILES_SERVICE, useValue: new DrizzleProfilesService(connection.db) },
     ],
   })
@@ -710,6 +713,7 @@ test("GET /v1/me returns the account record and the caller's own (null) profiles
   const body = response.body ?? {};
   assert.deepEqual(Object.keys(body).sort(), [
     "account_status",
+    "affiliations",
     "display_name",
     "email",
     "email_verified",
@@ -726,6 +730,7 @@ test("GET /v1/me returns the account record and the caller's own (null) profiles
   assert.equal(body.timezone, "Asia/Dhaka");
   assert.equal(body.mfa_enabled, false, "no factor is enrolled at registration");
   assert.deepEqual(body.roles, ["STUDENT"], "registration grants the default role");
+  assert.deepEqual(body.affiliations, [], "no affiliation is claimed at registration");
   assert.equal(body.student_profile, null, "no profile exists until one is saved");
   assert.equal(body.mentor_profile, null, "no profile exists until one is saved");
   // The sign-in response is unchanged: `AccountSummary` gained no properties.

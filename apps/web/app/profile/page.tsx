@@ -18,6 +18,8 @@ interface StudentProfile {
 
 interface MentorProfile {
   access_mode?: string;
+  status?: string;
+  onboarding_status?: string;
   headline: string;
   bio: string;
   expertise_summary: string;
@@ -33,6 +35,21 @@ interface MeResponse {
   student_profile: StudentProfile | null;
   mentor_profile: MentorProfile | null;
   roles?: string[];
+  affiliations?: Affiliation[];
+}
+
+interface Affiliation {
+  id: string;
+  institution: { id: string; name: string | null } | null;
+  kind: string;
+  level: string;
+  method: string;
+  status: string;
+  department: string | null;
+  program: string | null;
+  batch_year: number | null;
+  verified_at: string | null;
+  revoked_at: string | null;
 }
 
 interface AvailabilityWindow {
@@ -131,6 +148,13 @@ export default function ProfilePage() {
   const [accessMode, setAccessMode] = useState("OPEN");
   const [accessStatus, setAccessStatus] = useState<string | null>(null);
 
+  const [affiliations, setAffiliations] = useState<Affiliation[]>([]);
+  const [affiliationKind, setAffiliationKind] = useState("STUDENT");
+  const [affiliationDepartment, setAffiliationDepartment] = useState("");
+  const [affiliationProgram, setAffiliationProgram] = useState("");
+  const [affiliationBatchYear, setAffiliationBatchYear] = useState("");
+  const [affiliationStatus, setAffiliationStatus] = useState<string | null>(null);
+
   const [studentGoals, setStudentGoals] = useState("");
   const [studentPrimary, setStudentPrimary] = useState("");
   const [studentInterest1, setStudentInterest1] = useState("");
@@ -147,6 +171,8 @@ export default function ProfilePage() {
   const [mentorLanguages, setMentorLanguages] = useState("");
   const [mentorCapacity, setMentorCapacity] = useState("1");
   const [mentorStatus, setMentorStatus] = useState<string | null>(null);
+  const [mentorProfileStatus, setMentorProfileStatus] = useState<string | null>(null);
+  const [mentorOnboarding, setMentorOnboarding] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -172,6 +198,7 @@ export default function ProfilePage() {
 
         const me = (await meResponse.json()) as MeResponse;
         setMentorRole((me.roles ?? []).includes("MENTOR"));
+        setAffiliations(me.affiliations ?? []);
         const zone = me.timezone ?? "Asia/Dhaka";
         setStudentZone(zone);
         setMentorZone(zone);
@@ -208,6 +235,8 @@ export default function ProfilePage() {
           setMentorAdditional(me.mentor_profile.fields.map((field) => field.name).join("\n"));
           setMentorLanguages(me.mentor_profile.languages.join(", "));
           setMentorCapacity(String(me.mentor_profile.weekly_capacity));
+          setMentorProfileStatus(me.mentor_profile.status ?? null);
+          setMentorOnboarding(me.mentor_profile.onboarding_status ?? null);
         }
 
         if (fieldsResponse.ok) {
@@ -279,13 +308,20 @@ export default function ProfilePage() {
           ...(accessMode === "PAUSED" ? {} : { access_mode: accessMode }),
         }),
       });
-      const payload = (await response.json().catch(() => ({}))) as Problem;
+      const payload = (await response.json().catch(() => ({}))) as Problem & {
+        status?: string;
+        onboarding_status?: string;
+      };
       // A stale page can still post without the role; recover through the opt-in
       // instead of showing a dead form (design D8).
       if (response.status === 403 && payload.code === "ROLE_REQUIRED") {
         setMentorRole(false);
         setMentorStatus(strings.profile.mentorRoleRequired);
         return;
+      }
+      if (response.ok) {
+        setMentorProfileStatus(payload.status ?? mentorProfileStatus);
+        setMentorOnboarding(payload.onboarding_status ?? mentorOnboarding);
       }
       setMentorStatus(response.ok ? strings.profile.mentorSaved : savedMessage(false, payload));
     } catch (error) {
@@ -352,6 +388,51 @@ export default function ProfilePage() {
     }
   }
 
+  async function claimAffiliation(event: React.FormEvent): Promise<void> {
+    event.preventDefault();
+    setAffiliationStatus(null);
+    try {
+      const response = await fetch("/api/me/affiliations", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          kind: affiliationKind,
+          department: affiliationDepartment,
+          program: affiliationProgram,
+          batch_year: affiliationBatchYear === "" ? undefined : Number(affiliationBatchYear),
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as Problem & {
+        affiliation?: { status?: string };
+      };
+      if (!response.ok) {
+        setAffiliationStatus(
+          payload.code === "AFFILIATION_INSTITUTION_MISMATCH"
+            ? strings.profile.affiliationDomainMismatch
+            : typeof payload.detail === "string"
+              ? payload.detail
+              : strings.profile.affiliationError,
+        );
+        return;
+      }
+
+      // Read the list back: a repeat claim returns the existing row unchanged.
+      const meResponse = await fetch("/api/me");
+      if (meResponse.ok) {
+        const me = (await meResponse.json()) as MeResponse;
+        setAffiliations(me.affiliations ?? []);
+      }
+      setAffiliationStatus(
+        payload.affiliation?.status === "verified"
+          ? strings.profile.affiliationClaimed
+          : strings.profile.affiliationPending,
+      );
+    } catch (error) {
+      logFailure("web.affiliation_claim_failed", error);
+      setAffiliationStatus(strings.profile.affiliationError);
+    }
+  }
+
   async function becomeMentor(): Promise<void> {
     setMentorStatus(null);
     try {
@@ -383,6 +464,65 @@ export default function ProfilePage() {
 
       {signedOut ? null : (
         <>
+          <section>
+            <h2>{strings.profile.affiliationTitle}</h2>
+            <p>{strings.profile.affiliationIntro}</p>
+            {affiliations.length === 0 ? (
+              <p>{strings.profile.affiliationNone}</p>
+            ) : (
+              <ul>
+                {affiliations.map((affiliation) => (
+                  <li key={affiliation.id}>
+                    {affiliation.institution?.name ?? "—"} ·{" "}
+                    {strings.profile.affiliationLevel} {affiliation.level} ·{" "}
+                    {strings.profile.affiliationStatus} {affiliation.status}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <form onSubmit={claimAffiliation}>
+              <label>
+                {strings.profile.affiliationKind}
+                <select
+                  value={affiliationKind}
+                  onChange={(event) => setAffiliationKind(event.target.value)}
+                >
+                  <option value="STUDENT">{strings.profile.affiliationStudent}</option>
+                  <option value="ALUMNUS">{strings.profile.affiliationAlumnus}</option>
+                  <option value="FACULTY_STAFF">{strings.profile.affiliationFacultyStaff}</option>
+                  <option value="EMPLOYEE">{strings.profile.affiliationEmployee}</option>
+                </select>
+              </label>
+              <label>
+                {strings.profile.affiliationDepartment}
+                <input
+                  value={affiliationDepartment}
+                  onChange={(event) => setAffiliationDepartment(event.target.value)}
+                />
+              </label>
+              <label>
+                {strings.profile.affiliationProgram}
+                <input
+                  value={affiliationProgram}
+                  onChange={(event) => setAffiliationProgram(event.target.value)}
+                />
+              </label>
+              <label>
+                {strings.profile.affiliationBatchYear}
+                <input
+                  type="number"
+                  min={1900}
+                  max={2200}
+                  step={1}
+                  value={affiliationBatchYear}
+                  onChange={(event) => setAffiliationBatchYear(event.target.value)}
+                />
+              </label>
+              <button type="submit">{strings.profile.claimAffiliation}</button>
+            </form>
+            <p role="status">{affiliationStatus}</p>
+          </section>
+
           <section>
             <h2>{strings.profile.studentTitle}</h2>
             <form onSubmit={saveStudent}>
@@ -441,6 +581,15 @@ export default function ProfilePage() {
 
           <section>
             <h2>{strings.profile.mentorTitle}</h2>
+            {mentorProfileStatus ? (
+              <p>
+                {strings.profile.mentorStatusLabel}: {mentorProfileStatus} ·{" "}
+                {strings.profile.mentorOnboardingLabel}: {mentorOnboarding}
+              </p>
+            ) : null}
+            {mentorProfileStatus && mentorProfileStatus !== "ACTIVE" ? (
+              <p>{strings.profile.activationPending}</p>
+            ) : null}
             {mentorRole ? null : (
               <div>
                 <p>{strings.profile.becomeMentorIntro}</p>

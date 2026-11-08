@@ -3,6 +3,9 @@ import { after, before, beforeEach, test, type TestContext } from "node:test";
 
 import type { Role } from "@connect/domain";
 
+import { AffiliationsController } from "../src/affiliations/affiliations.controller.js";
+import { AFFILIATIONS_SERVICE } from "../src/affiliations/affiliations.tokens.js";
+import { DrizzleAffiliationsService } from "../src/affiliations/drizzle-affiliations.service.js";
 import { AvailabilityController } from "../src/availability/availability.controller.js";
 import { AVAILABILITY_SERVICE } from "../src/availability/availability.tokens.js";
 import { DrizzleAvailabilityService } from "../src/availability/drizzle-availability.service.js";
@@ -73,6 +76,7 @@ const MATRIX: Requirement[] = [
   { route: /^GET \/v1\/me\/availability$/, access: "signed-in" },
   { route: /^PUT \/v1\/me\/availability$/, access: "signed-in", mutating: true },
   { route: /^GET \/v1\/fields$/, access: "signed-in" },
+  { route: /^POST \/v1\/me\/affiliations$/, access: "signed-in", mutating: true },
 ];
 
 const PRINCIPAL_ROLES: Role[] = ["STUDENT", "MENTOR", "INSTITUTION_ADMIN", "PLATFORM_ADMIN"];
@@ -89,6 +93,7 @@ before(async () => {
       MeRolesController,
       ProfilesController,
       AvailabilityController,
+      AffiliationsController,
     ],
     requestIdRoutes: [
       AuthController,
@@ -96,10 +101,12 @@ before(async () => {
       MeRolesController,
       ProfilesController,
       AvailabilityController,
+      AffiliationsController,
     ],
     providers: (database) => [
       { provide: PROFILES_SERVICE, useValue: new DrizzleProfilesService(database) },
       { provide: AVAILABILITY_SERVICE, useValue: new DrizzleAvailabilityService(database) },
+      { provide: AFFILIATIONS_SERVICE, useValue: new DrizzleAffiliationsService(database) },
     ],
   });
   if (started.skipped) {

@@ -56,7 +56,7 @@ The project follows an **Agile** software development life cycle (ADR-017). ADRs
 | ADR | Decision | Reversibility | Source of the decision |
 |---|---|---|---|
 | 001 | Modular monolith inside a monorepo (NestJS). Microservices later | Moderate | **Owner decision** (28 Oct 2026) |
-| 002 | PostgreSQL as the only system of record, with one ORM (Prisma default; the ORM choice is superseded by 018) | Hard | Recommendation |
+| 002 | PostgreSQL as the only system of record, with one ORM (Drizzle ORM; ADR-018 changed the ORM) | Hard | Recommendation |
 | 003 | Embedded auth library behind an `IdentityService` interface | Easy if the seam is honored | Recommendation |
 | 004 | Containerized PaaS now, AWS later (serverless only when triggered) | Easy if Dockerized | **Owner decision** (hosting path) |
 | 005 | Installable web app (PWA) first, Flutter later | Easy | Recommendation (accepted 16 Oct) |
@@ -112,12 +112,12 @@ The project follows an **Agile** software development life cycle (ADR-017). ADRs
 ### ADR-002: PostgreSQL with one ORM
 
 - **Context:** The product's value is an auditable record of outcomes and reputation (README 10.1).
-- **Options:** PostgreSQL with Prisma; PostgreSQL with Drizzle; a document database.
-- **Decision:** PostgreSQL (managed, point-in-time recovery on) is the single system of record. **Prisma is the ORM and migration tool** (decided by the owner on 2026-10-29; open decision O-1 is closed). Only the NestJS application owns migrations.
-- **Reasons:** Relational integrity suits the ledger and multi-tenant data. Mature migrations and strong agent familiarity with Prisma. Supports vector search later if ever needed.
+- **Options:** PostgreSQL with one ORM; a document database; several stores.
+- **Decision:** PostgreSQL (managed, point-in-time recovery on) is the single system of record. **Drizzle ORM with `drizzle-kit` is the ORM and migration tool** (the owner changed the ORM on 2026-10-30 in ADR-018; open decision O-1 is closed). Only the NestJS application owns migrations.
+- **Reasons:** Relational integrity suits the ledger and multi-tenant data. Schema declared in TypeScript, migrations generated and reviewed, and hand-written SQL allowed inside the same migration for triggers, role grants, and ledger immutability. Supports vector search later if ever needed.
 - **Consequences:** Schema changes go through reviewed migrations only. Business-critical constraints (unique keys, foreign keys, check constraints) live in the database, not only in code.
 - **Reversibility:** Hard (data).
-- **Revisit trigger:** A measured query or migration limitation Prisma cannot meet; read replicas or partitioning needed.
+- **Revisit trigger:** A measured query or migration limitation Drizzle or `drizzle-kit` cannot meet; read replicas or partitioning needed.
 - **Status:** **Superseded by ADR-018 (ORM changed to Drizzle ORM, 2026-10-30).** The database decision above still stands; only the ORM and migration tool changed. **Date / Owner:** 2026-10-28 / Owner.
 
 ### ADR-003: Embedded auth library (`better-auth`) behind `IdentityService`

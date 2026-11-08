@@ -28,6 +28,8 @@ const PROBLEMS: Record<IdentityErrorCode, ProblemMapping> = {
   MFA_REQUIRED: { status: 403, code: "MFA_REQUIRED", title: "This action requires an enrolled second factor" },
   PROVIDER_UNAVAILABLE: { status: 503, code: "PROVIDER_UNAVAILABLE", title: "This sign-in provider is not configured" },
   SESSION_NOT_FOUND: { status: 404, code: "NOT_FOUND", title: "Not found" },
+  AFFILIATION_EMAIL_UNVERIFIED: { status: 422, code: "AFFILIATION_EMAIL_UNVERIFIED", title: "Confirm your email address before claiming an affiliation" },
+  AFFILIATION_INSTITUTION_MISMATCH: { status: 422, code: "AFFILIATION_INSTITUTION_MISMATCH", title: "No registered institution matches the claim" },
 };
 
 const PROBLEM_BASE = "https://docs.connect.example/problems/";

@@ -143,14 +143,15 @@ Affiliation verification (is this person who they say and where they say) is sep
 | 2 | Employer check | Employer email verification for industry mentors, optional professional profile link | Adds a visible badge. Does not claim every outcome was audited (README 5.5) |
 
 - Students are affiliated the same way where possible (institutional email or attestation). **Owner decision: students get Level 1 through institution attestation**, so a student with no institutional email is still matched to their institution and counted in aggregates. This closes AUTH-O3.
-- The institution admin approves or rejects affiliation for **their own institution** only. The platform admin can override and every override is audited.
+- In this release the pilot's Level 1 attestation is a **checked-in seed** (`services/api/src/db/seed/affiliations.ts`, D-56): named accounts get `VERIFIED` / `ADMIN_ATTESTATION` rows with a stated reason and one audit entry each. There is **no** institution-admin approval route or page yet; those rows are deferred to the future admin surface (DEBT-19). A self-service claim whose domain is not registered stays `PENDING` until that surface exists.
+- The platform admin can override and every override is audited (future admin surface; not built in this release).
 
 ### 7.1 Mentor onboarding progress and operating status
 
 Two separate enums (never one mixed status):
 
 - **Onboarding progress** (`mentor_onboarding_status`): `applied` -> `email_verified` -> `affiliation_verified` -> (`employer_checked`). This records verification only.
-- **Operating status** (`mentor_status`): `draft`, `pending`, `active`, `suspended`, `removed`. A mentor becomes `active` when onboarding is complete (Level 1, MFA, agreements); `suspended` and `active` toggle by sanction; `removed` is final.
+- **Operating status** (`mentor_status`): `draft`, `pending`, `active`, `suspended`, `removed`. A mentor becomes `active` when the stored onboarding status reaches `affiliation_verified` **and** an enrolled second factor holds; `suspended` and `active` toggle by sanction; `removed` is final. **Built by #5:** the decision lives in one pure function and one `syncMentorActivation` call, invoked by the affiliation claim, the second-factor path, and the mentor-role grant. Agreements and orientation are **not** activation conditions yet (DEBT-18), so `orientation_completed_at` and the agreement consents are never written.
 
 Only `active` mentors may receive requests. A `suspended` mentor receives no new requests; existing mentorships follow the suspension rules in the reputation and verification policy.
 
