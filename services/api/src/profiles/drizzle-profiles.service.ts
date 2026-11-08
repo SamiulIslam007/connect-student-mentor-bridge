@@ -11,6 +11,7 @@ import {
 } from "@connect/domain";
 
 import { DATABASE } from "../db/database.module.js";
+import { liveMentorshipCount } from "../mentorships/drizzle-mentorship.service.js";
 import type { Database } from "../db/database.js";
 import {
   fields,
@@ -231,19 +232,41 @@ export class DrizzleProfilesService implements ProfilesService {
     userId,
     accessMode,
   }: SetMentorAccessModeInput): Promise<MentorProfileRecord> {
-    // No capacity check here on purpose: `CAPACITY_BELOW_ACTIVE` needs
-    // mentorships, which `requests-and-capacity` (#7) introduces and adds here.
-    const updated = await this.db
-      .update(mentorProfiles)
-      .set({ accessMode, updatedAt: new Date() })
-      .where(eq(mentorProfiles.userId, userId))
-      .returning({ id: mentorProfiles.id });
-    if (updated.length === 0) {
-      throw new IdentityError(
-        "VALIDATION_ERROR",
-        "a mentor profile is required before the access mode can change",
-      );
-    }
+    await this.db.transaction(async (tx) => {
+      // The row lock serializes a resume against a concurrent acceptance.
+      const [current] = await tx
+        .select({
+          id: mentorProfiles.id,
+          accessMode: mentorProfiles.accessMode,
+          weeklyCapacity: mentorProfiles.weeklyCapacity,
+        })
+        .from(mentorProfiles)
+        .where(eq(mentorProfiles.userId, userId))
+        .for("update")
+        .limit(1);
+      if (!current) {
+        throw new IdentityError(
+          "VALIDATION_ERROR",
+          "a mentor profile is required before the access mode can change",
+        );
+      }
+
+      // Pausing is never a capacity decision; resuming from PAUSED is (design D7).
+      if (current.accessMode === "PAUSED" && accessMode !== "PAUSED") {
+        const live = await liveMentorshipCount(tx, current.id);
+        if (live >= current.weeklyCapacity) {
+          throw new IdentityError(
+            "CAPACITY_BELOW_ACTIVE",
+            `resuming needs a free mentoring slot: ${live} live mentorships and a weekly capacity of ${current.weeklyCapacity}`,
+          );
+        }
+      }
+
+      await tx
+        .update(mentorProfiles)
+        .set({ accessMode, updatedAt: new Date() })
+        .where(eq(mentorProfiles.userId, userId));
+    });
 
     const { mentorProfile } = await this.readProfiles(userId);
     if (!mentorProfile) {

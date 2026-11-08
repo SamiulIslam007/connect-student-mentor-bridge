@@ -17,6 +17,7 @@ import {
   affiliations,
   mentorProfiles,
   mentorshipRequests,
+  mentorships,
   studentProfiles,
   users,
 } from "../db/schema/index.js";
@@ -111,6 +112,7 @@ const recordColumns = {
   reminderSentAt: mentorshipRequests.reminderSentAt,
   studentName: studentUser.name,
   mentorName: mentorUser.name,
+  mentorshipId: mentorships.id,
 };
 
 function recordOf(row: Record<string, unknown>): RequestRecord {
@@ -125,6 +127,7 @@ async function readRecord(executor: Executor, id: string): Promise<RequestRecord
     .innerJoin(studentUser, eq(studentUser.id, studentProfiles.userId))
     .innerJoin(mentorProfiles, eq(mentorProfiles.id, mentorshipRequests.mentorProfileId))
     .innerJoin(mentorUser, eq(mentorUser.id, mentorProfiles.userId))
+    .leftJoin(mentorships, eq(mentorships.requestId, mentorshipRequests.id))
     .where(eq(mentorshipRequests.id, id))
     .limit(1);
   return row ? recordOf(row) : null;
@@ -148,6 +151,8 @@ async function readParticipants(executor: Executor, id: string) {
       studentEmail: studentUser.email,
       mentorEmail: mentorUser.email,
       mentorProfileId: mentorshipRequests.mentorProfileId,
+      studentProfileId: mentorshipRequests.studentProfileId,
+      fieldId: mentorshipRequests.fieldId,
     })
     .from(mentorshipRequests)
     .innerJoin(studentProfiles, eq(studentProfiles.id, mentorshipRequests.studentProfileId))
@@ -372,6 +377,7 @@ export class DrizzleRequestsService implements RequestsService {
       .innerJoin(studentUser, eq(studentUser.id, studentProfiles.userId))
       .innerJoin(mentorProfiles, eq(mentorProfiles.id, mentorshipRequests.mentorProfileId))
       .innerJoin(mentorUser, eq(mentorUser.id, mentorProfiles.userId))
+      .leftJoin(mentorships, eq(mentorships.requestId, mentorshipRequests.id))
       .where(and(...filters))
       .orderBy(desc(mentorshipRequests.createdAt), desc(mentorshipRequests.id))
       .limit(pageSize + 1);
@@ -468,6 +474,19 @@ export class DrizzleRequestsService implements RequestsService {
         .returning({ id: mentorshipRequests.id });
       if (!updated) {
         throw new IdentityError("REQUEST_INVALID_STATE", "this request was already decided");
+      }
+
+      if (input.action === "accept") {
+        // Accepting creates the mentorship in the same transaction, so an
+        // ACCEPTED request always has one (design D1, closes DEBT-20).
+        await tx.insert(mentorships).values({
+          requestId: input.requestId,
+          studentProfileId: participants.studentProfileId,
+          mentorProfileId: participants.mentorProfileId,
+          fieldId: participants.fieldId,
+          status: "ACTIVE",
+          startedAt: now,
+        });
       }
 
       await enqueueOutboxEvent(tx, {

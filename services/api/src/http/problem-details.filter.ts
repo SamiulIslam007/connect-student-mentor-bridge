@@ -36,6 +36,9 @@ const PROBLEMS: Record<IdentityErrorCode, ProblemMapping> = {
   DUPLICATE_PENDING_REQUEST: { status: 409, code: "DUPLICATE_PENDING_REQUEST", title: "You already have a pending request with this mentor" },
   REQUEST_LIMIT_REACHED: { status: 409, code: "REQUEST_LIMIT_REACHED", title: "Too many pending requests" },
   REQUEST_INVALID_STATE: { status: 409, code: "REQUEST_INVALID_STATE", title: "This request cannot take that action now" },
+  MENTORSHIP_INVALID_STATE: { status: 409, code: "MENTORSHIP_INVALID_STATE", title: "This mentorship cannot take that action now" },
+  CAPACITY_BELOW_ACTIVE: { status: 409, code: "CAPACITY_BELOW_ACTIVE", title: "Resuming needs a free mentoring slot" },
+  OUTCOME_INVALID_STATE: { status: 409, code: "OUTCOME_INVALID_STATE", title: "This outcome cannot take that action now" },
 };
 
 const PROBLEM_BASE = "https://docs.connect.example/problems/";
