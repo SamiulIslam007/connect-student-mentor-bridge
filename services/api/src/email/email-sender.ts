@@ -5,7 +5,13 @@ export type EmailTemplate =
   | "request-received"
   | "request-decided"
   | "request-expired"
-  | "request-reminder";
+  | "request-reminder"
+  | "thread-message"
+  | "outcome-reported"
+  | "outcome-confirmed"
+  | "outcome-disputed"
+  | "outcome-reminder"
+  | "outcome-escalated";
 
 export interface EmailMessage {
   to: string;

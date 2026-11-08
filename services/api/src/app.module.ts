@@ -14,6 +14,8 @@ import { IdentityModule } from "./identity/identity.module.js";
 import { MeController } from "./me/me.controller.js";
 import { MentorshipsController, SessionsController } from "./mentorships/mentorships.controller.js";
 import { MentorshipsModule } from "./mentorships/mentorships.module.js";
+import { OutcomesController } from "./outcomes/outcomes.controller.js";
+import { OutcomesModule } from "./outcomes/outcomes.module.js";
 import { MeModule } from "./me/me.module.js";
 import { MeRolesController } from "./me/roles.controller.js";
 import { ProfilesController } from "./profiles/profiles.controller.js";
@@ -35,6 +37,7 @@ import { RequestsModule } from "./requests/requests.module.js";
     AffiliationsModule,
     RequestsModule,
     MentorshipsModule,
+    OutcomesModule,
   ],
   controllers: [HealthController],
   providers: [
@@ -57,6 +60,7 @@ export class AppModule implements NestModule {
         RequestsController,
         MentorshipsController,
         SessionsController,
+        OutcomesController,
       );
   }
 }
