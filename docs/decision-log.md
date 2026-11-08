@@ -401,3 +401,31 @@ date: 2026-10-29
 - Status: Decided
 - Affects: `docs/functional-requirements.md` (FR-PROF-01), `packages/contracts/openapi.yaml`, `docs/known-debt.md`
 
+
+### D-55: Mentor certificates are out of MVP scope
+- Date: 2026-11-08
+- Decision: The MVP issues no certificate artifact of any kind. No requirement, table, route, or field exists for certificates, and no change in `mvp-build-plan.md` §5 depends on one. Mentor recognition stays a product promise for after the pilot.
+- Reason: The certificate was never a requirement ID and had no owner in the build plan; carrying it would add a document generator and an institution signing path to a two-month pilot build.
+- Status: Decided
+- Affects: `docs/functional-requirements.md`, `docs/mvp-build-plan.md`, `docs/business-model-and-pricing.md`, `docs/assumptions-and-open-questions.md`
+
+### D-56: Institution attestation is a seeded row, not a surface
+- Date: 2026-11-08
+- Decision: Level 1 affiliation by attestation is delivered by extending the checked-in seed, which writes `affiliations` rows with method `ADMIN_ATTESTATION` and status `VERIFIED`. There is no admin route, no admin page, and no separate CLI tool for it in the MVP build; the admin dashboard is Sprint 7 work.
+- Reason: Attestation has to exist for the pilot partner, but an institution admin surface has no other consumer yet and would be built twice. A seed row is auditable by diff and reversible by re-running the seed.
+- Status: Decided
+- Affects: `docs/auth-and-access-control.md` §7, `docs/api-contracts.md` §5.2, `docs/data-model.md` §5.1, `docs/known-debt.md`
+
+### D-57: The pilot institution domain is a placeholder
+- Date: 2026-11-08
+- Decision: The seeded institution domains stay placeholder values (`example.edu.bd` and the existing illustrative entries). Nothing in the MVP accepts an operator-supplied domain: entering real domains arrives with the future admin dashboard.
+- Reason: The pilot partner is not contracted yet, so a real domain would be a guess recorded as data; the placeholder keeps the domain-match path testable end to end without claiming a partnership.
+- Status: Decided
+- Affects: `services/api/src/db/seed/institutions.ts`, `docs/local-setup.md`, `docs/data-model.md` §5.1
+
+### D-58: Discovery (#6) is deferred; outbox and requests follow affiliation
+- Date: 2026-11-08
+- Decision: Build order after Sprint 2 is `affiliation-and-mentor-onboarding` (#5) -> `outbox-and-job-runner` (6a) -> `requests-and-48h-flow` (#7). `matching-and-discovery` (#6) is deliberately skipped for now and keeps its place in the plan, unbuilt.
+- Reason: The 48-hour request flow is the product's spine and the outbox is its only reminder mechanism; discovery without a request flow cannot be demonstrated end to end.
+- Status: Decided
+- Affects: `docs/mvp-build-plan.md` §5 and §2, `docs/milestones-and-phases.md` §Current state
