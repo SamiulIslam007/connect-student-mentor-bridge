@@ -19,6 +19,8 @@ export type AuditAction =
   | "MFA_DISABLED"
   | "SESSION_REVOKED"
   | "ROLE_GRANTED"
+  | "AFFILIATION_GRANTED"
+  | "AFFILIATION_REVOKED"
   | "PROVIDER_SIGN_IN";
 
 export interface AuditEntry {
@@ -29,14 +31,18 @@ export interface AuditEntry {
   objectType: string;
   objectId?: string | null;
   requestId: string;
+  reason?: string;
   metadata?: Record<string, unknown>;
 }
+
+/** Anything that can run an insert: the pooled database or a transaction. */
+type AuditWriter = Pick<Database, "insert">;
 
 /**
  * Append-only writer. Metadata must never hold a password, hash, token, or raw
  * email address; callers pass ids and outcome labels only.
  */
-export async function appendAuditEntry(database: Database, entry: AuditEntry): Promise<void> {
+export async function appendAuditEntry(database: AuditWriter, entry: AuditEntry): Promise<void> {
   await database.insert(auditLogs).values({
     action: entry.action,
     actorUserId: entry.actorUserId ?? null,
@@ -44,6 +50,7 @@ export async function appendAuditEntry(database: Database, entry: AuditEntry): P
     objectType: entry.objectType,
     objectId: entry.objectId ?? null,
     requestId: entry.requestId,
+    reason: entry.reason ?? null,
     metadata: entry.metadata ?? {},
   });
 }

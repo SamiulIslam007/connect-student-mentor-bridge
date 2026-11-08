@@ -44,7 +44,7 @@ async function expectPermissionDenied(client: TestDatabase["client"], sql: strin
   }
 }
 
-test("the migrations create the seventeen tables and protect the ledger", async (context) => {
+test("the migrations create the eighteen tables and protect the ledger", async (context) => {
   const current = requireDatabase(context);
   if (!current) {
     return;
@@ -58,6 +58,7 @@ test("the migrations create the seventeen tables and protect the ledger", async 
     tables.rows.map((row) => row.table_name),
     [
       "accounts",
+      "affiliations",
       "audit_logs",
       "availability_windows",
       "consent_records",
@@ -166,6 +167,23 @@ test("the application role can use every profile table and nothing else", async 
       window.rows[0].id,
     ]);
     await client.query("DELETE FROM availability_windows WHERE id = $1", [window.rows[0].id]);
+
+    // `0009` grants the affiliation table.
+    const affiliation = await client.query<{ id: string }>(
+      "INSERT INTO affiliations (user_id, organization_name, kind, level, method, status) VALUES ('user-grants', 'Grants Org', 'EMPLOYEE', 'LEVEL_2', 'EMPLOYER_EMAIL', 'VERIFIED') RETURNING id",
+    );
+    await client.query("UPDATE affiliations SET status = 'REVOKED', revoked_at = now() WHERE id = $1", [
+      affiliation.rows[0].id,
+    ]);
+    assert.deepEqual(
+      (
+        await client.query<{ status: string }>("SELECT status FROM affiliations WHERE id = $1", [
+          affiliation.rows[0].id,
+        ])
+      ).rows,
+      [{ status: "REVOKED" }],
+    );
+    await client.query("DELETE FROM affiliations WHERE id = $1", [affiliation.rows[0].id]);
 
     const student = await client.query<{ id: string }>(
       "INSERT INTO student_profiles (user_id, goals, primary_field_id) VALUES ('user-grants', 'Goals', $1) RETURNING id",

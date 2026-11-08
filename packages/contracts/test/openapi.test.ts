@@ -186,6 +186,7 @@ test("MeResponse is standalone and both profile properties are nullable", () => 
   assert.equal(me.allOf, undefined, "AccountSummary declares additionalProperties false; allOf cannot extend it");
   assert.deepEqual(Object.keys(me.properties ?? {}).sort(), [
     "account_status",
+    "affiliations",
     "display_name",
     "email",
     "email_verified",

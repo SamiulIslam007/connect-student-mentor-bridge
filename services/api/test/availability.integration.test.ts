@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { after, before, beforeEach, test, type TestContext } from "node:test";
 
 import { AvailabilityController } from "../src/availability/availability.controller.js";
+import { AFFILIATIONS_SERVICE } from "../src/affiliations/affiliations.tokens.js";
+import { DrizzleAffiliationsService } from "../src/affiliations/drizzle-affiliations.service.js";
 import { AVAILABILITY_SERVICE } from "../src/availability/availability.tokens.js";
 import { DrizzleAvailabilityService } from "../src/availability/drizzle-availability.service.js";
 import { AuthController } from "../src/identity/auth.controller.js";
@@ -34,6 +36,7 @@ before(async () => {
     ],
     providers: (database) => [
       { provide: PROFILES_SERVICE, useValue: new DrizzleProfilesService(database) },
+      { provide: AFFILIATIONS_SERVICE, useValue: new DrizzleAffiliationsService(database) },
       { provide: AVAILABILITY_SERVICE, useValue: new DrizzleAvailabilityService(database) },
     ],
   });

@@ -187,7 +187,12 @@ export class DrizzleProfilesService implements ProfilesService {
             updatedAt: new Date(),
           },
         })
-        .returning({ id: mentorProfiles.id, accessMode: mentorProfiles.accessMode });
+        .returning({
+          id: mentorProfiles.id,
+          accessMode: mentorProfiles.accessMode,
+          status: mentorProfiles.status,
+          onboardingStatus: mentorProfiles.onboardingStatus,
+        });
       if (!profile) {
         throw new Error("the mentor profile upsert returned no row");
       }
@@ -213,6 +218,8 @@ export class DrizzleProfilesService implements ProfilesService {
         weeklyCapacity,
         // The stored mode, not the draft: an absent field leaves it alone.
         accessMode: profile.accessMode,
+        status: profile.status,
+        onboardingStatus: profile.onboardingStatus,
       };
     });
   }
@@ -295,6 +302,8 @@ export class DrizzleProfilesService implements ProfilesService {
         languages: mentorProfiles.languages,
         weeklyCapacity: mentorProfiles.weeklyCapacity,
         accessMode: mentorProfiles.accessMode,
+        status: mentorProfiles.status,
+        onboardingStatus: mentorProfiles.onboardingStatus,
         primaryFieldId: mentorProfiles.primaryFieldId,
         primaryFieldName: fields.name,
       })
@@ -314,6 +323,8 @@ export class DrizzleProfilesService implements ProfilesService {
           languages: mentor.languages,
           weeklyCapacity: mentor.weeklyCapacity,
           accessMode: mentor.accessMode,
+          status: mentor.status,
+          onboardingStatus: mentor.onboardingStatus,
         }
       : null;
 

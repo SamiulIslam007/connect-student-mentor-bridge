@@ -57,6 +57,7 @@ import { activatePendingAccount } from "./account-activation.js";
 import type { IdentityAuth } from "./better-auth.js";
 import { appendAuditEntry, type AuditEntry } from "./audit-log.js";
 import { runWithRequestId } from "./request-context.js";
+import { syncMentorActivation } from "../onboarding/mentor-activation.js";
 
 /** Version of the terms and privacy notice shown at registration (Proposed). */
 export const CONSENT_DOCUMENT_VERSION = "2026-11";
@@ -585,6 +586,13 @@ export class BetterAuthIdentityService implements IdentityService {
       });
     }
 
+    // Activation trigger 3 of 3 (design D3): the grant itself changes nothing,
+    // but a mentor profile that was waiting for Level 1 plus a factor may now
+    // hold both.
+    if (inserted.length > 0 && input.role === "MENTOR") {
+      await syncMentorActivation(this.database, input.userId);
+    }
+
     return this.listRoles(input.userId);
   }
 
@@ -683,6 +691,9 @@ export class BetterAuthIdentityService implements IdentityService {
       metadata: { method: "totp" },
     });
 
+    // Activation trigger 2 of 3 (design D3).
+    await syncMentorActivation(this.database, session.account.id);
+
     return { totpUri: enrollment.totpURI, backupCodes: enrollment.backupCodes };
   }
 
@@ -744,6 +755,9 @@ export class BetterAuthIdentityService implements IdentityService {
       metadata: { method: input.method ?? "totp" },
     });
 
+    // The factor becomes active at verification, not at enrollment (design D3).
+    await syncMentorActivation(this.database, account.id);
+
     return { sessionToken, account };
   }
 
@@ -779,6 +793,10 @@ export class BetterAuthIdentityService implements IdentityService {
       requestId: input.requestId,
       metadata: {},
     });
+
+    // Losing the factor returns an ACTIVE mentor to PENDING; the disable itself
+    // still succeeds and keeps `activated_at` (spec: second factor removed).
+    await syncMentorActivation(this.database, session.account.id);
 
     return { sessionToken };
   }

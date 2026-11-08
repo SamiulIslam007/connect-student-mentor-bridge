@@ -1,6 +1,8 @@
 import type {
   MentorAccessMode,
   MentorAccessModeChoice,
+  MentorOnboardingStatus,
+  MentorOperatingStatus,
   MentorProfileDraft,
   StudentProfileDraft,
 } from "@connect/domain";
@@ -28,6 +30,9 @@ export interface MentorProfileRecord {
   languages: string[];
   weeklyCapacity: number;
   accessMode: MentorAccessMode;
+  /** Operating status; #7 filters requestable mentors on it. */
+  status: MentorOperatingStatus;
+  onboardingStatus: MentorOnboardingStatus;
 }
 
 export interface OwnProfiles {
@@ -83,6 +88,8 @@ export function mentorProfilePayload(profile: MentorProfileRecord): Record<strin
     languages: profile.languages,
     weekly_capacity: profile.weeklyCapacity,
     access_mode: profile.accessMode,
+    status: profile.status,
+    onboarding_status: profile.onboardingStatus,
   };
 }
 

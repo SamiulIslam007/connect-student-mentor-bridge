@@ -7,6 +7,8 @@ import type { RequestWithId } from "../src/http/request-id.middleware.js";
 import { AuthController } from "../src/identity/auth.controller.js";
 import { MeController } from "../src/me/me.controller.js";
 import { MeRolesController } from "../src/me/roles.controller.js";
+import { AFFILIATIONS_SERVICE } from "../src/affiliations/affiliations.tokens.js";
+import { DrizzleAffiliationsService } from "../src/affiliations/drizzle-affiliations.service.js";
 import { DrizzleProfilesService } from "../src/profiles/drizzle-profiles.service.js";
 import { ProfilesController } from "../src/profiles/profiles.controller.js";
 import { PROFILES_SERVICE } from "../src/profiles/profiles.tokens.js";
@@ -29,6 +31,7 @@ before(async () => {
     requestIdRoutes: [AuthController, MeController, MeRolesController, ProfilesController],
     providers: (database) => [
       { provide: PROFILES_SERVICE, useValue: new DrizzleProfilesService(database) },
+      { provide: AFFILIATIONS_SERVICE, useValue: new DrizzleAffiliationsService(database) },
     ],
   });
   if (started.skipped) {

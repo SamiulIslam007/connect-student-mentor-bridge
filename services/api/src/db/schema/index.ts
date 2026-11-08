@@ -1,4 +1,5 @@
 export * from "./auth.js";
+export * from "./affiliations.js";
 export * from "./availability.js";
 export * from "./columns.js";
 export * from "./enums.js";

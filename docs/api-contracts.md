@@ -283,10 +283,13 @@ Roles: **S** Student, **M** Mentor, **IA** Institution Admin, **PA** Platform Ad
 
 | Method and path | Roles | Idem | Purpose |
 |---|---|---|---|
-| `POST /v1/me/affiliations` | S, M | yes | Claim affiliation with an institution (email domain check or request for attestation) |
-| `GET /v1/institutions/{id}/affiliations?status=pending` | IA (own), PA | no | Pending affiliation claims |
-| `POST /v1/institutions/{id}/affiliations/{aid}/approve` | IA (own), PA | yes | Attest Level 1 |
-| `POST /v1/institutions/{id}/affiliations/{aid}/reject` | IA (own), PA | yes | Reject, with reason |
+| `POST /v1/me/affiliations` | S, M | yes | Claim one institution affiliation. Body: `kind` (required), optional `institution_id`, `department`, `program`, `batch_year` |
+
+Rules: the level is decided by the **verified** account email's domain against the institution's `institution_domains`. A matching domain stores `level_1` / `verified` / `institutional_email`; anything else stores `level_0` / `pending` and grants nothing. When `institution_id` is absent, the institution registered to the email domain is used. A claim is idempotent per institution, and a claim for a different institution revokes the earlier verified row (`revoked_at` set). The subject is the session only; `user_id` and any identity document (`nid`, `passport_number`) in the body are ignored and never stored. Errors: `422 AFFILIATION_EMAIL_UNVERIFIED` (no verified address), `422 AFFILIATION_INSTITUTION_MISMATCH` (no such institution, or the email domain belongs to none).
+
+The institution-admin approve/reject rows (`GET /v1/institutions/{id}/affiliations`, `…/approve`, `…/reject`) are **deferred to the future admin surface** (D-56, DEBT-19). In this release a pending claim has no decision path and the pilot's Level 1 comes from the checked-in seed attestation.
+
+`GET /v1/me` reports the caller's own `affiliations`, and its mentor profile carries the operating `status` and `onboarding_status`.
 
 ### 5.3 Discovery
 
@@ -490,6 +493,8 @@ Default limits are configuration, not code (SEC-ABUSE-4). Endpoints with stricte
 | `FORBIDDEN` | 403 | Role or policy does not allow this |
 | `NOT_FOUND` | 404 | Not found or not visible |
 | `VALIDATION_FAILED` | 422 | Field errors in `errors` |
+| `AFFILIATION_EMAIL_UNVERIFIED` | 422 | A claim needs a verified email address |
+| `AFFILIATION_INSTITUTION_MISMATCH` | 422 | No registered institution matches the claim |
 | `UNDER_MINIMUM_AGE` | 422 | Under 18 at sign-up |
 | `EMAIL_NOT_VERIFIED` | 403 | Verification required for this action |
 | `ACCOUNT_SUSPENDED` | 403 | The account is suspended; every session was revoked |

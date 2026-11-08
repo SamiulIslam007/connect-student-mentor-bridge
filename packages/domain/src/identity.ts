@@ -209,7 +209,9 @@ export type IdentityErrorCode =
   | "ROLE_REQUIRED"
   | "MFA_REQUIRED"
   | "PROVIDER_UNAVAILABLE"
-  | "SESSION_NOT_FOUND";
+  | "SESSION_NOT_FOUND"
+  | "AFFILIATION_EMAIL_UNVERIFIED"
+  | "AFFILIATION_INSTITUTION_MISMATCH";
 
 /** A failure a feature module may map to a response, with no library detail. */
 export class IdentityError extends Error {
