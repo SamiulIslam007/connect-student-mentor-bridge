@@ -13,6 +13,7 @@ interface RequestRecord {
   created_at: string;
   expires_at: string;
   decision_note: string | null;
+  mentorship_id: string | null;
 }
 
 type Role = "sent" | "received";
@@ -161,6 +162,13 @@ export default function RequestsPage() {
                 {dateLabel(request.expires_at)}
               </p>
               {request.decision_note ? <p>{request.decision_note}</p> : null}
+              {request.status === "accepted" && request.mentorship_id ? (
+                <p>
+                  <a href={`/mentorship/${request.mentorship_id}`}>
+                    {strings.requests.openMentorship}
+                  </a>
+                </p>
+              ) : null}
               {request.status === "pending" && role === "received" ? (
                 <p>
                   <button type="button" disabled={busy === request.id} onClick={() => void act(request.id, "accept")}>
