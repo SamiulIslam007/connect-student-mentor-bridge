@@ -16,10 +16,10 @@ sources: [README.md, connect-research-report.md (Sections 5, 6, 7, 9, 10)]
 |---|---|
 | Updated | 2026-11-08 (update at every apply and every archive, `AGENTS.local.md` section 4) |
 | Phase | 1a - MVP build (about 8 sprints, 1 week each, 3 working days) |
-| Current sprint | **Sprint 2 closed; Sprint 3 starting.** 4a, `account-access-ui`, 4c, 4b, and #5 `affiliation-and-mentor-onboarding` are `DONE`; #6 discovery is deferred (D-58). Sprint 3 opens with 6a `outbox-and-job-runner`, then #7 `requests-and-48h-flow` |
-| Last archived change | `affiliation-and-mentor-onboarding` (2026-11-08) - `DONE`: `affiliations` with its four enums, checks, partial unique verified index and app-role grant (migration `0009`), `mentor_profiles.onboarding_status`/`activated_at`, `POST /v1/me/affiliations` with the verified-domain Level 1 rule and the supersede-revokes rule, one `syncMentorActivation` called from the claim, second-factor, and role-grant paths, `GET /v1/me` affiliations plus mentor status, the seeded attestation path, and the profile-page affiliation section. Admin approve/reject stays deferred (DEBT-19); agreements and orientation are not activation conditions yet (DEBT-18) |
-| In flight | None. Sprint 3 starts with `outbox-and-job-runner` (6a) |
-| Next change | `outbox-and-job-runner` (6a: `outbox_events`, pg-boss worker, queued email with retry), then `requests-and-48h-flow` (#7) |
+| Current sprint | **Sprint 3 in progress.** Sprint 2 closed. `outbox-and-job-runner` (6a) is `DONE`; 4a, `account-access-ui`, 4c, 4b, and #5 are done; #6 discovery is deferred (D-58). Next: #7 `requests-and-48h-flow` |
+| Last archived change | `outbox-and-job-runner` (2026-11-08) - `DONE`: `outbox_events` with `dedupe_key`/`failed_at`, its due-row index and app-role grant plus the `pgboss` schema grant (migration `0010`), `enqueueOutboxEvent` as the one side-effect write path, the SKIP LOCKED relay into pg-boss with singleton keys, the attempt budget and `failed_at` marker, the `EmailRequested` handler over the existing `EmailSender`, the Nest standalone `WorkerModule` with graceful shutdown, and the `outbox:test-event` script. Identity's own verification/reset mail keeps the direct send (DEBT-11 narrowed) |
+| In flight | None. Sprint 3 continues with `requests-and-48h-flow` (#7) |
+| Next change | `requests-and-48h-flow` (#7: structured requests, the 7-day capacity window, 48h expiry, 24h reminder) |
 | Open blockers | None |
 
 ## 1. Purpose and scope

@@ -86,6 +86,20 @@ The seed adds two illustrative institutions and, for the automatic Level 1 path,
 
 When they run on the host, `DATABASE_URL` must point at the published port (`localhost:55432`); inside a container, Compose builds the `postgres:5432` URL. Migrations are owned by the owner/script and are never applied through the read-only `postgresql` MCP.
 
+### Outbox test event
+
+The worker relays `outbox_events` rows into pg-boss and delivers `EmailRequested` events through the SMTP adapter. To see that path end to end:
+
+```bash
+pnpm --filter api outbox:test-event you@example.com
+```
+
+The command writes one `EmailRequested` row and prints its id. Within about five seconds (`OUTBOX_POLL_INTERVAL_MS`, default 5000) the worker enqueues it and delivers it; read the message at http://localhost:8025 (Mailpit). Running the command again with the same address writes nothing new: the dedupe key is `outbox-test:<address>`. Set `OUTBOX_MAX_ATTEMPTS` (default 5) to change the retry budget; a failing event shows an increasing `attempts` and `last_error` and, at the budget, a `failed_at` with one `outbox.event_failed` log line.
+
+```sql
+SELECT event_type, attempts, last_error, processed_at, failed_at FROM outbox_events ORDER BY created_at DESC;
+```
+
 The append-only grants create `connect_app` with `NOLOGIN`; local development connects as the database owner. A deployed environment creates a login role (for example `connect_login`), grants `connect_app` to it, and points the API and worker DSN at that login role. Never use the database owner for the app outside local development.
 
 Integration tests use a separate `connect_test` database. Create it once:
