@@ -18,11 +18,13 @@ import {
   mentorProfiles,
   studentFieldInterests,
   studentProfiles,
+  users,
 } from "../db/schema/index.js";
 import type {
   FieldPage,
   FieldSummary,
   ListFieldsInput,
+  MentorContext,
   MentorProfileRecord,
   OwnProfiles,
   ProfilesService,
@@ -248,6 +250,39 @@ export class DrizzleProfilesService implements ProfilesService {
       throw new Error("the mentor profile disappeared during the access-mode change");
     }
     return mentorProfile;
+  }
+
+  async readMentorContext(mentorProfileId: string): Promise<MentorContext | null> {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(mentorProfileId)) {
+      return null;
+    }
+    const [row] = await this.db
+      .select({
+        id: mentorProfiles.id,
+        displayName: users.name,
+        headline: mentorProfiles.headline,
+        accessMode: mentorProfiles.accessMode,
+        status: mentorProfiles.status,
+        primaryFieldId: mentorProfiles.primaryFieldId,
+        primaryFieldName: fields.name,
+      })
+      .from(mentorProfiles)
+      .innerJoin(users, eq(users.id, mentorProfiles.userId))
+      .innerJoin(fields, eq(fields.id, mentorProfiles.primaryFieldId))
+      .where(eq(mentorProfiles.id, mentorProfileId))
+      .limit(1);
+    if (!row || row.status !== "ACTIVE") {
+      // Draft and pending mentors are not requestable and stay invisible.
+      return null;
+    }
+    return {
+      id: row.id,
+      displayName: row.displayName,
+      headline: row.headline,
+      accessMode: row.accessMode,
+      status: row.status,
+      primaryField: fieldSummary(row.primaryFieldId, row.primaryFieldName),
+    };
   }
 
   async listFields({ limit, cursor }: ListFieldsInput): Promise<FieldPage> {

@@ -1,4 +1,11 @@
-export type EmailTemplate = "verify-email" | "reset-password" | "outbox-test";
+export type EmailTemplate =
+  | "verify-email"
+  | "reset-password"
+  | "outbox-test"
+  | "request-received"
+  | "request-decided"
+  | "request-expired"
+  | "request-reminder";
 
 export interface EmailMessage {
   to: string;

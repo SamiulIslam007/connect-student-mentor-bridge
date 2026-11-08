@@ -40,6 +40,16 @@ export interface OwnProfiles {
   mentorProfile: MentorProfileRecord | null;
 }
 
+/** The request form's read: a requestable mentor, never another account's data. */
+export interface MentorContext {
+  id: string;
+  displayName: string;
+  headline: string;
+  accessMode: MentorAccessMode;
+  status: MentorOperatingStatus;
+  primaryField: FieldSummary;
+}
+
 export interface SaveStudentProfileInput {
   userId: string;
   draft: StudentProfileDraft;
@@ -93,6 +103,18 @@ export function mentorProfilePayload(profile: MentorProfileRecord): Record<strin
   };
 }
 
+/** The request form's mentor read: no biography, no contact details. */
+export function mentorContextPayload(context: MentorContext): Record<string, unknown> {
+  return {
+    id: context.id,
+    display_name: context.displayName,
+    headline: context.headline,
+    access_mode: context.accessMode,
+    status: context.status,
+    primary_field: context.primaryField,
+  };
+}
+
 /**
  * The profile seam. Every method takes the acting user id, which the controller
  * derives from the session only, so no caller can address another user's profile.
@@ -104,4 +126,6 @@ export interface ProfilesService {
   readProfiles(userId: string): Promise<OwnProfiles>;
   /** Pause or resume without resaving the profile; idempotent. */
   setMentorAccessMode(input: SetMentorAccessModeInput): Promise<MentorProfileRecord>;
+  /** Null unless the profile exists and is ACTIVE (requestable). */
+  readMentorContext(mentorProfileId: string): Promise<MentorContext | null>;
 }

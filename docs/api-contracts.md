@@ -306,15 +306,16 @@ The Match Score is a **sort aid, never a predictor of success** (README 5.2). Th
 
 | Method and path | Roles | Idem | Purpose |
 |---|---|---|---|
-| `POST /v1/requests` | S | yes | Create a structured request. Required: `mentor_id`, `question`, `context_summary`, `target_outcome`, `expected_timeframe` |
-| `GET /v1/requests?role=sent\|received&status=&cursor=` | S, M | no | Own requests |
+| `POST /v1/requests` | S | yes | Create a structured request. Required: `mentor_id` (mentor profile id), `question`, `context_summary`, `target_outcome`, `expected_timeframe`; optional `interaction_type` (default `ASYNC_THREAD`), `application_note` |
+| `GET /v1/requests?role=sent\|received&status=&cursor=&limit=` | S, M | no | Own requests, keyset-paged |
 | `GET /v1/requests/{id}` | participant | no | One request |
-| `POST /v1/requests/{id}/accept` | M (addressee) | yes | Creates a `Mentorship` |
+| `POST /v1/requests/{id}/accept` | M (addressee) | yes | Records the decision; **no mentorship row is created in this release** (#8) |
 | `POST /v1/requests/{id}/decline` | M (addressee) | yes | Body: optional `reason` |
 | `POST /v1/requests/{id}/redirect` | M (addressee) | yes | Body: `alternative_mentor_ids` (1 to 3) and optional `note`. **Phase 1b** (not required for the MVP) |
 | `POST /v1/requests/{id}/withdraw` | S (sender) | yes | Only while `pending` |
+| `GET /v1/mentors/{id}` | signed-in | no | A requestable mentor's small shape for the request form (ACTIVE only; others `404`) |
 
-Rules and errors: mentor must be Level 1 or above (`MENTOR_NOT_VERIFIED`), not suspended, and have capacity (`MENTOR_AT_CAPACITY`). Duplicate pending requests to the same mentor are rejected (`DUPLICATE_PENDING_REQUEST`). Undecided requests expire at **48 hours** with a reminder at **24 hours** (owner decision).
+Rules and errors: the mentor must be `ACTIVE` with a verified Level 1 affiliation (`MENTOR_NOT_VERIFIED`, `MENTOR_UNAVAILABLE`), self-requests are `422`, and capacity is `pending + accepted decided within the last 7 days` against `weekly_capacity` (`MENTOR_AT_CAPACITY`, D-59). At most one pending request per pair (`DUPLICATE_PENDING_REQUEST`) and three pending per student (`REQUEST_LIMIT_REACHED`). An `APPLICATION_ONLY` mentor requires a non-empty `application_note` (`422`). A decision applies only while `PENDING` (`REQUEST_INVALID_STATE`); a non-participant reads `404`, a non-addressee decision is `403`. Undecided requests get a reminder at **24 hours** and expire at **48 hours** (owner decision); an accepted request's `mentorships` row and the capacity-on-resume check move to #8 (DEBT-20).
 
 #### Request state transitions
 
@@ -502,7 +503,9 @@ Default limits are configuration, not code (SEC-ABUSE-4). Endpoints with stricte
 | `PROVIDER_UNAVAILABLE` | 503 | This sign-in provider is not configured in this deployment |
 | `REAUTH_REQUIRED` | 403 | Recent re-authentication needed |
 | `MENTOR_NOT_VERIFIED` | 409 | Mentor is below affiliation Level 1 |
+| `MENTOR_UNAVAILABLE` | 409 | Mentor is paused or not operating |
 | `MENTOR_AT_CAPACITY` | 409 | Weekly capacity reached |
+| `REQUEST_LIMIT_REACHED` | 409 | The student has three pending requests |
 | `CAPACITY_BELOW_ACTIVE` | 422 | Cap lower than active mentorships |
 | `DUPLICATE_PENDING_REQUEST` | 409 | Already a pending request to this mentor |
 | `REQUEST_INVALID_STATE` | 409 | Request cannot take this action now |

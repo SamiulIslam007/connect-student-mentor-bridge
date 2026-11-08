@@ -16,10 +16,10 @@ sources: [README.md, connect-research-report.md (Sections 5, 6, 7, 9, 10)]
 |---|---|
 | Updated | 2026-11-08 (update at every apply and every archive, `AGENTS.local.md` section 4) |
 | Phase | 1a - MVP build (about 8 sprints, 1 week each, 3 working days) |
-| Current sprint | **Sprint 3 in progress.** Sprint 2 closed. `outbox-and-job-runner` (6a) is `DONE`; 4a, `account-access-ui`, 4c, 4b, and #5 are done; #6 discovery is deferred (D-58). Next: #7 `requests-and-48h-flow` |
-| Last archived change | `outbox-and-job-runner` (2026-11-08) - `DONE`: `outbox_events` with `dedupe_key`/`failed_at`, its due-row index and app-role grant plus the `pgboss` schema grant (migration `0010`), `enqueueOutboxEvent` as the one side-effect write path, the SKIP LOCKED relay into pg-boss with singleton keys, the attempt budget and `failed_at` marker, the `EmailRequested` handler over the existing `EmailSender`, the Nest standalone `WorkerModule` with graceful shutdown, and the `outbox:test-event` script. Identity's own verification/reset mail keeps the direct send (DEBT-11 narrowed) |
-| In flight | None. Sprint 3 continues with `requests-and-48h-flow` (#7) |
-| Next change | `requests-and-48h-flow` (#7: structured requests, the 7-day capacity window, 48h expiry, 24h reminder) |
+| Current sprint | **Sprint 3 closed.** `outbox-and-job-runner` (6a) and `requests-and-48h-flow` (#7) are `DONE`; #6 discovery remains deferred (D-58). Next: #8 `mentorship-thread-and-sessions` (a mentorship on acceptance, agreement, thread, sessions) |
+| Last archived change | `requests-and-48h-flow` (2026-11-08) - `DONE`: `mentorship_requests` with its enums, checks, one-pending-per-pair index and app-role grant (migration `0011`), `POST/GET /v1/requests` plus accept/decline/withdraw, the rolling 7-day capacity window under a mentor row lock (D-59), `APPLICATION_ONLY` note enforcement, the 5-minute reminder/expiry sweeper over outbox email events, the request form and the sent/received lists, and `GET /v1/mentors/{id}` for the form. Acceptance does not create a mentorship until #8 (DEBT-20) |
+| In flight | None. Sprint 3 is closed; #8 is the next planned change |
+| Next change | `mentorship-thread-and-sessions` (#8: mentorship on acceptance, the lightweight agreement, the thread, meeting link and held confirmations), then `outcomes-and-verification` (#9) |
 | Open blockers | None |
 
 ## 1. Purpose and scope

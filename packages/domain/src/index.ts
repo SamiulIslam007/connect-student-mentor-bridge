@@ -18,4 +18,5 @@ export * from "./identity.js";
 export * from "./mentor-onboarding.js";
 export * from "./password-policy.js";
 export * from "./profiles.js";
+export * from "./request.js";
 export * from "./visibility.js";

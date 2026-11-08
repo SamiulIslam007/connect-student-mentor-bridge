@@ -14,6 +14,11 @@ import {
 } from "./outbox-processor.js";
 import { relayOutboxBatch } from "./outbox-relay.js";
 import { PgBossOutboxQueue } from "./pg-boss-queue.js";
+import {
+  REQUEST_SWEEP_CRON,
+  REQUEST_SWEEP_QUEUE,
+  sweepRequests,
+} from "../../requests/request-sweeper.js";
 
 const log = (event: string, detail: Record<string, unknown> = {}): void => {
   console.log(JSON.stringify({ event, ...detail }));
@@ -48,6 +53,14 @@ export class OutboxWorker implements OnApplicationBootstrap, OnApplicationShutdo
     });
     await boss.start();
     await boss.createQueue(OUTBOX_QUEUE);
+    await boss.createQueue(REQUEST_SWEEP_QUEUE);
+    await boss.work(REQUEST_SWEEP_QUEUE, { batchSize: 1 }, async () => {
+      const result = await sweepRequests(this.database);
+      if (result.reminded > 0 || result.expired > 0) {
+        log("requests.swept", { reminded: result.reminded, expired: result.expired });
+      }
+    });
+    await boss.schedule(REQUEST_SWEEP_QUEUE, REQUEST_SWEEP_CRON);
     await boss.work(
       OUTBOX_QUEUE,
       { batchSize: 1, pollingIntervalSeconds: 2 },

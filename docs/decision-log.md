@@ -423,6 +423,13 @@ date: 2026-10-29
 - Status: Decided
 - Affects: `services/api/src/db/seed/institutions.ts`, `docs/local-setup.md`, `docs/data-model.md` §5.1
 
+### D-59: Capacity counts a rolling 7-day window
+- Date: 2026-11-08
+- Decision: `requests-and-48h-flow` (#7) counts a mentor's slots in use as `PENDING` requests plus requests accepted with `decided_at` inside the last 7 days. FR-REQ-06's "current week" is read as this rolling window rather than a calendar week.
+- Reason: A calendar week needs a timezone boundary nobody decided; a rolling 7 days expresses the same intent without ambiguity and is one predicate if it changes later.
+- Status: Decided
+- Affects: `docs/functional-requirements.md` FR-REQ-06, `docs/api-contracts.md` §5.4, `openspec/specs/mentorship/request-lifecycle`
+
 ### D-58: Discovery (#6) is deferred; outbox and requests follow affiliation
 - Date: 2026-11-08
 - Decision: Build order after Sprint 2 is `affiliation-and-mentor-onboarding` (#5) -> `outbox-and-job-runner` (6a) -> `requests-and-48h-flow` (#7). `matching-and-discovery` (#6) is deliberately skipped for now and keeps its place in the plan, unbuilt.

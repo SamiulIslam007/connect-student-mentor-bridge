@@ -90,6 +90,38 @@ export const mentorOnboardingStatus = pgEnum("mentor_onboarding_status", [
   "EMPLOYER_CHECKED",
 ]);
 
+/** Canonical request enums (docs/data-model.md §4.1). */
+export const requestStatus = pgEnum("request_status", [
+  "PENDING",
+  "ACCEPTED",
+  "DECLINED",
+  "REDIRECTED",
+  "EXPIRED",
+  "WITHDRAWN",
+]);
+
+export const interactionType = pgEnum("interaction_type", [
+  "ASYNC_THREAD",
+  "ONE_TO_ONE_SESSION",
+  "GROUP_OFFICE_HOURS",
+]);
+
+export const timeframeBucket = pgEnum("timeframe_bucket", [
+  "WITHIN_1_MONTH",
+  "ONE_TO_3_MONTHS",
+  "THREE_TO_6_MONTHS",
+  "OVER_6_MONTHS",
+]);
+
+/** Reserved: `target_outcome_type` is the only column that names it today. */
+export const outcomeType = pgEnum("outcome_type", [
+  "ADMISSION",
+  "INTERNSHIP",
+  "JOB_OFFER",
+  "SKILL_MILESTONE",
+  "INTERVIEW",
+]);
+
 /** Canonical role values (docs/data-model.md §4.1). `EMPLOYER` is reserved. */
 export const role = pgEnum("role", [
   "STUDENT",
