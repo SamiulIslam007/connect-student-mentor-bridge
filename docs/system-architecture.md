@@ -322,8 +322,9 @@ If the flag is off, a cap is hit, or the provider times out (15 seconds or less)
 ### 8.1 Outbox and workers
 
 - Every state change that has side effects writes an `outbox_events` row **in the same transaction**.
-- **pg-boss owns scheduling and retries.** The worker (or the outbox relay) enqueues each unprocessed outbox row as a pg-boss job and marks it processed after the handler succeeds, so there is one retry mechanism, not two. Handlers are idempotent (de-duplicated by event id and `dedupe_key`).
-- pg-boss creates its own `pgboss` schema. The migration step creates that schema and grants it to `app_rw`; without that grant the worker fails on first boot.
+- **pg-boss is the durable queue.** The worker relays each due outbox row as a pg-boss job and marks the row processed after the handler succeeds. Retry scheduling and the attempt budget live on the outbox row, so there is exactly one retry mechanism. Handlers are idempotent (de-duplicated by event id and `dedupe_key`).
+- pg-boss creates its own tables inside the `pgboss` schema. The migration (`0010`, `outbox-and-job-runner`) creates that schema and grants `USAGE, CREATE` to `connect_app`; without it the worker fails on first boot.
+- **Built by `outbox-and-job-runner` (6a):** the worker is a Nest standalone context (`WorkerModule`) with one relay timer that claims due rows with `FOR UPDATE SKIP LOCKED` and enqueues one job per row (`singletonKey` = event id), and one pg-boss worker that runs the registered handler and marks the row processed. **The outbox row owns the retry schedule** (exponential backoff from 30 s, `OUTBOX_MAX_ATTEMPTS` default 5, a 60 s lease while in flight), so the queue never retries a job and one event is never enqueued twice; the fifth failure sets `failed_at`, logs one structured line, and stops retrying. The identity library's verification and reset mail keep their direct path (`DEBT-11` narrowed).
 - Failures retry with exponential backoff. After a configured number of attempts, an event is marked failed and an alert fires.
 - **Job library (decided, provisional):** `pg-boss`, the simplest Postgres-backed option. Recorded as **provisional** in ADR-006; revisit only if it blocks a requirement. No Redis.
 
@@ -394,7 +395,7 @@ Core Phase 1 endpoints are listed in the research report (about 12 groups) and d
 - Schema as in [data-model.md](data-model.md). The NestJS API is the **sole owner of migrations**.
 - **ORM:** **Drizzle ORM** (decided, ADR-018, superseding the ORM choice in ADR-002). The schema is declared in TypeScript inside the API service; `drizzle-kit` generates the SQL migration files and the `migrate` container applies them. Triggers, role grants, and ledger immutability are hand-written SQL inside those migrations. The database choice is **hard to reverse**; the ORM is moderate.
 - **Migrations** are forward-only and written to be backward compatible for one release (expand, then contract) so that rolling back the application image is always safe.
-- **Roles:** `migrator`, `app_rw` (no UPDATE or DELETE on ledger tables), `app_ro` (views only), `backup`. Ledger immutability is enforced by the database, not only by code (NFR-INT-01).
+- **Roles:** `migrator`, `connect_app` (no UPDATE or DELETE on ledger tables), `app_ro` (views only), `backup`. Ledger immutability is enforced by the database, not only by code (NFR-INT-01).
 - **Multi-tenancy:** `institution_id` scoping in application code, roles, and suppression views. Row-level security is an ADR candidate.
 
 ### 11.2 Object storage

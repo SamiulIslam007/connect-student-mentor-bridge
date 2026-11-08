@@ -552,7 +552,7 @@ Shape (Proposed, policy governs): `points = difficulty_weight x tier_multiplier 
 
 ### 5.8 Platform plumbing
 
-**`outbox_events`**: `aggregate_type`, `aggregate_id`, `event_type` (for example `OutcomeConfirmed`, `RequestAccepted`), `payload jsonb`, `available_at`, `processed_at?`, `attempts`, `last_error?`.
+**`outbox_events`** (**built** by `outbox-and-job-runner`, 6a; migration `0010`): `id uuid PK`, `aggregate_type text`, `aggregate_id text`, `event_type text` (for example `OutcomeConfirmed`, `RequestAccepted`), `payload jsonb`, `dedupe_key text` unique, `available_at timestamptz` (default now), `processed_at timestamptz?`, `attempts integer` (check `>= 0`), `failed_at timestamptz?`, `last_error text?`, timestamps. Index on (`processed_at`, `available_at`) for the due-row poll; a duplicate `dedupe_key` inserts nothing. The row is kept after a permanent failure.
 **`notifications`**: `user_id`, `template_key`, `channel` (`EMAIL`, `IN_APP`), `payload jsonb` (ids only), `status` (`QUEUED`, `SENT`, `FAILED`, `SUPPRESSED`), `dedupe_key text` unique, `provider_message_id?`, `attempts`, `send_after`, `sent_at?`, `read_at?`.
 **`notification_preferences`**: (`user_id`, `category`) key, `email_enabled`, `in_app_enabled`. Security and dispute categories cannot be disabled.
 **`email_suppressions`**: `email citext` unique, `reason` (`HARD_BOUNCE`, `COMPLAINT`).
@@ -602,7 +602,7 @@ Shape (Proposed, policy governs): `points = difficulty_weight x tier_multiplier 
 | Role | Rights |
 |---|---|
 | `migrator` | DDL only; used by the migration job |
-| `app_rw` | DML for the API and worker; **no UPDATE or DELETE on ledger tables**. Named `connect_app` in the first migration; local development connects as the database owner, so the grants are asserted in tests with `SET ROLE connect_app` |
+| `connect_app` | DML for the API and worker; **no UPDATE or DELETE on ledger tables**. Local development connects as the database owner, so the grants are asserted in tests with `SET ROLE connect_app` |
 | `app_ro` | Read on views only; for dashboards and reporting |
 | `backup` | Read for backups |
 

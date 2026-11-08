@@ -44,7 +44,7 @@ async function expectPermissionDenied(client: TestDatabase["client"], sql: strin
   }
 }
 
-test("the migrations create the eighteen tables and protect the ledger", async (context) => {
+test("the migrations create the nineteen tables and protect the ledger", async (context) => {
   const current = requireDatabase(context);
   if (!current) {
     return;
@@ -67,6 +67,7 @@ test("the migrations create the eighteen tables and protect the ledger", async (
       "institutions",
       "mentor_fields",
       "mentor_profiles",
+      "outbox_events",
       "role_assignments",
       "sessions",
       "signup_blocks",
@@ -167,6 +168,17 @@ test("the application role can use every profile table and nothing else", async 
       window.rows[0].id,
     ]);
     await client.query("DELETE FROM availability_windows WHERE id = $1", [window.rows[0].id]);
+
+    // `0010` grants the outbox table and the queue schema the worker creates in.
+    const outbox = await client.query<{ id: string }>(
+      "INSERT INTO outbox_events (aggregate_type, aggregate_id, event_type, payload, dedupe_key) VALUES ('TEST', 'aggregate-1', 'EmailRequested', '{}'::jsonb, 'probe:1') RETURNING id",
+    );
+    await client.query("UPDATE outbox_events SET attempts = attempts + 1 WHERE id = $1", [
+      outbox.rows[0].id,
+    ]);
+    await client.query("DELETE FROM outbox_events WHERE id = $1", [outbox.rows[0].id]);
+    await client.query("CREATE TABLE pgboss.grants_probe (id integer)");
+    await client.query("DROP TABLE pgboss.grants_probe");
 
     // `0009` grants the affiliation table.
     const affiliation = await client.query<{ id: string }>(

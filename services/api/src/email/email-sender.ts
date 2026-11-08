@@ -1,4 +1,4 @@
-export type EmailTemplate = "verify-email" | "reset-password";
+export type EmailTemplate = "verify-email" | "reset-password" | "outbox-test";
 
 export interface EmailMessage {
   to: string;
