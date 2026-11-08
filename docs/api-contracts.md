@@ -350,19 +350,23 @@ Built by `mentorship-thread-and-sessions` (#8). Every row below is a session plu
 
 ### 5.6 Outcomes and verification
 
+Built by `outcomes-and-verification` (#9). Every route is a session plus a participant predicate; a non-participant gets `404`.
+
 | Method and path | Roles | Idem | Purpose |
 |---|---|---|---|
-| `POST /v1/outcomes` | S | yes | Report an outcome. Body: `mentorship_id`, `outcome_type`, `description`, `contribution_level`. Creates `pending_confirmation`; notifies the mentor |
-| `GET /v1/outcomes/{id}` | participant, PA | no | One outcome |
-| `GET /v1/outcomes?mentorship_id=&status=` | S, M | no | Own outcomes |
-| `POST /v1/outcomes/{id}/evidence` | S (own) | yes | Start an evidence upload; returns a short-lived signed upload URL and `evidence_id` |
-| `POST /v1/outcomes/{id}/evidence/{evidence_id}/complete` | S (own) | yes | Finish the upload. The file is scanned before it can be viewed. A hash is recorded |
-| `POST /v1/outcomes/{id}/confirm` | M (own mentorship) | yes | Confirm the fact and the contribution level separately. Body: `contribution_level_confirmed`, `conflict_declaration` (required) |
-| `POST /v1/outcomes/{id}/dispute` | M (own mentorship) | yes | Dispute with a reason. Goes to platform review |
+| `POST /v1/outcomes` | S (the mentorship's student) | no | Report an outcome. Body: `mentorship_id`, `outcome_type`, `description` (1 to 2000 characters), `contribution_claimed` (`DIRECTLY_ENABLED`, `HELPED`, `MINOR`), optional `title` (200) and `occurred_on`. Creates `pending_confirmation` with a seven-day deadline, one `REPORTED` event, one audit row, and one queued email to the mentor |
+| `GET /v1/outcomes/{id}` | participant | no | One outcome |
+| `GET /v1/outcomes?mentorship_id=&status=&limit=` | S, M | no | Own outcomes, newest first, capped at 50 |
+| `POST /v1/outcomes/{id}/confirm` | M (own mentorship) | no | Confirm the fact and the contribution level separately. Body: `contribution_level_confirmed`, or `coi_declaration` to route the case to platform review |
+| `POST /v1/outcomes/{id}/dispute` | M (own mentorship) | no | Dispute with a required `reason` (1 to 1000 characters). Goes to platform review |
 | `POST /v1/outcomes/{id}/withdraw` | S (own) | yes | Withdraw while `pending_confirmation`, `confirmed`, or `in_platform_review`. Terminal `withdrawn`; never counts |
+| `POST /v1/outcomes/{id}/evidence` | S (own) | - | **Documented but not built** (evidence change, DEBT-22). The contract omits it so it never advertises a `404` |
+| `POST /v1/outcomes/{id}/evidence/{evidence_id}/complete` | S (own) | - | **Documented but not built** (DEBT-22) |
 
 Rules:
-- `confirm` is allowed only while `pending_confirmation`. A declared conflict of interest (relative, direct report, paid relationship) routes the case to platform review instead of counting it (N9).
+- `confirm` is allowed only while `pending_confirmation`. A declared conflict of interest routes the case to platform review, sets `coi_declared`, and stores no confirmation (N9, D-63).
+- Every transition appends exactly one `outcome_events` row with a gap-free `seq` and one `audit_logs` row (`OUTCOME_REPORTED`, `OUTCOME_CONFIRMED`, `OUTCOME_DISPUTED`, `OUTCOME_COI_DECLARED`, `OUTCOME_ESCALATED`, `OUTCOME_WITHDRAWN`) in the same transaction. `outcome_events` and `verification_records` are insert-and-select only for the application role.
+- A move not in the transition table is `409 OUTCOME_INVALID_STATE`. There is no route that sets `counted`, `rejected`, or `reversed`.
 - Confirming an outcome and confirming contribution are **separate fields** because "it happened" differs from "the mentor helped" (research report 3.1 #1).
 - Reminders on day 3 and day 5 and escalation on day 7 are system jobs, not endpoints.
 - No endpoint lets any user set `counted` or edit reputation. Reputation is derived (ADR-008).

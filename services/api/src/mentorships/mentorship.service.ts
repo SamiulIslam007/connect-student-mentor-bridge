@@ -20,6 +20,8 @@ export interface MentorshipRecord {
   question: string;
   studentName: string;
   mentorName: string;
+  /** Set by the single-mentorship read only: which side the caller is. */
+  viewerRole?: "student" | "mentor";
 }
 
 export interface MessageRecord {
@@ -122,6 +124,7 @@ export function mentorshipPayload(mentorship: MentorshipRecord): Record<string, 
     question: mentorship.question,
     student_name: mentorship.studentName,
     mentor_name: mentorship.mentorName,
+    ...(mentorship.viewerRole ? { viewer_role: mentorship.viewerRole } : {}),
   };
 }
 

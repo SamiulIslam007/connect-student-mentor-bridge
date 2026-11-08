@@ -226,8 +226,15 @@ export class DrizzleMentorshipService implements MentorshipService {
 
   async read(userId: string, mentorshipId: string): Promise<MentorshipRecord> {
     uuidOf(mentorshipId, "mentorship id");
-    requireParticipant(await readParticipants(this.db, mentorshipId), userId);
-    return requireRecord((await readRecord(this.db, mentorshipId))[0]);
+    const participants = requireParticipant(
+      await readParticipants(this.db, mentorshipId),
+      userId,
+    );
+    const record = requireRecord((await readRecord(this.db, mentorshipId))[0]);
+    return {
+      ...record,
+      viewerRole: participants.studentUserId === userId ? "student" : "mentor",
+    };
   }
 
   async setAgreement(input: AgreementInput): Promise<MentorshipRecord> {

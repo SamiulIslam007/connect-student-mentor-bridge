@@ -36,7 +36,7 @@ All assumptions start as **Unverified**. Status values: `Open`, `Testing`, `Vali
 | A12 | Mentor-provided meeting links are acceptable to Mentors and Students. | Unverified | Friction; need for an integration earlier. | Session design | Pilot feedback | Gate 3 | Owner | Open |
 | A13 | AI-assisted request drafting increases Mentor acceptance. | Unverified | AI assist adds cost without benefit. | Later AI scope | **Deferred (owner decision):** AI is Later | After the pilot | Owner | Deferred (owner decision) |
 | A14 | Students can use an English-only UI comfortably. | Unverified (owner chose English-only) | Lower sign-up, request quality, and outcome reporting. | Student adoption | Student interviews; pilot observation | During the pilot | Owner | Open |
-| A15 | A mentor-confirmed Outcome with a 14-day cooling period is not too slow to feel rewarding. | Proposed default | Mentors lose motivation. | Reputation design | Mentor interviews; pilot data | Gate 3 | Owner | Open |
+| A15 | A mentor-confirmed Outcome with a 14-day cooling period is not too slow to feel rewarding. | Proposed default | Mentors lose motivation. | Reputation design | Mentor interviews; pilot data | Gate 3 | Owner | Open. The 14 days is **not a decided value** (`docs/api-contracts.md` API-O7): it ships as `OUTCOME_COOLING_PERIOD_DAYS` in `@connect/config` and is only written into `cooling_ends_at` |
 | A16 | Contribution level is something Students and Mentors will state honestly and consistently. | Unverified | Contribution weighting becomes noise. | Reputation weighting | Pilot data; audit sample | Gate 3 | Owner | Open |
 
 ---

@@ -138,6 +138,65 @@ export const mentorshipSessionStatus = pgEnum("mentorship_session_status", [
   "CANCELLED",
 ]);
 
+/** Outcome enums (docs/data-model.md §4.1, §4.4, §5.5). */
+export const outcomeStatus = pgEnum("outcome_status", [
+  "PENDING_CONFIRMATION",
+  "CONFIRMED",
+  "IN_PLATFORM_REVIEW",
+  "COUNTED",
+  "REJECTED",
+  "WITHDRAWN",
+  "REVERSED",
+]);
+
+/** The three documented contribution levels; no fourth value exists. */
+export const contributionLevel = pgEnum("contribution_level", [
+  "DIRECTLY_ENABLED",
+  "HELPED",
+  "MINOR",
+]);
+
+/** The data-model list without the two reserved appeal values. */
+export const outcomeEventType = pgEnum("outcome_event_type", [
+  "REPORTED",
+  "EVIDENCE_ADDED",
+  "EVIDENCE_REMOVED",
+  "REMINDER_D3_SENT",
+  "REMINDER_D5_SENT",
+  "ESCALATED_D7",
+  "CONFIRMED",
+  "CONTRIBUTION_AMENDED",
+  "DISPUTED",
+  "COI_DECLARED",
+  "CASE_OPENED",
+  "CASE_RESOLVED",
+  "TIER_CHANGED",
+  "COUNTED",
+  "REJECTED",
+  "WITHDRAWN",
+  "REVERSED",
+]);
+
+export const verifierKind = pgEnum("verifier_kind", [
+  "MENTOR_CONFIRMATION",
+  "MENTOR_DISPUTE",
+  "CONFLICT_OF_INTEREST",
+  "THIRD_PARTY_CONFIRMATION",
+  "AUDIT_RESULT",
+  "PLATFORM_DECISION",
+  "APPEAL_DECISION",
+]);
+
+export const verifierDecision = pgEnum("verifier_decision", [
+  "CONFIRMED",
+  "DISPUTED",
+  "DECLARED",
+  "VALID",
+  "NOT_VALID",
+  "PASSED",
+  "FAILED",
+]);
+
 /** Canonical role values (docs/data-model.md §4.1). `EMPLOYER` is reserved. */
 export const role = pgEnum("role", [
   "STUDENT",

@@ -19,6 +19,7 @@ import {
   REQUEST_SWEEP_QUEUE,
   sweepRequests,
 } from "../../requests/request-sweeper.js";
+import { sweepOutcomes } from "../../outcomes/outcome-sweeper.js";
 
 const log = (event: string, detail: Record<string, unknown> = {}): void => {
   console.log(JSON.stringify({ event, ...detail }));
@@ -58,6 +59,12 @@ export class OutboxWorker implements OnApplicationBootstrap, OnApplicationShutdo
       const result = await sweepRequests(this.database);
       if (result.reminded > 0 || result.expired > 0) {
         log("requests.swept", { reminded: result.reminded, expired: result.expired });
+      }
+      // The outcome timers ride the same five-minute pass (design D7 of the
+      // outcome change): day 3 and day 5 reminders, day 7 escalation.
+      const outcomeResult = await sweepOutcomes(this.database);
+      if (outcomeResult.reminded > 0 || outcomeResult.escalated > 0) {
+        log("outcomes.swept", { ...outcomeResult });
       }
     });
     await boss.schedule(REQUEST_SWEEP_QUEUE, REQUEST_SWEEP_CRON);

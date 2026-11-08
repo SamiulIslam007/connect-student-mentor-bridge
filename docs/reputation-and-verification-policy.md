@@ -122,7 +122,7 @@ Evidence handling: files private with signed URLs; hash and metadata kept; files
 - The Student states the Mentor's contribution: **Directly enabled**, **Helped**, or **Minor**.
 - The Mentor confirms or amends it **separately** from confirming the outcome fact.
 - If they disagree, the lower level applies until Platform review decides (Proposed default).
-- Reputation weight uses the confirmed contribution level.
+- Reputation weight uses the confirmed contribution level. The canonical enum values are `DIRECTLY_ENABLED`, `HELPED`, and `MINOR` (`docs/data-model.md` §4.1), and the levels are built by `outcomes-and-verification` (#9).
 
 ---
 
@@ -287,8 +287,8 @@ On account deletion, identifiers are removed or pseudonymized and evidence files
 | Tier multipliers | Open |
 | Contribution multipliers | Open |
 | Pair factor curve | **Proposed default:** `1 / (1 + n)`; configurable |
-| Cooling period | Proposed default: 14 days |
-| Reminder and escalation | Proposed default: day 3, day 5, day 7 |
+| Cooling period | Proposed default: 14 days. **Proposed, not decided** (API-O7): shipped as `OUTCOME_COOLING_PERIOD_DAYS` in `@connect/config` and written into `cooling_ends_at`, read by nothing else yet |
+| Reminder and escalation | Proposed default: day 3, day 5, day 7. **Implemented** by #9 with at most one reminder per day and one escalation per outcome (partial unique index); the outcome pass rides the five-minute sweeper |
 | Request expiry and reminder | **Decided (owner):** expiry at 48 hours, reminder at 24 hours |
 | Platform review decision limit | Proposed default: 7 days (P6, not validated) |
 | Appeal window and second reviewer | **Deferred (owner decision)** until after the pilot |

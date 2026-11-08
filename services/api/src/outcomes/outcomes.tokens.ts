@@ -1,0 +1,1 @@
+export const OUTCOME_SERVICE = "OUTCOME_SERVICE";

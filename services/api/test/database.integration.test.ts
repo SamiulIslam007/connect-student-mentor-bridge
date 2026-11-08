@@ -44,7 +44,7 @@ async function expectPermissionDenied(client: TestDatabase["client"], sql: strin
   }
 }
 
-test("the migrations create the twenty-three tables and protect the ledger", async (context) => {
+test("the migrations create the twenty-six tables and protect the ledger", async (context) => {
   const current = requireDatabase(context);
   if (!current) {
     return;
@@ -71,6 +71,8 @@ test("the migrations create the twenty-three tables and protect the ledger", asy
       "mentorship_sessions",
       "mentorships",
       "outbox_events",
+      "outcome_events",
+      "outcomes",
       "role_assignments",
       "sessions",
       "signup_blocks",
@@ -79,6 +81,7 @@ test("the migrations create the twenty-three tables and protect the ledger", asy
       "thread_messages",
       "two_factors",
       "users",
+      "verification_records",
       "verifications",
     ],
   );
@@ -274,6 +277,41 @@ test("the application role can use every profile table and nothing else", async 
     await client.query("DELETE FROM mentorship_sessions WHERE id = $1", [session.rows[0].id]);
     await client.query("DELETE FROM thread_messages WHERE id = $1", [message.rows[0].id]);
     await client.query("DELETE FROM mentorships WHERE id = $1", [mentorship.rows[0].id]);
+
+    // `0013` grants the outcome tables, and the two ledger tables are insert-only.
+    const probeMentorship = await client.query<{ id: string }>(
+      "INSERT INTO mentorships (request_id, student_profile_id, mentor_profile_id, field_id) VALUES ($1, $2, $3, $4) RETURNING id",
+      [request.rows[0].id, studentId, mentorId, fieldId],
+    );
+    const outcome = await client.query<{ id: string }>(
+      "INSERT INTO outcomes (mentorship_id, student_profile_id, mentor_profile_id, field_id, outcome_type, description, contribution_claimed, mentor_decision_due_at) VALUES ($1, $2, $3, $4, 'INTERNSHIP', 'Probe outcome', 'HELPED', now() + interval '7 days') RETURNING id",
+      [probeMentorship.rows[0].id, studentId, mentorId, fieldId],
+    );
+    await client.query("UPDATE outcomes SET title = 'Probe' WHERE id = $1", [outcome.rows[0].id]);
+    await client.query(
+      "INSERT INTO outcome_events (outcome_id, seq, event_type, from_status, to_status, request_id) VALUES ($1, 1, 'REPORTED', NULL, 'PENDING_CONFIRMATION', 'probe')",
+      [outcome.rows[0].id],
+    );
+    await client.query(
+      "INSERT INTO verification_records (outcome_id, kind, decision, attester_user_id) VALUES ($1, 'MENTOR_CONFIRMATION', 'CONFIRMED', 'user-grants')",
+      [outcome.rows[0].id],
+    );
+    for (const sql of [
+      "UPDATE outcome_events SET seq = seq",
+      "DELETE FROM outcome_events",
+      "UPDATE verification_records SET decision = 'DISPUTED'",
+      "DELETE FROM verification_records",
+    ]) {
+      // A refused statement aborts the transaction, so each probe gets a savepoint.
+      await client.query("SAVEPOINT ledger_probe");
+      await assert.rejects(client.query(sql), (error: unknown) => {
+        assert.equal((error as { code?: string }).code, "42501", `${sql} must be refused`);
+        return true;
+      });
+      await client.query("ROLLBACK TO SAVEPOINT ledger_probe");
+    }
+    await client.query("DELETE FROM outcomes WHERE id = $1", [outcome.rows[0].id]);
+    await client.query("DELETE FROM mentorships WHERE id = $1", [probeMentorship.rows[0].id]);
 
     await client.query("DELETE FROM mentorship_requests WHERE id = $1", [request.rows[0].id]);
 

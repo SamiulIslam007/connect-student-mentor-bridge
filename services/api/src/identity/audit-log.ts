@@ -21,7 +21,13 @@ export type AuditAction =
   | "ROLE_GRANTED"
   | "AFFILIATION_GRANTED"
   | "AFFILIATION_REVOKED"
-  | "PROVIDER_SIGN_IN";
+  | "PROVIDER_SIGN_IN"
+  | "OUTCOME_REPORTED"
+  | "OUTCOME_CONFIRMED"
+  | "OUTCOME_DISPUTED"
+  | "OUTCOME_COI_DECLARED"
+  | "OUTCOME_ESCALATED"
+  | "OUTCOME_WITHDRAWN";
 
 export interface AuditEntry {
   action: AuditAction;

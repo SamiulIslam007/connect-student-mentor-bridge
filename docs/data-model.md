@@ -173,10 +173,13 @@ Authentication internals are **library-native** better-auth tables in the same s
 | `mentorship_status` | `ACTIVE`, `COMPLETED`, `ENDED_EARLY`. **Built** by `mentorship-thread-and-sessions` (#8); `ENDED_EARLY` is a stored value with no participant route yet |
 | `mentorship_session_status` | `SCHEDULED`, `HELD`, `CANCELLED`. **Built** by #8; named `mentorship_session_status` so the auth library's `sessions` table keeps its own name |
 | `mentorship_cadence` | `WEEKLY`, `BIWEEKLY`, `MONTHLY`, `AD_HOC`. **Built** by #8 (`AD_HOC` is a stored value with no UI choice yet) |
-| `outcome_status` | `PENDING_CONFIRMATION`, `CONFIRMED`, `IN_PLATFORM_REVIEW`, `COUNTED`, `REJECTED`, `WITHDRAWN`, `REVERSED` |
+| `outcome_status` | `PENDING_CONFIRMATION`, `CONFIRMED`, `IN_PLATFORM_REVIEW`, `COUNTED`, `REJECTED`, `WITHDRAWN`, `REVERSED`. **Built** by `outcomes-and-verification` (#9); `COUNTED`, `REJECTED`, and `REVERSED` are unreachable until the counting change |
 | `dispute_status` | `OPEN`, `IN_REVIEW`, `RESOLVED`, `WITHDRAWN` |
 | `outcome_type` | `ADMISSION`, `INTERNSHIP`, `JOB_OFFER`, `SKILL_MILESTONE`, `INTERVIEW` |
-| `contribution_level` | `DIRECTLY_ENABLED`, `HELPED`, `MINOR` |
+| `contribution_level` | `DIRECTLY_ENABLED`, `HELPED`, `MINOR`. **Built** by #9 (the approved design listed different names; the canonical values above win) |
+| `outcome_event_type` | `REPORTED`, `EVIDENCE_ADDED`, `EVIDENCE_REMOVED`, `REMINDER_D3_SENT`, `REMINDER_D5_SENT`, `ESCALATED_D7`, `CONFIRMED`, `CONTRIBUTION_AMENDED`, `DISPUTED`, `COI_DECLARED`, `CASE_OPENED`, `CASE_RESOLVED`, `TIER_CHANGED`, `COUNTED`, `REJECTED`, `WITHDRAWN`, `REVERSED` (`APPEAL_OPENED` and `APPEAL_RESOLVED` are reserved). **Built** by #9; only `REPORTED`, `CONFIRMED`, `DISPUTED`, `COI_DECLARED`, `ESCALATED_D7`, `REMINDER_D3_SENT`, `REMINDER_D5_SENT`, and `WITHDRAWN` are written today |
+| `verifier_kind` | `MENTOR_CONFIRMATION`, `MENTOR_DISPUTE`, `CONFLICT_OF_INTEREST`, `THIRD_PARTY_CONFIRMATION`, `AUDIT_RESULT`, `PLATFORM_DECISION`, `APPEAL_DECISION`. **Built** by #9 (the first three are written; `CONFLICT_OF_INTEREST` was added by the change's design) |
+| `verifier_decision` | `CONFIRMED`, `DISPUTED`, `DECLARED`, `VALID`, `NOT_VALID`, `PASSED`, `FAILED`. **Built** by #9 (only the first three are written) |
 | `interaction_type` | `ASYNC_THREAD`, `ONE_TO_ONE_SESSION`, `GROUP_OFFICE_HOURS` (reserved; not allowed in Phase 1). **Built** by #7, with the `GROUP_OFFICE_HOURS` check |
 | `timeframe_bucket` | `WITHIN_1_MONTH`, `ONE_TO_3_MONTHS`, `THREE_TO_6_MONTHS`, `OVER_6_MONTHS` (**Proposed**). **Built** by #7 |
 | `consent_purpose` | `TERMS`, `PRIVACY_NOTICE`, `VOLUNTEER_AGREEMENT`, `COMMUNITY_GUIDELINES`, `INSTITUTION_DATA_SHARING`, `AI_ASSIST`, `EMPLOYER_DATA_SHARING` (Phase 3), `RECORDING` (reserved) |
@@ -270,7 +273,7 @@ These seven values are the only outcome states. `disputed`, `escalated`, `under_
 
 - **Unconfirmed outcomes never contribute to reputation.** Only T7 and T8 reach `COUNTED`, and neither is possible without a mentor confirmation or a platform decision.
 - An open case implies `IN_PLATFORM_REVIEW`. An OUTCOME_VALID decision ends cooling early because the review subsumes it.
-- **Reputation eligibility (Recommendation, policy governs, OUT-Q1):** a reputation event is written only when `counted_basis = MENTOR_CONFIRMED` and `coi_declared = false`. A platform-decided outcome counts for the student's progress and institution aggregates, labeled "platform-decided", but earns the mentor no reputation unless the mentor later confirms.
+- **Reputation eligibility (decided, D-63):** a reputation event is written only when `counted_basis = MENTOR_CONFIRMED` and `coi_declared = false`. A platform-decided outcome may count for the student's progress and institution aggregates, labeled "platform-decided", but never earns the mentor reputation, whatever a reviewer decides. The rule is executable: `earnsMentorReputation` in `packages/domain/src/outcome.ts`, exercised by unit tests and inert until counting lands.
 - The evidence tier used for points is the tier **at the moment of counting**. Later evidence changes nothing unless an approved recalibration runs.
 - Decisions take effect immediately. In the MVP a decision stands until a clawback is justified. **Later**, one appeal is available (decided by a different reviewer within an appeal window, **Proposed default**: 7 days). The ledger makes reversal safe because it adds events and never edits them.
 - Reminder, escalation, cooling, and counting events are written **at most once** per outcome (partial unique index in section 9).
@@ -718,7 +721,7 @@ The glossary should adopt these names. Use **Student** and **Mentor** everywhere
 ## 13. Questions for the owner
 
 1. **Final outcome types (N10):** you added Job offer. Where should its difficulty fall relative to Admission and Internship?
-2. **Platform-decided outcomes (OUT-Q1):** should a mentor ever earn reputation from an outcome they never confirmed? Recommendation: no.
+2. **Platform-decided outcomes:** **decided by D-63** - a mentor never earns reputation from an outcome they did not confirm, whatever a reviewer decides.
 3. **Thread retention:** how long should threads be kept after a mentorship ends, given disputes may need them?
 4. **Reporting window:** for how long after a mentorship ends may a student still report an outcome?
 5. **Appeal window:** is 7 days acceptable, and who is the second reviewer when only one exists?

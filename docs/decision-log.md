@@ -458,3 +458,25 @@ date: 2026-10-29
 - Reason: The owner chose one email per message over a digest; read receipts and moderation have no surface until Sprint 7, and a column with no reader is debt. A retried identical post therefore creates a second message (recorded as DEBT-21).
 - Status: Decided
 - Affects: `docs/api-contracts.md` §5.5, `docs/functional-requirements.md` FR-THR-02, `docs/known-debt.md` (DEBT-21), `openspec/specs/mentorship/thread-and-sessions`
+
+
+### D-63: A platform-decided outcome never earns mentor reputation
+- Date: 2026-11-08
+- Decision: An outcome whose counted basis is a platform decision never produces mentor reputation, whatever a reviewer later decides; it may count for the student's progress and institution aggregates only, and reads label it "platform-decided". Mentor reputation requires `counted_basis = MENTOR_CONFIRMED` with `coi_declared = false`.
+- Reason: This settles `OUT-Q1` in favour of the product's central rule ("unconfirmed means uncounted"). The rule ships as an executable predicate before any counting code exists, so the counting change cannot disagree with it.
+- Status: Decided
+- Affects: `docs/data-model.md` §4.4, `docs/functional-requirements.md` FR-OUT-05, `docs/reputation-and-verification-policy.md` §5, `packages/domain/src/outcome.ts`
+
+### D-64: Evidence is Tier 0 only in the MVP
+- Date: 2026-11-08
+- Decision: The MVP ships no evidence upload, no signed URL, and no malware scan for outcomes. `outcomes.evidence_tier` stays 0 and the two evidence endpoints in `docs/api-contracts.md` §5.6 remain documented but unbuilt.
+- Reason: A file path needs storage, scanning, retention, and a deletion design the pilot does not need; Tier 0 keeps the outcome flow demonstrable end to end. Recorded as DEBT-22 with the evidence change as its target.
+- Status: Decided
+- Affects: `docs/functional-requirements.md` FR-OUT-02 and FR-OUT-07, `docs/api-contracts.md` §5.6, `packages/contracts/openapi.yaml`, `docs/known-debt.md` (DEBT-22)
+
+### D-65: This change stops at CONFIRMED; counting belongs to the next change
+- Date: 2026-11-08
+- Decision: `outcomes-and-verification` implements the report/confirm/dispute/conflict/withdraw half of the state machine only. `COUNTED`, the cooling-to-counting job, `REJECTED`, `REVERSED`, and the review queue are not reachable or exposed here; the cooling period constant is written into `cooling_ends_at` and read by nothing yet.
+- Reason: The review queue and counting have their own guards and their own tests; shipping them in one change would put the append-only reputation ledger and the review decision in a single unreviewable diff.
+- Status: Decided
+- Affects: `docs/mvp-build-plan.md` §5 rows #9 and #10, `docs/milestones-and-phases.md` §Current state, `docs/data-model.md` §4.4
