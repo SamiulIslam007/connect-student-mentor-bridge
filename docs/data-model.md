@@ -170,8 +170,9 @@ Authentication internals are **library-native** better-auth tables in the same s
 | `mentor_access_mode` | `OPEN`, `APPLICATION_ONLY`, `PAUSED` (mentor-selected). **Built** by `profile-availability-and-access-mode` (4b) |
 | `access_state` (derived) | `AVAILABLE`, `FULL`, `APPLICATION_ONLY`, plus hidden when paused or not active |
 | `request_status` | `PENDING`, `ACCEPTED`, `DECLINED`, `REDIRECTED`, `EXPIRED`, `WITHDRAWN`. **Built** by `requests-and-48h-flow` (#7) |
-| `mentorship_status` | `ACTIVE`, `COMPLETED`, `ENDED_EARLY` |
-| `session_status` | `SCHEDULED`, `HELD`, `CANCELLED` |
+| `mentorship_status` | `ACTIVE`, `COMPLETED`, `ENDED_EARLY`. **Built** by `mentorship-thread-and-sessions` (#8); `ENDED_EARLY` is a stored value with no participant route yet |
+| `mentorship_session_status` | `SCHEDULED`, `HELD`, `CANCELLED`. **Built** by #8; named `mentorship_session_status` so the auth library's `sessions` table keeps its own name |
+| `mentorship_cadence` | `WEEKLY`, `BIWEEKLY`, `MONTHLY`, `AD_HOC`. **Built** by #8 (`AD_HOC` is a stored value with no UI choice yet) |
 | `outcome_status` | `PENDING_CONFIRMATION`, `CONFIRMED`, `IN_PLATFORM_REVIEW`, `COUNTED`, `REJECTED`, `WITHDRAWN`, `REVERSED` |
 | `dispute_status` | `OPEN`, `IN_REVIEW`, `RESOLVED`, `WITHDRAWN` |
 | `outcome_type` | `ADMISSION`, `INTERNSHIP`, `JOB_OFFER`, `SKILL_MILESTONE`, `INTERVIEW` |
@@ -206,7 +207,7 @@ stateDiagram-v2
   WITHDRAWN --> [*]
 ```
 
-`request_status`: `PENDING`, `ACCEPTED`, `DECLINED`, `REDIRECTED`, `EXPIRED`, `WITHDRAWN`. Acceptance **does not** create a `mentorships` row in this release; that moves to `mentorship-thread-and-sessions` (#8), and #7's capacity counts accepted requests instead (D-59). A student withdraws a pending request; a request with no decision reaches `EXPIRED`. A suspended mentor's pending requests also reach `EXPIRED` with notice (there is no separate cancelled state). A redirect shares nothing until the student approves (FR-REQ-04, Phase 1b); approval creates a new linked request.
+`request_status`: `PENDING`, `ACCEPTED`, `DECLINED`, `REDIRECTED`, `EXPIRED`, `WITHDRAWN`. Acceptance creates exactly one `mentorships` row in the same transaction (built by #8, D-60); a decline creates none. #7's request capacity still counts accepted requests in a rolling 7-day window (D-59); resuming a paused mentor counts live `ACTIVE` mentorships instead (D-61). A student withdraws a pending request; a request with no decision reaches `EXPIRED`. A suspended mentor's pending requests also reach `EXPIRED` with notice (there is no separate cancelled state). A redirect shares nothing until the student approves (FR-REQ-04, Phase 1b); approval creates a new linked request.
 
 ### 4.3 Mentorship, session, affiliation, and mentor lifecycles
 
@@ -406,7 +407,7 @@ Constraints: at most one `PENDING` request per (`student_profile_id`, `mentor_pr
 
 **`suggestion_logs`**: `student_profile_id`, `mentor_profile_id`, `rank`, `score`, `factors jsonb`, `config_version_id`, `shown_at`, `clicked_at?`, `request_id?`. Feeds the match acceptance KPI and weight calibration.
 
-**`mentorships`**
+**`mentorships`** (**built** by `mentorship-thread-and-sessions`, #8; migration `0012`)
 
 | Column | Type | Notes |
 |---|---|---|
@@ -418,14 +419,16 @@ Constraints: at most one `PENDING` request per (`student_profile_id`, `mentor_pr
 | `student_ack_at`, `mentor_ack_at` | `timestamptz?` | Both acknowledge the agreement |
 | `is_paid` | `bool` default false | Reserved for the paid-relationship rule (OD-4). **Always false in the MVP**; payments are **Later** |
 | `started_at`, `ended_at`, `ended_by_user_id` | | |
-| `outcome_report_until` | `timestamptz?` | Reporting window after end (**Open**) |
+| `outcome_report_until` | `timestamptz?` | Reporting window after end (**Open**; not created in #8) |
+
+**MVP subset (#8):** `planned_weeks` is checked to 1 to 52, `is_paid` carries a `false` check and no writer (inert), `request_id` is unique, and `ENDED_EARLY` is stored but has no route. Unique `request_id`, one partial index on (`mentor_profile_id`, `status`) for the resume count.
 
 ### 5.4 Threads, mentorship sessions, feedback
 
-**`thread_messages`** (High): `mentorship_id`, `sender_user_id`, `body text` (length-checked), `redacted_at?`, `redacted_by_user_id?`, `redaction_reason?`. Messages are **not editable** in Phase 1; moderators can redact. No attachments. Index (`mentorship_id`, `created_at`, `id`).
+**`thread_messages`** (High; **built** by #8): `mentorship_id`, `sender_user_id`, `body text` (trimmed, 1 to 2000 characters), `created_at`. Messages are **not editable** and have no `updated_at`. Redaction columns (`redacted_at?`, `redacted_by_user_id?`, `redaction_reason?`) and `thread_read_states` are **not created** in #8; moderation and read state have no surface until Sprint 7. No attachments. Index (`mentorship_id`, `created_at`, `id`).
 **`thread_read_states`**: (`mentorship_id`, `user_id`) key, `last_read_message_id`.
 
-**`mentorship_sessions`** (renamed from `sessions` so the auth library's `sessions` table can keep its native name): `mentorship_id`, `scheduled_start`, `duration_minutes`, `meeting_url` (must start with `https://`), `status`, `student_confirmed_held_at?`, `mentor_confirmed_held_at?`, `cancelled_by_user_id?`, `cancel_reason?`, `created_by_user_id`. `HELD` requires both confirmations. Meeting links are mentor-provided; the UI warns users to treat links as untrusted.
+**`mentorship_sessions`** (**built** by #8; renamed from `sessions` so the auth library's `sessions` table can keep its native name): `mentorship_id`, `scheduled_start`, `duration_minutes` (15 to 240, checked), `meeting_url` (checked to start with `https://`), `status`, `student_confirmed_held_at?`, `mentor_confirmed_held_at?`, `cancelled_by_user_id?`, `cancel_reason?`, `created_by_user_id`, `created_at`, `updated_at`. `HELD` requires both confirmations (a check constraint enforces it). Meeting links are mentor-provided; the UI warns users to treat links as untrusted. Index (`mentorship_id`, `scheduled_start`).
 
 **`private_feedback`** (Phase 1b): `session_id`, `author_user_id`, `about_user_id`, `helpfulness smallint` (1 to 5), `comment?`, `submitted_at`, `reveal_at` (timer), `revealed_at?`. Unique (`session_id`, `author_user_id`). **No foreign key from reputation tables to this table.** It never becomes a public star rating or a reputation input.
 

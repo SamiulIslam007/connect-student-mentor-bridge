@@ -436,3 +436,25 @@ date: 2026-10-29
 - Reason: The 48-hour request flow is the product's spine and the outbox is its only reminder mechanism; discovery without a request flow cannot be demonstrated end to end.
 - Status: Decided
 - Affects: `docs/mvp-build-plan.md` §5 and §2, `docs/milestones-and-phases.md` §Current state
+
+
+### D-60: A mentorship is created inside the accept transaction
+- Date: 2026-11-08
+- Decision: Accepting a `PENDING` request inserts exactly one `mentorships` row (unique `request_id`, `field_id` copied from the request, `is_paid` false) in the same transaction as the status change. A failed insert rolls the decision back: the request stays `PENDING` and no email is queued. A decline creates no mentorship.
+- Reason: An asynchronous `MentorshipCreated` event would leave accepted requests without a mentorship whenever the worker is behind, which is exactly the dead end DEBT-20 recorded. One transaction makes `ACCEPTED` and the mentorship exist or neither does.
+- Status: Decided
+- Affects: `docs/data-model.md` §4.2 and §5.3, `docs/api-contracts.md` §5.4 and §5.5, `openspec/specs/mentorship/request-lifecycle`, `docs/known-debt.md` (DEBT-20 closed)
+
+### D-61: Resume refuses at capacity while D-59 stays unchanged
+- Date: 2026-11-08
+- Decision: Resuming a `PAUSED` mentor profile counts the mentor's live `ACTIVE` mentorships under the mentor-profile row lock and refuses with `409 CAPACITY_BELOW_ACTIVE` when that count is at or above `weekly_capacity`; the stored mode stays `PAUSED`. Pausing never runs a capacity check. D-59's request-based count (pending requests plus requests accepted in the last 7 days) is untouched.
+- Reason: A paused mentor who already holds a full caseload must not resume into more work, but re-basing the request capacity on mentorships is a decision the owner explicitly deferred.
+- Status: Decided
+- Affects: `docs/api-contracts.md` §5.2 and §10, `docs/functional-requirements.md` FR-PROF-03, `openspec/specs/profiles/availability-and-access-mode`, `docs/known-debt.md` (DEBT-17 closed)
+
+### D-62: One email per thread message, no digest, no read state
+- Date: 2026-11-08
+- Decision: Posting a thread message queues exactly one notification email to the other participant through the outbox, keyed `email:thread-message:<message id>`; the body names the sender and links to the mentorship and carries no other message's text. There is no digest, no inline send, no read state, and no redaction in the MVP.
+- Reason: The owner chose one email per message over a digest; read receipts and moderation have no surface until Sprint 7, and a column with no reader is debt. A retried identical post therefore creates a second message (recorded as DEBT-21).
+- Status: Decided
+- Affects: `docs/api-contracts.md` §5.5, `docs/functional-requirements.md` FR-THR-02, `docs/known-debt.md` (DEBT-21), `openspec/specs/mentorship/thread-and-sessions`

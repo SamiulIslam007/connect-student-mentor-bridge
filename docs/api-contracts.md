@@ -309,13 +309,13 @@ The Match Score is a **sort aid, never a predictor of success** (README 5.2). Th
 | `POST /v1/requests` | S | yes | Create a structured request. Required: `mentor_id` (mentor profile id), `question`, `context_summary`, `target_outcome`, `expected_timeframe`; optional `interaction_type` (default `ASYNC_THREAD`), `application_note` |
 | `GET /v1/requests?role=sent\|received&status=&cursor=&limit=` | S, M | no | Own requests, keyset-paged |
 | `GET /v1/requests/{id}` | participant | no | One request |
-| `POST /v1/requests/{id}/accept` | M (addressee) | yes | Records the decision; **no mentorship row is created in this release** (#8) |
+| `POST /v1/requests/{id}/accept` | M (addressee) | yes | Records the decision and creates the mentorship in the same transaction (built by #8, D-60). The response carries `mentorship_id` |
 | `POST /v1/requests/{id}/decline` | M (addressee) | yes | Body: optional `reason` |
 | `POST /v1/requests/{id}/redirect` | M (addressee) | yes | Body: `alternative_mentor_ids` (1 to 3) and optional `note`. **Phase 1b** (not required for the MVP) |
 | `POST /v1/requests/{id}/withdraw` | S (sender) | yes | Only while `pending` |
 | `GET /v1/mentors/{id}` | signed-in | no | A requestable mentor's small shape for the request form (ACTIVE only; others `404`) |
 
-Rules and errors: the mentor must be `ACTIVE` with a verified Level 1 affiliation (`MENTOR_NOT_VERIFIED`, `MENTOR_UNAVAILABLE`), self-requests are `422`, and capacity is `pending + accepted decided within the last 7 days` against `weekly_capacity` (`MENTOR_AT_CAPACITY`, D-59). At most one pending request per pair (`DUPLICATE_PENDING_REQUEST`) and three pending per student (`REQUEST_LIMIT_REACHED`). An `APPLICATION_ONLY` mentor requires a non-empty `application_note` (`422`). A decision applies only while `PENDING` (`REQUEST_INVALID_STATE`); a non-participant reads `404`, a non-addressee decision is `403`. Undecided requests get a reminder at **24 hours** and expire at **48 hours** (owner decision); an accepted request's `mentorships` row and the capacity-on-resume check move to #8 (DEBT-20).
+Rules and errors: the mentor must be `ACTIVE` with a verified Level 1 affiliation (`MENTOR_NOT_VERIFIED`, `MENTOR_UNAVAILABLE`), self-requests are `422`, and capacity is `pending + accepted decided within the last 7 days` against `weekly_capacity` (`MENTOR_AT_CAPACITY`, D-59). At most one pending request per pair (`DUPLICATE_PENDING_REQUEST`) and three pending per student (`REQUEST_LIMIT_REACHED`). An `APPLICATION_ONLY` mentor requires a non-empty `application_note` (`422`). A decision applies only while `PENDING` (`REQUEST_INVALID_STATE`); a non-participant reads `404`, a non-addressee decision is `403`. Undecided requests get a reminder at **24 hours** and expire at **48 hours** (owner decision); an accept creates one `mentorships` row in the same transaction, and a failed insert rolls the decision back (built by #8, D-60, DEBT-20 closed).
 
 #### Request state transitions
 
@@ -330,20 +330,23 @@ Rules and errors: the mentor must be `ACTIVE` with a verified Level 1 affiliatio
 
 ### 5.5 Mentorships, threads, and sessions
 
+Built by `mentorship-thread-and-sessions` (#8). Every row below is a session plus a participant predicate resolved in the repository layer; a non-participant gets `404`, never `403`.
+
 | Method and path | Roles | Idem | Purpose |
 |---|---|---|---|
-| `GET /v1/mentorships?status=` | S, M | no | Own mentorships |
-| `GET /v1/mentorships/{id}` | participant | no | One mentorship |
-| `PUT /v1/mentorships/{id}/agreement` | participant | yes | Propose cadence, duration, goal (Should) |
-| `POST /v1/mentorships/{id}/agreement/acknowledge` | participant | yes | Each party acknowledges |
-| `GET /v1/mentorships/{id}/messages?cursor=` | participant | no | Thread, oldest first |
-| `POST /v1/mentorships/{id}/messages` | participant | yes | Text only. Body size is limited. Triggers an email notification |
-| `POST /v1/mentorships/{id}/sessions` | participant | yes | Record a planned session with `starts_at` and a mentor-provided `meeting_url` (ADR-007) |
-| `POST /v1/sessions/{id}/confirm-held` | participant | yes | Each party confirms the session happened |
-| `POST /v1/sessions/{id}/feedback` | participant | yes | Private feedback. Hidden from the other party until both submit or the timer ends (Could) |
-| `POST /v1/mentorships/{id}/complete` | participant | yes | Mark the mentorship completed |
+| `GET /v1/mentorships?status=&limit=` | S, M | no | Own mentorships, newest first, capped at 50 |
+| `GET /v1/mentorships/{id}` | participant | no | One mentorship, with its `sessions` array |
+| `PUT /v1/mentorships/{id}/agreement` | participant | no | Body: optional `cadence` (`WEEKLY`, `BIWEEKLY`, `MONTHLY`, `AD_HOC`), `planned_weeks` (1 to 52), `goal` (2000 characters) |
+| `POST /v1/mentorships/{id}/agreement/acknowledge` | participant | yes | Sets the caller's own acknowledgement; a later call never overwrites the first |
+| `GET /v1/mentorships/{id}/messages?cursor=&limit=` | participant | no | Thread, oldest first, keyset on (`created_at`, `id`) |
+| `POST /v1/mentorships/{id}/messages` | participant | no | Text only, trimmed, 1 to 2000 characters. Queues exactly one email per message on the message id (D-62) |
+| `POST /v1/mentorships/{id}/sessions` | participant | no | Body: `scheduled_start`, `duration_minutes` (15 to 240), `meeting_url` (`https://` only) |
+| `POST /v1/sessions/{id}/confirm-held` | participant | yes | Sets the caller's own confirmation; `HELD` only when both exist |
+| `POST /v1/sessions/{id}/cancel` | participant | no | Body: `reason` (1 to 500 characters); only a `SCHEDULED` session can be cancelled |
+| `POST /v1/sessions/{id}/feedback` | participant | yes | Private feedback. Hidden from the other party until both submit or the timer ends (Could, **not built**) |
+| `POST /v1/mentorships/{id}/complete` | participant | no | `ACTIVE` to `COMPLETED` once |
 
-`meeting_url` must be an `https` URL. Domain allow-listing is an **Open decision**.
+`meeting_url` must be an `https` URL. Domain allow-listing is an **Open decision**. The stored link is mentor-provided and untrusted: the page labels it as such and opens it outside connect. Messages are immutable (no update or delete route). A retried identical message post creates a second row and a second email; an idempotency-key store is DEBT-21. A transition from a wrong or terminal state is `409 MENTORSHIP_INVALID_STATE`.
 
 ### 5.6 Outcomes and verification
 
@@ -506,7 +509,8 @@ Default limits are configuration, not code (SEC-ABUSE-4). Endpoints with stricte
 | `MENTOR_UNAVAILABLE` | 409 | Mentor is paused or not operating |
 | `MENTOR_AT_CAPACITY` | 409 | Weekly capacity reached |
 | `REQUEST_LIMIT_REACHED` | 409 | The student has three pending requests |
-| `CAPACITY_BELOW_ACTIVE` | 422 | Cap lower than active mentorships |
+| `CAPACITY_BELOW_ACTIVE` | 409 | Resume refused: live `ACTIVE` mentorships are at or above `weekly_capacity`; the mode stays `PAUSED` |
+| `MENTORSHIP_INVALID_STATE` | 409 | Mentorship, agreement, or session cannot take this action now |
 | `DUPLICATE_PENDING_REQUEST` | 409 | Already a pending request to this mentor |
 | `REQUEST_INVALID_STATE` | 409 | Request cannot take this action now |
 | `OUTCOME_INVALID_STATE` | 409 | Outcome cannot take this action now |
