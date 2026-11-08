@@ -126,19 +126,34 @@ The system SHALL provide a pure policy that answers whether a mentor profile may
 - **WHEN** the unit tests drive every combination of access mode and operating status
 - **THEN** every combination has an expected answer and none falls through
 
-### Requirement: APPLICATION_ONLY has no enforcement in this change
+### Requirement: APPLICATION_ONLY requires an application note
 
-The system SHALL store and validate `APPLICATION_ONLY` and SHALL NOT change any other behaviour because of it: no route, list, or request path SHALL be gated by it until the request flow lands.
+The system SHALL require a non-empty `application_note` on a request addressed to an `APPLICATION_ONLY` mentor, SHALL refuse the request without one, and SHALL otherwise let the request proceed like any other, so the mode gates the request's content rather than the mentor's availability.
 
-#### Scenario: Application-only changes nothing but the stored value
+#### Scenario: Application-only requires a note
 
-- **WHEN** a mentor sets `APPLICATION_ONLY`
-- **THEN** the profile reads back that value and no other endpoint behaves differently
+- **WHEN** a student submits a request to an `APPLICATION_ONLY` mentor with no application note
+- **THEN** the response is `422 VALIDATION_FAILED` with a field error naming `application_note`, and no request row is written
 
-#### Scenario: The UI does not promise enforcement
+#### Scenario: Application-only with a note
+
+- **WHEN** a student submits a request to an `APPLICATION_ONLY` mentor with a non-empty note
+- **THEN** the request is created `PENDING`, the note is stored on it, and the mentor's notification is queued
+
+#### Scenario: The mode does not block the request
+
+- **WHEN** a student submits a valid request to an `APPLICATION_ONLY` mentor
+- **THEN** the request is created rather than refused or auto-declined
+
+#### Scenario: The UI states the requirement
 
 - **WHEN** the mentor selects `APPLICATION_ONLY`
-- **THEN** the copy states that student applications are not built yet and that the setting is recorded for when they are
+- **THEN** the copy states that students must send a short application note with each request
+
+#### Scenario: An open mentor needs no note
+
+- **WHEN** a student submits a request to an `OPEN` mentor with no application note
+- **THEN** the request is created and the note stays empty
 
 ### Requirement: The profile page edits availability and access mode
 
