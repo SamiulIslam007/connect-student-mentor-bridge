@@ -44,7 +44,7 @@ async function expectPermissionDenied(client: TestDatabase["client"], sql: strin
   }
 }
 
-test("the migrations create the twenty tables and protect the ledger", async (context) => {
+test("the migrations create the twenty-three tables and protect the ledger", async (context) => {
   const current = requireDatabase(context);
   if (!current) {
     return;
@@ -68,12 +68,15 @@ test("the migrations create the twenty tables and protect the ledger", async (co
       "mentor_fields",
       "mentor_profiles",
       "mentorship_requests",
+      "mentorship_sessions",
+      "mentorships",
       "outbox_events",
       "role_assignments",
       "sessions",
       "signup_blocks",
       "student_field_interests",
       "student_profiles",
+      "thread_messages",
       "two_factors",
       "users",
       "verifications",
@@ -241,6 +244,37 @@ test("the application role can use every profile table and nothing else", async 
       [request.rows[0].id],
     );
     assert.deepEqual(requests.rows, [{ version: 2 }]);
+    // `0012` grants the mentorship tables.
+    const mentorship = await client.query<{ id: string }>(
+      "INSERT INTO mentorships (request_id, student_profile_id, mentor_profile_id, field_id) VALUES ($1, $2, $3, $4) RETURNING id",
+      [request.rows[0].id, studentId, mentorId, fieldId],
+    );
+    await client.query("UPDATE mentorships SET goal = 'Goal' WHERE id = $1", [
+      mentorship.rows[0].id,
+    ]);
+    const message = await client.query<{ id: string }>(
+      "INSERT INTO thread_messages (mentorship_id, sender_user_id, body) VALUES ($1, 'user-grants', 'Hello') RETURNING id",
+      [mentorship.rows[0].id],
+    );
+    const session = await client.query<{ id: string }>(
+      "INSERT INTO mentorship_sessions (mentorship_id, created_by_user_id, scheduled_start, duration_minutes, meeting_url) VALUES ($1, 'user-grants', now() + interval '1 day', 45, 'https://meet.example.com/probe') RETURNING id",
+      [mentorship.rows[0].id],
+    );
+    assert.deepEqual(
+      (
+        await client.query<{ body: string }>("SELECT body FROM thread_messages WHERE id = $1", [
+          message.rows[0].id,
+        ])
+      ).rows,
+      [{ body: "Hello" }],
+    );
+    await client.query("UPDATE mentorship_sessions SET status = 'CANCELLED' WHERE id = $1", [
+      session.rows[0].id,
+    ]);
+    await client.query("DELETE FROM mentorship_sessions WHERE id = $1", [session.rows[0].id]);
+    await client.query("DELETE FROM thread_messages WHERE id = $1", [message.rows[0].id]);
+    await client.query("DELETE FROM mentorships WHERE id = $1", [mentorship.rows[0].id]);
+
     await client.query("DELETE FROM mentorship_requests WHERE id = $1", [request.rows[0].id]);
 
     await client.query("DELETE FROM student_profiles WHERE id = $1", [studentId]);

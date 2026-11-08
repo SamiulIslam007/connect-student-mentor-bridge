@@ -12,6 +12,9 @@ import { DrizzleAvailabilityService } from "../src/availability/drizzle-availabi
 import { AuthController } from "../src/identity/auth.controller.js";
 import { MeController } from "../src/me/me.controller.js";
 import { MeRolesController } from "../src/me/roles.controller.js";
+import { DrizzleMentorshipService } from "../src/mentorships/drizzle-mentorship.service.js";
+import { MentorshipsController, SessionsController } from "../src/mentorships/mentorships.controller.js";
+import { MENTORSHIP_SERVICE } from "../src/mentorships/mentorships.tokens.js";
 import { DrizzleProfilesService } from "../src/profiles/drizzle-profiles.service.js";
 import { ProfilesController } from "../src/profiles/profiles.controller.js";
 import { PROFILES_SERVICE } from "../src/profiles/profiles.tokens.js";
@@ -90,6 +93,22 @@ const MATRIX: Requirement[] = [
   { route: /^POST \/v1\/requests\/:id\/accept$/, access: "MENTOR", mutating: true },
   { route: /^POST \/v1\/requests\/:id\/decline$/, access: "MENTOR", mutating: true },
   { route: /^POST \/v1\/requests\/:id\/withdraw$/, access: "signed-in", mutating: true },
+  // Mentorship routes are a session plus a participant predicate; a non-participant
+  // is a 404, which the mentorship integration suite asserts.
+  { route: /^GET \/v1\/mentorships$/, access: "signed-in" },
+  { route: /^GET \/v1\/mentorships\/:id$/, access: "signed-in" },
+  { route: /^PUT \/v1\/mentorships\/:id\/agreement$/, access: "signed-in", mutating: true },
+  {
+    route: /^POST \/v1\/mentorships\/:id\/agreement\/acknowledge$/,
+    access: "signed-in",
+    mutating: true,
+  },
+  { route: /^GET \/v1\/mentorships\/:id\/messages$/, access: "signed-in" },
+  { route: /^POST \/v1\/mentorships\/:id\/messages$/, access: "signed-in", mutating: true },
+  { route: /^POST \/v1\/mentorships\/:id\/sessions$/, access: "signed-in", mutating: true },
+  { route: /^POST \/v1\/mentorships\/:id\/complete$/, access: "signed-in", mutating: true },
+  { route: /^POST \/v1\/sessions\/:id\/confirm-held$/, access: "signed-in", mutating: true },
+  { route: /^POST \/v1\/sessions\/:id\/cancel$/, access: "signed-in", mutating: true },
 ];
 
 const PRINCIPAL_ROLES: Role[] = ["STUDENT", "MENTOR", "INSTITUTION_ADMIN", "PLATFORM_ADMIN"];
@@ -108,6 +127,8 @@ before(async () => {
       AvailabilityController,
       AffiliationsController,
       RequestsController,
+      MentorshipsController,
+      SessionsController,
     ],
     requestIdRoutes: [
       AuthController,
@@ -117,12 +138,15 @@ before(async () => {
       AvailabilityController,
       AffiliationsController,
       RequestsController,
+      MentorshipsController,
+      SessionsController,
     ],
     providers: (database) => [
       { provide: PROFILES_SERVICE, useValue: new DrizzleProfilesService(database) },
       { provide: AVAILABILITY_SERVICE, useValue: new DrizzleAvailabilityService(database) },
       { provide: AFFILIATIONS_SERVICE, useValue: new DrizzleAffiliationsService(database) },
       { provide: REQUESTS_SERVICE, useValue: new DrizzleRequestsService(database) },
+      { provide: MENTORSHIP_SERVICE, useValue: new DrizzleMentorshipService(database) },
     ],
   });
   if (started.skipped) {
