@@ -16,6 +16,7 @@ export * from "./availability.js";
 export * from "./fields.js";
 export * from "./identity.js";
 export * from "./mentor-onboarding.js";
+export * from "./mentorship.js";
 export * from "./password-policy.js";
 export * from "./profiles.js";
 export * from "./request.js";
