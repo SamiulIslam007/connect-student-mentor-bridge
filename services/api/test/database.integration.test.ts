@@ -44,7 +44,7 @@ async function expectPermissionDenied(client: TestDatabase["client"], sql: strin
   }
 }
 
-test("the migrations create the twenty-six tables and protect the ledger", async (context) => {
+test("the migrations create the twenty-eight tables and protect the ledger", async (context) => {
   const current = requireDatabase(context);
   if (!current) {
     return;
@@ -62,6 +62,7 @@ test("the migrations create the twenty-six tables and protect the ledger", async
       "audit_logs",
       "availability_windows",
       "consent_records",
+      "field_impact_snapshots",
       "fields",
       "institution_domains",
       "institutions",
@@ -73,6 +74,7 @@ test("the migrations create the twenty-six tables and protect the ledger", async
       "outbox_events",
       "outcome_events",
       "outcomes",
+      "reputation_events",
       "role_assignments",
       "sessions",
       "signup_blocks",
@@ -296,7 +298,23 @@ test("the application role can use every profile table and nothing else", async 
       "INSERT INTO verification_records (outcome_id, kind, decision, attester_user_id) VALUES ($1, 'MENTOR_CONFIRMATION', 'CONFIRMED', 'user-grants')",
       [outcome.rows[0].id],
     );
+    // `0014` grants the reputation ledger and the snapshot table.
+    const ledger = await client.query<{ id: string }>(
+      "INSERT INTO reputation_events (outcome_id, mentor_profile_id, student_profile_id, field_id, outcome_type, event_type, difficulty_weight, tier_multiplier, contribution_multiplier, pair_factor, points, occurred_at) VALUES ($1, $2, $3, $4, 'INTERNSHIP', 'COUNTED', 1, 1, 1, 1, 1, now()) RETURNING id",
+      [outcome.rows[0].id, mentorId, studentId, fieldId],
+    );
+    await client.query(
+      "INSERT INTO field_impact_snapshots (mentor_profile_id, field_id, outcome_type, counted_count, points_total) VALUES ($1, $2, 'INTERNSHIP', 1, 1)",
+      [mentorId, fieldId],
+    );
+    await client.query(
+      "UPDATE field_impact_snapshots SET counted_count = counted_count + 1 WHERE mentor_profile_id = $1",
+      [mentorId],
+    );
     for (const sql of [
+      "UPDATE reputation_events SET points = points + 1",
+      "DELETE FROM reputation_events",
+      "DELETE FROM field_impact_snapshots",
       "UPDATE outcome_events SET seq = seq",
       "DELETE FROM outcome_events",
       "UPDATE verification_records SET decision = 'DISPUTED'",
@@ -310,14 +328,10 @@ test("the application role can use every profile table and nothing else", async 
       });
       await client.query("ROLLBACK TO SAVEPOINT ledger_probe");
     }
-    await client.query("DELETE FROM outcomes WHERE id = $1", [outcome.rows[0].id]);
-    await client.query("DELETE FROM mentorships WHERE id = $1", [probeMentorship.rows[0].id]);
-
-    await client.query("DELETE FROM mentorship_requests WHERE id = $1", [request.rows[0].id]);
-
-    await client.query("DELETE FROM student_profiles WHERE id = $1", [studentId]);
-    await client.query("DELETE FROM mentor_profiles WHERE id = $1", [mentorId]);
-    await client.query("DELETE FROM fields WHERE id = $1", [fieldId]);
+    // The reputation ledger refuses DELETE, so the probe rows above (and their
+    // outcome, mentorship, and request) are left to the rollback below.
+    void ledger;
+    void probeMentorship;
   } finally {
     await client.query("ROLLBACK");
   }
