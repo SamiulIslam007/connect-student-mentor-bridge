@@ -14,6 +14,7 @@ import {
   sessionStatusLabel,
 } from "../../../lib/mentorship-view";
 import { strings } from "../../../lib/strings";
+import { OutcomeSection } from "./outcome-section";
 
 interface SessionRecord {
   id: string;
@@ -37,6 +38,7 @@ interface MentorshipRecord {
   question: string;
   student_name: string;
   mentor_name: string;
+  viewer_role?: "student" | "mentor";
   sessions: SessionRecord[];
 }
 
@@ -427,6 +429,13 @@ export default function MentorshipPage({ params }: { params: Promise<{ id: strin
             </p>
           </section>
         </>
+      ) : null}
+
+      {state === "ready" && mentorship ? (
+        <OutcomeSection
+          mentorshipId={mentorship.id}
+          viewerRole={mentorship.viewer_role ?? "student"}
+        />
       ) : null}
 
       <p>
