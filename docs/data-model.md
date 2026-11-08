@@ -169,15 +169,15 @@ Authentication internals are **library-native** better-auth tables in the same s
 | `mentor_status` | `DRAFT`, `PENDING`, `ACTIVE`, `SUSPENDED`, `REMOVED` (operating status only). Written by `profiles-and-dynamic-fields` with default `DRAFT`; **transitioned by #5** from a verified Level 1 affiliation plus an enrolled second factor |
 | `mentor_access_mode` | `OPEN`, `APPLICATION_ONLY`, `PAUSED` (mentor-selected). **Built** by `profile-availability-and-access-mode` (4b) |
 | `access_state` (derived) | `AVAILABLE`, `FULL`, `APPLICATION_ONLY`, plus hidden when paused or not active |
-| `request_status` | `PENDING`, `ACCEPTED`, `DECLINED`, `REDIRECTED`, `EXPIRED`, `WITHDRAWN` |
+| `request_status` | `PENDING`, `ACCEPTED`, `DECLINED`, `REDIRECTED`, `EXPIRED`, `WITHDRAWN`. **Built** by `requests-and-48h-flow` (#7) |
 | `mentorship_status` | `ACTIVE`, `COMPLETED`, `ENDED_EARLY` |
 | `session_status` | `SCHEDULED`, `HELD`, `CANCELLED` |
 | `outcome_status` | `PENDING_CONFIRMATION`, `CONFIRMED`, `IN_PLATFORM_REVIEW`, `COUNTED`, `REJECTED`, `WITHDRAWN`, `REVERSED` |
 | `dispute_status` | `OPEN`, `IN_REVIEW`, `RESOLVED`, `WITHDRAWN` |
 | `outcome_type` | `ADMISSION`, `INTERNSHIP`, `JOB_OFFER`, `SKILL_MILESTONE`, `INTERVIEW` |
 | `contribution_level` | `DIRECTLY_ENABLED`, `HELPED`, `MINOR` |
-| `interaction_type` | `ASYNC_THREAD`, `ONE_TO_ONE_SESSION`, `GROUP_OFFICE_HOURS` (reserved; not allowed in Phase 1) |
-| `timeframe_bucket` | `WITHIN_1_MONTH`, `ONE_TO_3_MONTHS`, `THREE_TO_6_MONTHS`, `OVER_6_MONTHS` (**Proposed**) |
+| `interaction_type` | `ASYNC_THREAD`, `ONE_TO_ONE_SESSION`, `GROUP_OFFICE_HOURS` (reserved; not allowed in Phase 1). **Built** by #7, with the `GROUP_OFFICE_HOURS` check |
+| `timeframe_bucket` | `WITHIN_1_MONTH`, `ONE_TO_3_MONTHS`, `THREE_TO_6_MONTHS`, `OVER_6_MONTHS` (**Proposed**). **Built** by #7 |
 | `consent_purpose` | `TERMS`, `PRIVACY_NOTICE`, `VOLUNTEER_AGREEMENT`, `COMMUNITY_GUIDELINES`, `INSTITUTION_DATA_SHARING`, `AI_ASSIST`, `EMPLOYER_DATA_SHARING` (Phase 3), `RECORDING` (reserved) |
 | `consent_action` | `GRANTED`, `WITHDRAWN` |
 | `signup_block_reason` | `UNDER_18` |
@@ -206,7 +206,7 @@ stateDiagram-v2
   WITHDRAWN --> [*]
 ```
 
-`request_status`: `PENDING`, `ACCEPTED`, `DECLINED`, `REDIRECTED`, `EXPIRED`, `WITHDRAWN`. Acceptance creates a `mentorships` row. A student withdraws a pending request; a request with no decision reaches `EXPIRED`. A suspended mentor's pending requests also reach `EXPIRED` with notice (there is no separate cancelled state). A redirect shares nothing until the student approves (FR-REQ-04, Phase 1b); approval creates a new linked request.
+`request_status`: `PENDING`, `ACCEPTED`, `DECLINED`, `REDIRECTED`, `EXPIRED`, `WITHDRAWN`. Acceptance **does not** create a `mentorships` row in this release; that moves to `mentorship-thread-and-sessions` (#8), and #7's capacity counts accepted requests instead (D-59). A student withdraws a pending request; a request with no decision reaches `EXPIRED`. A suspended mentor's pending requests also reach `EXPIRED` with notice (there is no separate cancelled state). A redirect shares nothing until the student approves (FR-REQ-04, Phase 1b); approval creates a new linked request.
 
 ### 4.3 Mentorship, session, affiliation, and mentor lifecycles
 
@@ -379,7 +379,7 @@ Check: `institution_id IS NOT NULL OR organization_name IS NOT NULL`. A partial 
 
 ### 5.3 Requests, suggestions, mentorships
 
-**`mentorship_requests`**
+**`mentorship_requests`** (**built** by `requests-and-48h-flow`, #7; migration `0011`)
 
 | Column | Type | Notes |
 |---|---|---|
@@ -400,7 +400,7 @@ Check: `institution_id IS NOT NULL OR organization_name IS NOT NULL`. A partial 
 | `ai_assisted` | `bool` | Reserved (AI is **Later**); always false in the MVP |
 | `version` | `int` | Optimistic lock |
 
-Constraints: at most one `PENDING` request per (`student_profile_id`, `mentor_profile_id`) (partial unique index); the student's user and the mentor's user must differ.
+Constraints: at most one `PENDING` request per (`student_profile_id`, `mentor_profile_id`) (partial unique index); the student's user and the mentor's user must differ. **MVP subset (#7):** `match_score`, `match_factors`, `config_version_id` (#6), `redirected_from_request_id` (Phase 1b), and `ai_assisted` are not created; `field_id` defaults to the mentor's primary field; `version` defaults to 1 and nothing increments it yet.
 
 **`request_alternatives`**: `request_id`, `suggested_mentor_profile_id`, `kind` (`RECOMMEND` or `REDIRECT`), `note`, `status` (`SUGGESTED`, `SENT`, `IGNORED`), `resulting_request_id?`. Supports "decline with recommendations" and the student-approved redirect.
 

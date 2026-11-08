@@ -16,13 +16,15 @@ import { MeModule } from "./me/me.module.js";
 import { MeRolesController } from "./me/roles.controller.js";
 import { ProfilesController } from "./profiles/profiles.controller.js";
 import { ProfilesModule } from "./profiles/profiles.module.js";
+import { RequestsController } from "./requests/requests.controller.js";
+import { RequestsModule } from "./requests/requests.module.js";
 
 /**
  * Modular monolith root module. Product modules (matching, requests, outcomes,
  * reputation, notifications, admin, audit) are added by later changes.
  */
 @Module({
-  imports: [DatabaseModule, IdentityModule, MeModule, ProfilesModule, AvailabilityModule, AffiliationsModule],
+  imports: [DatabaseModule, IdentityModule, MeModule, ProfilesModule, AvailabilityModule, AffiliationsModule, RequestsModule],
   controllers: [HealthController],
   providers: [
     { provide: DATABASE_PROBE, useValue: defaultProbe },
@@ -41,6 +43,7 @@ export class AppModule implements NestModule {
         ProfilesController,
         AvailabilityController,
         AffiliationsController,
+        RequestsController,
       );
   }
 }

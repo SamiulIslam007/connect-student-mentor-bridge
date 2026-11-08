@@ -620,6 +620,214 @@ paths:
           $ref: "#/components/responses/Problem"
         "422":
           $ref: "#/components/responses/Problem"
+  /v1/mentors/{id}:
+    get:
+      operationId: getMentorContext
+      summary: A requestable mentor's small public shape
+      description: >-
+        Signed-in read used by the request form. Only an ACTIVE mentor profile is
+        visible; a draft, pending, suspended, or removed one answers 404.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The mentor context
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MentorContext"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+  /v1/requests:
+    post:
+      operationId: createRequest
+      summary: Send a structured mentorship request
+      description: >-
+        The sender is the session's account and must hold a student profile. The
+        mentor must be ACTIVE with a verified Level 1 affiliation and not paused.
+        At most one PENDING request per student/mentor pair, at most three PENDING
+        per student, and slots in use (pending + accepted in the last 7 days) must
+        stay under the mentor's weekly capacity. The request expires 48 hours
+        after creation and a reminder is sent at 24 hours.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RequestCreate"
+      responses:
+        "201":
+          description: The created request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Request"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+    get:
+      operationId: listRequests
+      summary: The caller's own sent or received requests
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: role
+          in: query
+          schema:
+            type: string
+            enum: [sent, received]
+            default: sent
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, accepted, declined, redirected, expired, withdrawn]
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+      responses:
+        "200":
+          description: One page of the caller's requests
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RequestPage"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+  /v1/requests/{id}:
+    get:
+      operationId: getRequest
+      summary: One request, readable only by its sender or addressee
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Request"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+  /v1/requests/{id}/accept:
+    post:
+      operationId: acceptRequest
+      summary: Accept a pending request (addressee only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The accepted request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Request"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+  /v1/requests/{id}/decline:
+    post:
+      operationId: declineRequest
+      summary: Decline a pending request with an optional reason (addressee only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                reason:
+                  type: string
+                  maxLength: 1000
+      responses:
+        "200":
+          description: The declined request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Request"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+  /v1/requests/{id}/withdraw:
+    post:
+      operationId: withdrawRequest
+      summary: Withdraw a pending request (sender only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The withdrawn request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Request"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
   /v1/fields:
     get:
       operationId: listFields
@@ -1267,6 +1475,123 @@ components:
           type: string
           enum: [level_0, level_1, level_2]
           description: The level the claim itself supports, not an aggregate.
+    MentorContext:
+      type: object
+      additionalProperties: false
+      required: [id, display_name, headline, access_mode, status, primary_field]
+      properties:
+        id:
+          type: string
+        display_name:
+          type: string
+        headline:
+          type: string
+        access_mode:
+          $ref: "#/components/schemas/MentorAccessMode"
+        status:
+          type: string
+          enum: [ACTIVE]
+        primary_field:
+          $ref: "#/components/schemas/FieldSummary"
+    RequestCreate:
+      type: object
+      additionalProperties: false
+      required: [mentor_id, question, context_summary, target_outcome, expected_timeframe]
+      properties:
+        mentor_id:
+          type: string
+          description: The mentor profile id taken from the shared profile link.
+        question:
+          type: string
+          minLength: 1
+          maxLength: 300
+        context_summary:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        target_outcome:
+          type: string
+          minLength: 1
+          maxLength: 300
+        expected_timeframe:
+          type: string
+          enum: [WITHIN_1_MONTH, ONE_TO_3_MONTHS, THREE_TO_6_MONTHS, OVER_6_MONTHS]
+        interaction_type:
+          type: string
+          enum: [ASYNC_THREAD, ONE_TO_ONE_SESSION, GROUP_OFFICE_HOURS]
+          default: ASYNC_THREAD
+          description: GROUP_OFFICE_HOURS is refused with 422 in this release.
+        application_note:
+          type: string
+          maxLength: 1000
+          description: Required for an APPLICATION_ONLY mentor.
+    Request:
+      type: object
+      additionalProperties: false
+      required: [id, status, interaction_type, timeframe, question, context_summary, target_outcome, application_note, decision_note, student_profile_id, mentor_profile_id, student_name, mentor_name, created_at, expires_at, decided_at, reminder_sent_at]
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum: [pending, accepted, declined, redirected, expired, withdrawn]
+        interaction_type:
+          type: string
+          enum: [async_thread, one_to_one_session, group_office_hours]
+        timeframe:
+          type: string
+          enum: [within_1_month, one_to_3_months, three_to_6_months, over_6_months]
+        question:
+          type: string
+        context_summary:
+          type: string
+        target_outcome:
+          type: string
+        application_note:
+          anyOf:
+            - type: string
+            - type: "null"
+        decision_note:
+          anyOf:
+            - type: string
+            - type: "null"
+        student_profile_id:
+          type: string
+        mentor_profile_id:
+          type: string
+        student_name:
+          type: string
+        mentor_name:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        decided_at:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: "null"
+        reminder_sent_at:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: "null"
+    RequestPage:
+      type: object
+      additionalProperties: false
+      required: [data, next_cursor]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Request"
+        next_cursor:
+          anyOf:
+            - type: string
+            - type: "null"
     StudentProfileRequest:
       type: object
       additionalProperties: false

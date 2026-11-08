@@ -211,7 +211,13 @@ export type IdentityErrorCode =
   | "PROVIDER_UNAVAILABLE"
   | "SESSION_NOT_FOUND"
   | "AFFILIATION_EMAIL_UNVERIFIED"
-  | "AFFILIATION_INSTITUTION_MISMATCH";
+  | "AFFILIATION_INSTITUTION_MISMATCH"
+  | "MENTOR_NOT_VERIFIED"
+  | "MENTOR_UNAVAILABLE"
+  | "MENTOR_AT_CAPACITY"
+  | "DUPLICATE_PENDING_REQUEST"
+  | "REQUEST_LIMIT_REACHED"
+  | "REQUEST_INVALID_STATE";
 
 /** A failure a feature module may map to a response, with no library detail. */
 export class IdentityError extends Error {

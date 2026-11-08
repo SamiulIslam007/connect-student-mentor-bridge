@@ -15,6 +15,9 @@ import { MeRolesController } from "../src/me/roles.controller.js";
 import { DrizzleProfilesService } from "../src/profiles/drizzle-profiles.service.js";
 import { ProfilesController } from "../src/profiles/profiles.controller.js";
 import { PROFILES_SERVICE } from "../src/profiles/profiles.tokens.js";
+import { DrizzleRequestsService } from "../src/requests/drizzle-requests.service.js";
+import { RequestsController } from "../src/requests/requests.controller.js";
+import { REQUESTS_SERVICE } from "../src/requests/requests.tokens.js";
 import {
   apiRequest,
   registerAndVerify,
@@ -77,6 +80,16 @@ const MATRIX: Requirement[] = [
   { route: /^PUT \/v1\/me\/availability$/, access: "signed-in", mutating: true },
   { route: /^GET \/v1\/fields$/, access: "signed-in" },
   { route: /^POST \/v1\/me\/affiliations$/, access: "signed-in", mutating: true },
+  { route: /^GET \/v1\/mentors\/:id$/, access: "signed-in" },
+  // Every principal holds STUDENT (registration grants it), so the matrix's
+  // single-role model cannot express "student action" as a refusal; the handler
+  // still requires the role and is covered in requests.integration.test.ts.
+  { route: /^POST \/v1\/requests$/, access: "signed-in", mutating: true },
+  { route: /^GET \/v1\/requests$/, access: "signed-in" },
+  { route: /^GET \/v1\/requests\/:id$/, access: "signed-in" },
+  { route: /^POST \/v1\/requests\/:id\/accept$/, access: "MENTOR", mutating: true },
+  { route: /^POST \/v1\/requests\/:id\/decline$/, access: "MENTOR", mutating: true },
+  { route: /^POST \/v1\/requests\/:id\/withdraw$/, access: "signed-in", mutating: true },
 ];
 
 const PRINCIPAL_ROLES: Role[] = ["STUDENT", "MENTOR", "INSTITUTION_ADMIN", "PLATFORM_ADMIN"];
@@ -94,6 +107,7 @@ before(async () => {
       ProfilesController,
       AvailabilityController,
       AffiliationsController,
+      RequestsController,
     ],
     requestIdRoutes: [
       AuthController,
@@ -102,11 +116,13 @@ before(async () => {
       ProfilesController,
       AvailabilityController,
       AffiliationsController,
+      RequestsController,
     ],
     providers: (database) => [
       { provide: PROFILES_SERVICE, useValue: new DrizzleProfilesService(database) },
       { provide: AVAILABILITY_SERVICE, useValue: new DrizzleAvailabilityService(database) },
       { provide: AFFILIATIONS_SERVICE, useValue: new DrizzleAffiliationsService(database) },
+      { provide: REQUESTS_SERVICE, useValue: new DrizzleRequestsService(database) },
     ],
   });
   if (started.skipped) {

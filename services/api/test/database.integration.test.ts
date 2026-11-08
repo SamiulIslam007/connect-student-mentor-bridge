@@ -44,7 +44,7 @@ async function expectPermissionDenied(client: TestDatabase["client"], sql: strin
   }
 }
 
-test("the migrations create the nineteen tables and protect the ledger", async (context) => {
+test("the migrations create the twenty tables and protect the ledger", async (context) => {
   const current = requireDatabase(context);
   if (!current) {
     return;
@@ -67,6 +67,7 @@ test("the migrations create the nineteen tables and protect the ledger", async (
       "institutions",
       "mentor_fields",
       "mentor_profiles",
+      "mentorship_requests",
       "outbox_events",
       "role_assignments",
       "sessions",
@@ -226,6 +227,21 @@ test("the application role can use every profile table and nothing else", async 
       mentorId,
     ]);
     await client.query("DELETE FROM mentor_fields WHERE mentor_profile_id = $1", [mentorId]);
+
+    // `0011` grants the request table.
+    const request = await client.query<{ id: string }>(
+      "INSERT INTO mentorship_requests (student_profile_id, mentor_profile_id, field_id, question, context_summary, target_outcome, timeframe, expires_at) VALUES ($1, $2, $3, 'Question', 'Context', 'Outcome', 'WITHIN_1_MONTH', now() + interval '48 hours') RETURNING id",
+      [studentId, mentorId, fieldId],
+    );
+    await client.query("UPDATE mentorship_requests SET version = 2 WHERE id = $1", [
+      request.rows[0].id,
+    ]);
+    const requests = await client.query<{ version: number }>(
+      "SELECT version FROM mentorship_requests WHERE id = $1",
+      [request.rows[0].id],
+    );
+    assert.deepEqual(requests.rows, [{ version: 2 }]);
+    await client.query("DELETE FROM mentorship_requests WHERE id = $1", [request.rows[0].id]);
 
     await client.query("DELETE FROM student_profiles WHERE id = $1", [studentId]);
     await client.query("DELETE FROM mentor_profiles WHERE id = $1", [mentorId]);

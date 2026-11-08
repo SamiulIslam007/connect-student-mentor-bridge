@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Inject, Post, Put, Query, Req } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Inject, Param, Post, Put, Query, Req } from "@nestjs/common";
 
 import {
   IdentityError,
@@ -17,7 +17,7 @@ import type {
   FieldSummary,
   ProfilesService,
 } from "./profiles.service.js";
-import { mentorProfilePayload, studentProfilePayload } from "./profiles.service.js";
+import { mentorContextPayload, mentorProfilePayload, studentProfilePayload } from "./profiles.service.js";
 import { PROFILES_SERVICE } from "./profiles.tokens.js";
 
 function bodyRecord(body: unknown): Record<string, unknown> {
@@ -202,6 +202,23 @@ export class ProfilesController {
     await this.actingAccount(request);
     const page = await this.profiles.listFields(fieldPageQuery(limit, cursor));
     return { fields: page.fields, next_cursor: page.nextCursor };
+  }
+
+  /**
+   * A requestable mentor's small public shape (docs/api-contracts.md §5.3). Only
+   * an ACTIVE profile is readable, so a draft or pending mentor stays invisible.
+   */
+  @Get("mentors/:id")
+  async mentorContext(
+    @Param("id") id: string,
+    @Req() request: RequestWithId,
+  ): Promise<Record<string, unknown>> {
+    await this.actingAccount(request);
+    const context = await this.profiles.readMentorContext(id);
+    if (!context) {
+      throw new IdentityError("SESSION_NOT_FOUND", "the mentor does not exist");
+    }
+    return mentorContextPayload(context);
   }
 
   /**

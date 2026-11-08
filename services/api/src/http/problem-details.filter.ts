@@ -30,6 +30,12 @@ const PROBLEMS: Record<IdentityErrorCode, ProblemMapping> = {
   SESSION_NOT_FOUND: { status: 404, code: "NOT_FOUND", title: "Not found" },
   AFFILIATION_EMAIL_UNVERIFIED: { status: 422, code: "AFFILIATION_EMAIL_UNVERIFIED", title: "Confirm your email address before claiming an affiliation" },
   AFFILIATION_INSTITUTION_MISMATCH: { status: 422, code: "AFFILIATION_INSTITUTION_MISMATCH", title: "No registered institution matches the claim" },
+  MENTOR_NOT_VERIFIED: { status: 409, code: "MENTOR_NOT_VERIFIED", title: "This mentor has no verified Level 1 affiliation" },
+  MENTOR_UNAVAILABLE: { status: 409, code: "MENTOR_UNAVAILABLE", title: "This mentor is not accepting requests right now" },
+  MENTOR_AT_CAPACITY: { status: 409, code: "MENTOR_AT_CAPACITY", title: "This mentor is at weekly capacity" },
+  DUPLICATE_PENDING_REQUEST: { status: 409, code: "DUPLICATE_PENDING_REQUEST", title: "You already have a pending request with this mentor" },
+  REQUEST_LIMIT_REACHED: { status: 409, code: "REQUEST_LIMIT_REACHED", title: "Too many pending requests" },
+  REQUEST_INVALID_STATE: { status: 409, code: "REQUEST_INVALID_STATE", title: "This request cannot take that action now" },
 };
 
 const PROBLEM_BASE = "https://docs.connect.example/problems/";
