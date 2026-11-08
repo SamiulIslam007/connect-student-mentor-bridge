@@ -19,6 +19,8 @@ export interface RequestRecord {
   expiresAt: Date;
   decidedAt: Date | null;
   reminderSentAt: Date | null;
+  /** Set once the request is accepted; null before that and after a decline. */
+  mentorshipId: string | null;
 }
 
 export interface CreateRequestInput {
@@ -90,5 +92,6 @@ export function requestPayload(request: RequestRecord): Record<string, unknown> 
     expires_at: request.expiresAt,
     decided_at: request.decidedAt,
     reminder_sent_at: request.reminderSentAt,
+    mentorship_id: request.mentorshipId,
   };
 }

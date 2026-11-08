@@ -12,6 +12,8 @@ import { ProblemDetailsFilter } from "./http/problem-details.filter.js";
 import { AuthController } from "./identity/auth.controller.js";
 import { IdentityModule } from "./identity/identity.module.js";
 import { MeController } from "./me/me.controller.js";
+import { MentorshipsController, SessionsController } from "./mentorships/mentorships.controller.js";
+import { MentorshipsModule } from "./mentorships/mentorships.module.js";
 import { MeModule } from "./me/me.module.js";
 import { MeRolesController } from "./me/roles.controller.js";
 import { ProfilesController } from "./profiles/profiles.controller.js";
@@ -24,7 +26,16 @@ import { RequestsModule } from "./requests/requests.module.js";
  * reputation, notifications, admin, audit) are added by later changes.
  */
 @Module({
-  imports: [DatabaseModule, IdentityModule, MeModule, ProfilesModule, AvailabilityModule, AffiliationsModule, RequestsModule],
+  imports: [
+    DatabaseModule,
+    IdentityModule,
+    MeModule,
+    ProfilesModule,
+    AvailabilityModule,
+    AffiliationsModule,
+    RequestsModule,
+    MentorshipsModule,
+  ],
   controllers: [HealthController],
   providers: [
     { provide: DATABASE_PROBE, useValue: defaultProbe },
@@ -44,6 +55,8 @@ export class AppModule implements NestModule {
         AvailabilityController,
         AffiliationsController,
         RequestsController,
+        MentorshipsController,
+        SessionsController,
       );
   }
 }

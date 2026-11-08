@@ -87,7 +87,7 @@ A work item is done when:
 
 Status values: `DONE` (archived with evidence), `IN PROGRESS` (proposed or applied, not archived), `PLANNED`, `BLOCKED`.
 
-The original ten entries keep their numbers. Rows were inserted without renumbering: **4a**, **4b**, and **4c** in Sprint 2, and **6a** in Sprint 3. Sprint 2 order is 4a → 4c → 4b → #5 → #6 (4c must land before #5 because mentor activation needs role-keyed MFA; 4b must land before discovery). Sprint 3 order is 6a → #7.
+The original ten entries keep their numbers. Rows were inserted without renumbering: **4a**, **4b**, and **4c** in Sprint 2, and **6a** in Sprint 3. Sprint 2 order is 4a → 4c → 4b → #5 → #6 (4c must land before #5 because mentor activation needs role-keyed MFA; 4b must land before discovery). Sprint 3 order is 6a → #7. Sprint 4 is #8 (mentorship, thread, sessions); Sprint 5 is #9 (outcomes).
 
 | # | Change | Scope | Status |
 |---|---|---|---|
@@ -104,7 +104,7 @@ The original ten entries keep their numbers. Rows were inserted without renumber
 | 6 | `matching-and-discovery` | Pure match function, weights from config, suggestions with reasons, suggestion log | `PLANNED` |
 | 6a | `outbox-and-job-runner` | `outbox_events`, pg-boss, the worker consumer, email through the queue with retry, and the outbox test event. **Sprint 3, before #7** | `DONE` (archived 2026-11-08; `pnpm lint`, `typecheck`, `test`, `build` green, 265 tests with 0 skipped under `CI=true`; identity mail stays direct, DEBT-11) |
 | 7 | `requests-and-48h-flow` | Structured request, capacity lock (rolling 7-day window), accept/decline/withdraw, 48h expiry and 24h reminder, queued request emails, `/requests` and the request form | `DONE` (archived 2026-11-08; `pnpm lint`, `typecheck`, `test`, `build` green, 300 tests with 0 skipped under `CI=true`; acceptance creates no mentorship until #8, DEBT-20; draft autosave and the resume capacity check remain open) |
-| 8 | `mentorship-thread-and-sessions` | Mentorship on acceptance, agreement, thread, meeting link, held confirmations | `PLANNED` |
+| 8 | `mentorship-thread-and-sessions` | Mentorship on acceptance, agreement, thread, meeting link, held confirmations | `DONE` (archived 2026-11-08; `pnpm lint`, `typecheck`, `test`, `build` green, all integration tests run under `CI=true`; DEBT-20 and DEBT-17 closed, DEBT-21 recorded; `ENDED_EARLY`, `AD_HOC`, redaction, and read state stay unexposed) |
 | 9 | `outcomes-and-verification` | Outcome state machine, append-only events, evidence upload and scan, withdraw, conflict declaration | `PLANNED` |
 | 10 | `reputation-and-platform-review` | Counted outcomes, pair factor, snapshots, review queue with written reason, clawback, audit log | `PLANNED` |
 

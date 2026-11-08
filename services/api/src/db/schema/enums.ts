@@ -122,6 +122,22 @@ export const outcomeType = pgEnum("outcome_type", [
   "INTERVIEW",
 ]);
 
+/** Canonical mentorship enums (docs/data-model.md §4.1). */
+export const mentorshipStatus = pgEnum("mentorship_status", ["ACTIVE", "COMPLETED", "ENDED_EARLY"]);
+
+export const mentorshipCadence = pgEnum("mentorship_cadence", [
+  "WEEKLY",
+  "BIWEEKLY",
+  "MONTHLY",
+  "AD_HOC",
+]);
+
+export const mentorshipSessionStatus = pgEnum("mentorship_session_status", [
+  "SCHEDULED",
+  "HELD",
+  "CANCELLED",
+]);
+
 /** Canonical role values (docs/data-model.md §4.1). `EMPLOYER` is reserved. */
 export const role = pgEnum("role", [
   "STUDENT",

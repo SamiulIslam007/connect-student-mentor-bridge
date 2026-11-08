@@ -4,6 +4,7 @@ export * from "./availability.js";
 export * from "./columns.js";
 export * from "./enums.js";
 export * from "./fields.js";
+export * from "./mentorships.js";
 export * from "./platform.js";
 export * from "./profiles.js";
 export * from "./requests.js";

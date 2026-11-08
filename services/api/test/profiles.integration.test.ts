@@ -757,19 +757,77 @@ test("pause is idempotent and an older save leaves a paused profile paused", asy
   assert.equal(mentorProfile.access_mode, "PAUSED");
 });
 
-test("pause and resume run no capacity check in this change (#7 owns it)", async (context) => {
+test("resume is refused at capacity and allowed once a mentorship closes", async (context) => {
   const current = requireStack(context);
   if (!current) return;
-  const token = await mentorTokenFor(current, "no-capacity@example.com");
-  await apiRequest(current, "PUT", "/v1/me/mentor-profile", validMentor, token);
+  const token = await mentorTokenFor(current, "resume-capacity@example.com");
+  const saved = await apiRequest(
+    current,
+    "PUT",
+    "/v1/me/mentor-profile",
+    { ...validMentor, weekly_capacity: 1 },
+    token,
+  );
+  assert.equal(saved.status, 200, saved.text);
+
+  // One live ACTIVE mentorship fills a capacity of one (design D7).
+  const studentToken = await tokenFor(current, "resume-capacity.student@example.com");
+  await apiRequest(
+    current,
+    "PUT",
+    "/v1/me/student-profile",
+    { goals: "Find an internship", primary_field: "Software engineering" },
+    studentToken,
+  );
+  const seeded = await current.client.query<{ mentorships: string }>(
+    `WITH mentor AS (
+       SELECT id, primary_field_id FROM mentor_profiles
+        WHERE user_id = (SELECT id FROM users WHERE email = 'resume-capacity@example.com')
+     ), student AS (
+       SELECT id FROM student_profiles
+        WHERE user_id = (SELECT id FROM users WHERE email = 'resume-capacity.student@example.com')
+     ), request AS (
+       INSERT INTO mentorship_requests (student_profile_id, mentor_profile_id, field_id, question, context_summary, target_outcome, timeframe, expires_at, status, decided_at)
+       SELECT student.id, mentor.id, mentor.primary_field_id, 'Question', 'Context', 'Outcome', 'WITHIN_1_MONTH', now() + interval '48 hours', 'ACCEPTED', now()
+         FROM student, mentor RETURNING id, student_profile_id, mentor_profile_id, field_id
+     ), mentorship AS (
+       INSERT INTO mentorships (request_id, student_profile_id, mentor_profile_id, field_id)
+       SELECT id, student_profile_id, mentor_profile_id, field_id FROM request RETURNING id
+     )
+     SELECT id AS mentorships FROM mentorship`,
+  );
+  assert.ok(seeded.rows[0]);
 
   const paused = await apiRequest(current, "POST", "/v1/me/mentor-profile/pause", undefined, token);
-  const resumed = await apiRequest(current, "POST", "/v1/me/mentor-profile/resume", undefined, token);
+  assert.equal(paused.status, 200, "pausing is never a capacity decision");
 
-  // `requests-and-capacity` (#7) adds CAPACITY_BELOW_ACTIVE to the resume handler;
-  // until then neither response may claim a capacity decision.
-  assert.ok(!paused.text.includes("CAPACITY"));
-  assert.ok(!resumed.text.includes("CAPACITY"));
+  const refused = await apiRequest(
+    current,
+    "POST",
+    "/v1/me/mentor-profile/resume",
+    { access_mode: "APPLICATION_ONLY" },
+    token,
+  );
+  assert.equal(refused.status, 409, refused.text);
+  assert.equal(refused.body?.code, "CAPACITY_BELOW_ACTIVE");
+  assert.match(String(refused.body?.detail), /weekly capacity/);
+
+  const me = await apiRequest(current, "GET", "/v1/me", undefined, token);
+  assert.equal((me.body?.mentor_profile as { access_mode: string }).access_mode, "PAUSED");
+
+  await current.client.query(
+    "UPDATE mentorships SET status = 'COMPLETED', ended_at = now() WHERE id = $1",
+    [seeded.rows[0].mentorships],
+  );
+  const resumed = await apiRequest(
+    current,
+    "POST",
+    "/v1/me/mentor-profile/resume",
+    { access_mode: "APPLICATION_ONLY" },
+    token,
+  );
+  assert.equal(resumed.status, 200, resumed.text);
+  assert.equal(resumed.body?.access_mode, "APPLICATION_ONLY");
 });
 
 test("pause and resume require the mentor role and a profile", async (context) => {

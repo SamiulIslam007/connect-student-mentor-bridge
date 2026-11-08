@@ -897,6 +897,318 @@ paths:
                 $ref: "#/components/schemas/StatusResponse"
         "401":
           $ref: "#/components/responses/Problem"
+  /v1/mentorships:
+    get:
+      operationId: listMentorships
+      summary: The caller's own mentorships, newest first
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/MentorshipStatus"
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+      responses:
+        "200":
+          description: The caller's mentorships
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Mentorship"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+  /v1/mentorships/{id}:
+    get:
+      operationId: getMentorship
+      summary: One mentorship with its sessions, readable only by a participant
+      description: >-
+        A caller who is neither the student nor the mentor receives 404, never
+        403, so the existence of a mentorship id is not disclosed.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The mentorship, including its sessions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Mentorship"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+  /v1/mentorships/{id}/agreement:
+    put:
+      operationId: setMentorshipAgreement
+      summary: Set the cadence, planned weeks, and goal (participant only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgreementRequest"
+      responses:
+        "200":
+          description: The mentorship with the stored agreement
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Mentorship"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+  /v1/mentorships/{id}/agreement/acknowledge:
+    post:
+      operationId: acknowledgeMentorshipAgreement
+      summary: Record the caller's own agreement acknowledgement
+      description: A later acknowledgement never overwrites the first timestamp.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The mentorship with the caller's acknowledgement
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Mentorship"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+  /v1/mentorships/{id}/messages:
+    get:
+      operationId: listThreadMessages
+      summary: The thread, oldest first, keyset-paginated on the message cursor
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+      responses:
+        "200":
+          description: One page of messages
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ThreadMessagePage"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+    post:
+      operationId: postThreadMessage
+      summary: Post one text message to the thread (participant only)
+      description: >-
+        The body is trimmed and must be 1 to 2000 characters. Exactly one
+        notification email is queued per message, keyed on the message id. There
+        is no update or delete route: messages are immutable.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ThreadMessageCreate"
+      responses:
+        "201":
+          description: The stored message
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ThreadMessage"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+  /v1/mentorships/{id}/sessions:
+    post:
+      operationId: createMentorshipSession
+      summary: Plan a session with an https meeting link (participant only)
+      description: >-
+        The meeting URL must begin with https:// and is shown as untrusted,
+        mentor-provided display text. The duration is 15 to 240 minutes.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SessionCreate"
+      responses:
+        "201":
+          description: The planned session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+  /v1/mentorships/{id}/complete:
+    post:
+      operationId: completeMentorship
+      summary: Complete an ACTIVE mentorship once (participant only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The completed mentorship
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Mentorship"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+  /v1/sessions/{id}/confirm-held:
+    post:
+      operationId: confirmSessionHeld
+      summary: Confirm the session was held; HELD needs both confirmations
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The session with the caller's confirmation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+  /v1/sessions/{id}/cancel:
+    post:
+      operationId: cancelMentorshipSession
+      summary: Cancel a scheduled session with a reason (participant only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SessionCancelRequest"
+      responses:
+        "200":
+          description: The cancelled session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
 components:
   securitySchemes:
     bearerAuth:
@@ -1699,3 +2011,230 @@ components:
             - INTERNAL_ERROR
         request_id:
           type: string
+    MentorshipStatus:
+      type: string
+      enum: [ACTIVE, COMPLETED, ENDED_EARLY]
+      description: Stored uppercase; responses use the lowercase form.
+    MentorshipCadence:
+      type: string
+      enum: [WEEKLY, BIWEEKLY, MONTHLY, AD_HOC]
+    SessionStatus:
+      type: string
+      enum: [SCHEDULED, HELD, CANCELLED]
+    Mentorship:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - request_id
+        - status
+        - is_paid
+        - student_profile_id
+        - mentor_profile_id
+        - field_id
+        - cadence
+        - planned_weeks
+        - goal
+        - student_acknowledged_at
+        - mentor_acknowledged_at
+        - agreement_acknowledged
+        - started_at
+        - ended_at
+        - created_at
+        - question
+        - student_name
+        - mentor_name
+      properties:
+        id:
+          type: string
+        request_id:
+          type: string
+        status:
+          type: string
+          enum: [active, completed, ended_early]
+        is_paid:
+          type: boolean
+          description: Always false in the MVP; the column exists for the paid-relationship rule.
+        student_profile_id:
+          type: string
+        mentor_profile_id:
+          type: string
+        field_id:
+          type: string
+          description: Copied from the accepted request, so reputation stays field-scoped.
+        cadence:
+          type: string
+          nullable: true
+          enum: [weekly, biweekly, monthly, ad_hoc, null]
+        planned_weeks:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 52
+        goal:
+          type: string
+          nullable: true
+          maxLength: 2000
+        student_acknowledged_at:
+          type: string
+          format: date-time
+          nullable: true
+        mentor_acknowledged_at:
+          type: string
+          format: date-time
+          nullable: true
+        agreement_acknowledged:
+          type: boolean
+          description: True only when both timestamps are set.
+        started_at:
+          type: string
+          format: date-time
+        ended_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        question:
+          type: string
+        student_name:
+          type: string
+        mentor_name:
+          type: string
+        sessions:
+          type: array
+          description: Present on the single-mentorship read only.
+          items:
+            $ref: "#/components/schemas/Session"
+    ThreadMessage:
+      type: object
+      additionalProperties: false
+      required: [id, sender_user_id, sender_name, body, created_at]
+      properties:
+        id:
+          type: string
+        sender_user_id:
+          type: string
+        sender_name:
+          type: string
+        body:
+          type: string
+          maxLength: 2000
+        created_at:
+          type: string
+          format: date-time
+    ThreadMessagePage:
+      type: object
+      additionalProperties: false
+      required: [data, next_cursor]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ThreadMessage"
+        next_cursor:
+          type: string
+          nullable: true
+          description: Null on the last page; opaque, oldest-first.
+    ThreadMessageCreate:
+      type: object
+      additionalProperties: false
+      required: [body]
+      properties:
+        body:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          description: Trimmed before storage; attachments and edits do not exist.
+    AgreementRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        cadence:
+          $ref: "#/components/schemas/MentorshipCadence"
+        planned_weeks:
+          type: integer
+          minimum: 1
+          maximum: 52
+        goal:
+          type: string
+          maxLength: 2000
+    Session:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - mentorship_id
+        - created_by_user_id
+        - scheduled_start
+        - duration_minutes
+        - meeting_url
+        - status
+        - student_confirmed_held_at
+        - mentor_confirmed_held_at
+        - cancelled_by_user_id
+        - cancel_reason
+        - created_at
+      properties:
+        id:
+          type: string
+        mentorship_id:
+          type: string
+        created_by_user_id:
+          type: string
+        scheduled_start:
+          type: string
+          format: date-time
+        duration_minutes:
+          type: integer
+          minimum: 15
+          maximum: 240
+        meeting_url:
+          type: string
+          pattern: "^https://"
+          description: Mentor-provided and untrusted; shown as display text that opens outside connect.
+        status:
+          type: string
+          enum: [scheduled, held, cancelled]
+        student_confirmed_held_at:
+          type: string
+          format: date-time
+          nullable: true
+        mentor_confirmed_held_at:
+          type: string
+          format: date-time
+          nullable: true
+        cancelled_by_user_id:
+          type: string
+          nullable: true
+        cancel_reason:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+    SessionCreate:
+      type: object
+      additionalProperties: false
+      required: [scheduled_start, duration_minutes, meeting_url]
+      properties:
+        scheduled_start:
+          type: string
+          format: date-time
+        duration_minutes:
+          type: integer
+          minimum: 15
+          maximum: 240
+        meeting_url:
+          type: string
+          pattern: "^https://"
+    SessionCancelRequest:
+      type: object
+      additionalProperties: false
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500

@@ -217,7 +217,10 @@ export type IdentityErrorCode =
   | "MENTOR_AT_CAPACITY"
   | "DUPLICATE_PENDING_REQUEST"
   | "REQUEST_LIMIT_REACHED"
-  | "REQUEST_INVALID_STATE";
+  | "REQUEST_INVALID_STATE"
+  | "MENTORSHIP_INVALID_STATE"
+  | "CAPACITY_BELOW_ACTIVE"
+  | "OUTCOME_INVALID_STATE";
 
 /** A failure a feature module may map to a response, with no library detail. */
 export class IdentityError extends Error {

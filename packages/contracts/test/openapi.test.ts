@@ -280,3 +280,68 @@ test("availability and access-mode routes are documented and session-guarded", (
     ["OPEN", "APPLICATION_ONLY", "PAUSED"],
   );
 });
+
+test("the mentorship surface is documented, session-guarded, and matches the controllers", () => {
+  const document = contract();
+  const paths = [
+    "/v1/mentorships",
+    "/v1/mentorships/{id}",
+    "/v1/mentorships/{id}/agreement",
+    "/v1/mentorships/{id}/agreement/acknowledge",
+    "/v1/mentorships/{id}/messages",
+    "/v1/mentorships/{id}/sessions",
+    "/v1/mentorships/{id}/complete",
+    "/v1/sessions/{id}/confirm-held",
+    "/v1/sessions/{id}/cancel",
+  ];
+
+  const documented = Object.keys(document.paths)
+    .filter((path) => path.startsWith("/v1/mentorships") || path.startsWith("/v1/sessions"))
+    .sort();
+  assert.deepEqual(documented, [...paths].sort());
+
+  for (const path of paths) {
+    for (const operation of Object.values(document.paths[path])) {
+      assert.deepEqual(operation.security, [{ bearerAuth: [] }], `${path} must require a session`);
+      assert.ok(operation.responses["401"], `${path} documents the unauthenticated response`);
+      assert.ok(
+        operation.responses["404"] || operation.responses["409"] || operation.responses["422"],
+        `${path} documents a refusal`,
+      );
+    }
+  }
+
+  // One operation per controller decorator: a new route cannot ship undocumented.
+  const controller = readFileSync(
+    resolve(process.cwd(), "../../services/api/src/mentorships/mentorships.controller.ts"),
+    "utf8",
+  );
+  const decorators = [...controller.matchAll(/@(Get|Post|Put)\(/g)].length;
+  const operations = paths.reduce(
+    (total, path) => total + Object.keys(document.paths[path]).length,
+    0,
+  );
+  assert.equal(operations, decorators, "the contract must describe every controller route");
+});
+
+test("the thread body bound and the https-only link are in the contract", () => {
+  const document = contract();
+  const create = document.components.schemas.ThreadMessageCreate as unknown as {
+    properties: { body: { maxLength: number } };
+  };
+  assert.equal(create.properties.body.maxLength, 2_000);
+
+  const session = document.components.schemas.SessionCreate as unknown as {
+    properties: { meeting_url: { pattern: string }; duration_minutes: { minimum: number; maximum: number } };
+  };
+  assert.equal(session.properties.meeting_url.pattern, "^https://");
+  assert.deepEqual(
+    [session.properties.duration_minutes.minimum, session.properties.duration_minutes.maximum],
+    [15, 240],
+  );
+
+  const mentorship = document.components.schemas.Mentorship.properties ?? {};
+  for (const forbidden of ["score", "points", "tier", "ranking"]) {
+    assert.equal(forbidden in mentorship, false, `Mentorship must not carry ${forbidden}`);
+  }
+});
