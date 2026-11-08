@@ -480,3 +480,25 @@ date: 2026-10-29
 - Reason: The review queue and counting have their own guards and their own tests; shipping them in one change would put the append-only reputation ledger and the review decision in a single unreviewable diff.
 - Status: Decided
 - Affects: `docs/mvp-build-plan.md` §5 rows #9 and #10, `docs/milestones-and-phases.md` §Current state, `docs/data-model.md` §4.4
+
+
+### D-66: #10 is split into counting and the review queue
+- Date: 2026-11-08
+- Decision: `reputation-and-platform-review` (#10) becomes `reputation-ledger-and-counting` (counting, the append-only ledger, the replayable snapshot, the counts-only impact read) plus a following row `platform-review-queue` (reviewer decisions with a written reason, `REJECTED`, clawback). The plan keeps both rows and the order.
+- Reason: Counting has to be provably correct before a reviewer can reverse it, and the two halves have different guards and different tests. Shipping them in one diff would put the ledger and the review decision in one review.
+- Status: Decided
+- Affects: `docs/mvp-build-plan.md` §5 rows #10 and #10b, `docs/milestones-and-phases.md` §Current state, `docs/known-debt.md` (DEBT-23)
+
+### D-67: Reputation multipliers ship as 1.0 placeholders
+- Date: 2026-11-08
+- Decision: `REPUTATION_DIFFICULTY_WEIGHTS`, `REPUTATION_TIER_MULTIPLIERS`, and `REPUTATION_CONTRIBUTION_MULTIPLIERS` are `1.0` for every key. Points therefore reduce to the pair factor. The values stay **Open** in `docs/reputation-and-verification-policy.md` §17 and are set after pilot data.
+- Reason: The policy marks all three Open, so any other number would be an invented ranking. A uniform placeholder keeps the pipeline, the replay guarantee, and the tests real while exposing nothing.
+- Status: Decided
+- Affects: `packages/config/src/index.ts`, `docs/reputation-and-verification-policy.md` §17, `docs/functional-requirements.md` FR-REP-03, `docs/known-debt.md` (DEBT-24)
+
+### D-68: The counts-only impact view ships before discovery
+- Date: 2026-11-08
+- Decision: `GET /v1/me/impact` and `GET /v1/mentors/{id}/impact` return counts by field and outcome type only, plus a `counted_outcomes` total. No `score`, `points`, `tier`, or ranking key exists, and `points_total` never leaves the server.
+- Reason: Mentor recognition is the only non-monetary reward in the pilot, so a count is worth showing now; the numeric score needs thresholds nobody has set, and discovery (#6) is deferred by D-58, so nothing else consumes the view yet.
+- Status: Decided
+- Affects: `packages/contracts/openapi.yaml`, `docs/api-contracts.md` §5.3, `docs/functional-requirements.md` FR-REP-02 and FR-REP-07, `docs/known-debt.md` (DEBT-24, DEBT-25)

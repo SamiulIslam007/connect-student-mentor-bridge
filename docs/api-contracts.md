@@ -297,7 +297,8 @@ The institution-admin approve/reject rows (`GET /v1/institutions/{id}/affiliatio
 |---|---|---|
 | `GET /v1/mentors?field=&language=&access_state=&cursor=&limit=` | S | Mentor discovery with rule-based suggestions and a plain-language reason. Full mentors appear with the request action disabled; paused mentors are hidden. Sort by suggestion rank, ties broken by mentor ID for stable pages |
 | `GET /v1/mentors/{id}` | all | Public profile |
-| `GET /v1/mentors/{id}/impact` | all | Counted outcomes by field and difficulty, response reliability, confidence tier. Only **counted** outcomes appear |
+| `GET /v1/mentors/{id}/impact` | signed-in | **Built** by #10 split: counts of counted outcomes by field and outcome type plus `counted_outcomes`. No score, points, tier, reliability, or ranking key; `404` when the profile is absent or not `ACTIVE`. Response reliability and the confidence tier are not built |
+| `GET /v1/me/impact` | signed-in | **Built** by #10 split: the caller's own counts, the same shape. An account without a mentor profile gets `{ "data": [], "counted_outcomes": 0 }` |
 | `GET /v1/fields?limit=&cursor=` | all | Field taxonomy: active fields only, ordered by normalized slug, each as `{ id, name }` plus a `next_cursor`. `limit` defaults to 100 (maximum 200) and `cursor` is the last slug of the previous page; `next_cursor` is null on the last page. **Ships with `profiles-and-dynamic-fields`**; the list is created by profile saves and is never seeded |
 
 The Match Score is a **sort aid, never a predictor of success** (README 5.2). The response exposes `reasons` as text and never exposes sensitive attributes.

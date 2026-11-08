@@ -283,11 +283,11 @@ On account deletion, identifiers are removed or pseudonymized and evidence files
 
 | Parameter | Status |
 |---|---|
-| Difficulty weights per outcome type | Open (set after pilot data; Job offer position Open, P5) |
-| Tier multipliers | Open |
-| Contribution multipliers | Open |
-| Pair factor curve | **Proposed default:** `1 / (1 + n)`; configurable |
-| Cooling period | Proposed default: 14 days. **Proposed, not decided** (API-O7): shipped as `OUTCOME_COOLING_PERIOD_DAYS` in `@connect/config` and written into `cooling_ends_at`, read by nothing else yet |
+| Difficulty weights per outcome type | Open (set after pilot data; Job offer position Open, P5). **Shipped as `1.0` placeholders** in `REPUTATION_DIFFICULTY_WEIGHTS` (`@connect/config`), values still Open (D-67) |
+| Tier multipliers | Open. **Shipped as `1.0` placeholders** in `REPUTATION_TIER_MULTIPLIERS`; values still Open (D-67) |
+| Contribution multipliers | Open. **Shipped as `1.0` placeholders** in `REPUTATION_CONTRIBUTION_MULTIPLIERS`; values still Open (D-67) |
+| Pair factor curve | **Proposed default:** `1 / (1 + n)`; configurable. Implemented in `packages/domain/src/reputation.ts` and applied by the counting job |
+| Cooling period | Proposed default: 14 days; the counting job now reads it. **Proposed, not decided** (API-O7): shipped as `OUTCOME_COOLING_PERIOD_DAYS` in `@connect/config` and written into `cooling_ends_at`, read by nothing else yet |
 | Reminder and escalation | Proposed default: day 3, day 5, day 7. **Implemented** by #9 with at most one reminder per day and one escalation per outcome (partial unique index); the outcome pass rides the five-minute sweeper |
 | Request expiry and reminder | **Decided (owner):** expiry at 48 hours, reminder at 24 hours |
 | Platform review decision limit | Proposed default: 7 days (P6, not validated) |

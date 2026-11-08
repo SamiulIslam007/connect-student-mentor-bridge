@@ -185,7 +185,8 @@ Authentication internals are **library-native** better-auth tables in the same s
 | `consent_purpose` | `TERMS`, `PRIVACY_NOTICE`, `VOLUNTEER_AGREEMENT`, `COMMUNITY_GUIDELINES`, `INSTITUTION_DATA_SHARING`, `AI_ASSIST`, `EMPLOYER_DATA_SHARING` (Phase 3), `RECORDING` (reserved) |
 | `consent_action` | `GRANTED`, `WITHDRAWN` |
 | `signup_block_reason` | `UNDER_18` |
-| `confidence_tier` | `NONE`, `EMERGING`, `ESTABLISHED`, `PROVEN` (thresholds in configuration) |
+| `reputation_event_type` | `COUNTED`, `REVERSAL` (reserved for the clawback change). **Built** by `reputation-ledger-and-counting` (#10 split); a check constraint keeps only `COUNTED` writable |
+| `confidence_tier` | `NONE`, `EMERGING`, `ESTABLISHED`, `PROVEN` (thresholds in configuration). Nothing writes it yet: confidence tiers are Phase 1b (D-66 split) |
 
 "Job offer" was added to `outcome_type` by the owner. Its difficulty weight is **Open**; the README order is Admission > Internship > Skill milestone > Interview.
 
@@ -526,18 +527,17 @@ Original filenames are not stored (they can contain personal data). Limits (**Pr
 
 | Column | Type | Notes |
 |---|---|---|
-| `mentor_profile_id`, `field_id`, `outcome_id` | `uuid` FK | |
-| `kind` | enum | `COUNTED`, `REVERSAL`, `RECALIBRATION` |
-| `points` | `numeric(12,4)` | Signed; a reversal is the negative of the event it reverses |
-| `difficulty_weight`, `tier_multiplier`, `contribution_multiplier`, `pair_factor` | `numeric(8,4)` | The components, stored as computed |
-| `config_version_id` | `uuid` FK | |
-| `reverses_event_id` | `uuid?` unique FK self | |
-| `reason` | `text?` | |
-| `occurred_at` | `timestamptz` | |
+| `mentor_profile_id`, `student_profile_id`, `field_id`, `outcome_id` | `uuid` FK | `outcome_id` is unique: one counted event per outcome. **Built** by #10 split |
+| `event_type` | `reputation_event_type` | `COUNTED` only today; `REVERSAL` is reserved and a check refuses it |
+| `points` | `numeric(12,6)` | The product of the four factors. Never exposed by any endpoint |
+| `difficulty_weight`, `tier_multiplier`, `contribution_multiplier`, `pair_factor` | `numeric(6,4)` | Copied onto the row, so a later config change cannot rewrite history |
+| `outcome_type`, `occurred_at`, `created_at` | | The outcome type is copied; `occurred_at` is the counting time |
+
+Not built in this change: `config_version_id` (the multipliers are copied instead), `reverses_event_id`, and `reason` (both belong to clawback).
 
 Shape (Proposed, policy governs): `points = difficulty_weight x tier_multiplier x contribution_multiplier x pair_factor`, where `pair_factor = 1 / (1 + n)` and `n` is the number of earlier **counted** outcomes between the same mentor and the same student. `pair_factor` is configurable. There is no separate cooling multiplier: an outcome earns nothing until it is `COUNTED`, and the cooling period is a state-machine delay, not a multiplier. Unique: one `COUNTED` event per outcome. There is **no FK to `private_feedback` and none to any payment table**.
 
-**`field_impact_snapshots`** (derived, rebuildable). Key (`mentor_profile_id`, `field_id`): `counted_outcomes int`, `distinct_students int`, `counted_by_type jsonb`, `response_reliability numeric(5,4)?`, `confidence_tier`, `internal_score numeric(6,3)?`, `last_event_id` (ledger high-water mark), `config_version_id`, `computed_at`.
+**`field_impact_snapshots`** (derived, rebuildable). **MVP shape (#10 split):** key (`mentor_profile_id`, `field_id`, `outcome_type`), `counted_count int` (check >= 0), `points_total numeric(12,6)`, `updated_at`. The counting job upserts it in the same transaction as the event, and a replay from `reputation_events` must reproduce it exactly. **Later:** `distinct_students`, `counted_by_type`, `response_reliability`, `confidence_tier`, `internal_score`, `last_event_id`, and `config_version_id` (Phase 1b or the review-queue change).
 
 - `internal_score` is **never exposed** to non-admin roles until sample thresholds are met (FR-REP-07). Public views show counts and `confidence_tier`.
 - No column combines fields. A schema test fails the build if one is added (FR-REP-05).
