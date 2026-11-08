@@ -15,6 +15,9 @@ import { MeRolesController } from "../src/me/roles.controller.js";
 import { DrizzleMentorshipService } from "../src/mentorships/drizzle-mentorship.service.js";
 import { MentorshipsController, SessionsController } from "../src/mentorships/mentorships.controller.js";
 import { MENTORSHIP_SERVICE } from "../src/mentorships/mentorships.tokens.js";
+import { DrizzleOutcomeService } from "../src/outcomes/drizzle-outcome.service.js";
+import { OutcomesController } from "../src/outcomes/outcomes.controller.js";
+import { OUTCOME_SERVICE } from "../src/outcomes/outcomes.tokens.js";
 import { DrizzleProfilesService } from "../src/profiles/drizzle-profiles.service.js";
 import { ProfilesController } from "../src/profiles/profiles.controller.js";
 import { PROFILES_SERVICE } from "../src/profiles/profiles.tokens.js";
@@ -109,6 +112,15 @@ const MATRIX: Requirement[] = [
   { route: /^POST \/v1\/mentorships\/:id\/complete$/, access: "signed-in", mutating: true },
   { route: /^POST \/v1\/sessions\/:id\/confirm-held$/, access: "signed-in", mutating: true },
   { route: /^POST \/v1\/sessions\/:id\/cancel$/, access: "signed-in", mutating: true },
+  // Outcome routes are a session plus a role the service enforces per action
+  // (student reports and withdraws, mentor confirms and disputes); the
+  // per-actor refusals are asserted in outcomes.integration.test.ts.
+  { route: /^GET \/v1\/outcomes$/, access: "signed-in" },
+  { route: /^POST \/v1\/outcomes$/, access: "signed-in", mutating: true },
+  { route: /^GET \/v1\/outcomes\/:id$/, access: "signed-in" },
+  { route: /^POST \/v1\/outcomes\/:id\/confirm$/, access: "signed-in", mutating: true },
+  { route: /^POST \/v1\/outcomes\/:id\/dispute$/, access: "signed-in", mutating: true },
+  { route: /^POST \/v1\/outcomes\/:id\/withdraw$/, access: "signed-in", mutating: true },
 ];
 
 const PRINCIPAL_ROLES: Role[] = ["STUDENT", "MENTOR", "INSTITUTION_ADMIN", "PLATFORM_ADMIN"];
@@ -129,6 +141,7 @@ before(async () => {
       RequestsController,
       MentorshipsController,
       SessionsController,
+      OutcomesController,
     ],
     requestIdRoutes: [
       AuthController,
@@ -140,6 +153,7 @@ before(async () => {
       RequestsController,
       MentorshipsController,
       SessionsController,
+      OutcomesController,
     ],
     providers: (database) => [
       { provide: PROFILES_SERVICE, useValue: new DrizzleProfilesService(database) },
@@ -147,6 +161,7 @@ before(async () => {
       { provide: AFFILIATIONS_SERVICE, useValue: new DrizzleAffiliationsService(database) },
       { provide: REQUESTS_SERVICE, useValue: new DrizzleRequestsService(database) },
       { provide: MENTORSHIP_SERVICE, useValue: new DrizzleMentorshipService(database) },
+      { provide: OUTCOME_SERVICE, useValue: new DrizzleOutcomeService(database) },
     ],
   });
   if (started.skipped) {
