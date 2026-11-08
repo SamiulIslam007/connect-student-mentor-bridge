@@ -345,3 +345,72 @@ test("the thread body bound and the https-only link are in the contract", () => 
     assert.equal(forbidden in mentorship, false, `Mentorship must not carry ${forbidden}`);
   }
 });
+
+test("the outcome surface is documented, session-guarded, and matches the controller", () => {
+  const document = contract();
+  const paths = [
+    "/v1/outcomes",
+    "/v1/outcomes/{id}",
+    "/v1/outcomes/{id}/confirm",
+    "/v1/outcomes/{id}/dispute",
+    "/v1/outcomes/{id}/withdraw",
+  ];
+
+  const documented = Object.keys(document.paths)
+    .filter((path) => path.startsWith("/v1/outcomes"))
+    .sort();
+  assert.deepEqual(documented, [...paths].sort());
+
+  for (const path of paths) {
+    for (const operation of Object.values(document.paths[path])) {
+      assert.deepEqual(operation.security, [{ bearerAuth: [] }], `${path} must require a session`);
+      assert.ok(operation.responses["401"], `${path} documents the unauthenticated response`);
+    }
+  }
+
+  const controller = readFileSync(
+    resolve(process.cwd(), "../../services/api/src/outcomes/outcomes.controller.ts"),
+    "utf8",
+  );
+  const decorators = [...controller.matchAll(/@(Get|Post)\(/g)].length;
+  const operations = paths.reduce(
+    (total, path) => total + Object.keys(document.paths[path]).length,
+    0,
+  );
+  assert.equal(operations, decorators, "the contract must describe every outcomes route");
+
+  // The evidence endpoints are deliberately absent until the evidence change.
+  const evidence = Object.keys(document.paths).filter((path) => path.includes("evidence"));
+  assert.deepEqual(evidence, [], "the contract never advertises an unbuilt evidence endpoint");
+});
+
+test("the outcome contract carries no score and no counting route", () => {
+  const document = contract();
+  const outcome = document.components.schemas.Outcome.properties ?? {};
+  for (const forbidden of ["score", "points", "tier", "ranking"]) {
+    assert.equal(forbidden in outcome, false, `Outcome must not carry ${forbidden}`);
+  }
+
+  const create = document.components.schemas.OutcomeCreate as unknown as {
+    properties: { description: { maxLength: number }; outcome_type: { enum: string[] } };
+  };
+  assert.equal(create.properties.description.maxLength, 2_000);
+  assert.deepEqual(create.properties.outcome_type.enum, [
+    "ADMISSION",
+    "INTERNSHIP",
+    "JOB_OFFER",
+    "SKILL_MILESTONE",
+    "INTERVIEW",
+  ]);
+
+  const status = document.components.schemas.OutcomeStatus as unknown as { enum: string[] };
+  assert.deepEqual(status.enum, [
+    "PENDING_CONFIRMATION",
+    "CONFIRMED",
+    "IN_PLATFORM_REVIEW",
+    "COUNTED",
+    "REJECTED",
+    "WITHDRAWN",
+    "REVERSED",
+  ]);
+});

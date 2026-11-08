@@ -1209,6 +1209,196 @@ paths:
           $ref: "#/components/responses/Problem"
         "422":
           $ref: "#/components/responses/Problem"
+  /v1/outcomes:
+    post:
+      operationId: reportOutcome
+      summary: Report an outcome against a mentorship (the mentorship's student only)
+      description: >-
+        Creates a PENDING_CONFIRMATION outcome with the field copied from the
+        mentorship, a seven-day mentor decision deadline, one REPORTED event, and
+        one queued email to the mentor. A non-participant or the mentor gets 404.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OutcomeCreate"
+      responses:
+        "201":
+          description: The reported outcome
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Outcome"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+    get:
+      operationId: listOutcomes
+      summary: The caller's own outcomes, newest first
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: mentorship_id
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/OutcomeStatus"
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+      responses:
+        "200":
+          description: The caller's outcomes
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Outcome"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+  /v1/outcomes/{id}:
+    get:
+      operationId: getOutcome
+      summary: One outcome, readable only by a participant
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The outcome
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Outcome"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+  /v1/outcomes/{id}/confirm:
+    post:
+      operationId: confirmOutcome
+      summary: The mentorship's mentor confirms the fact and the contribution
+      description: >-
+        Sets CONFIRMED, confirmed_at, and cooling_ends_at; never a counted state.
+        A body with coi_declaration moves the outcome to IN_PLATFORM_REVIEW
+        instead and stores no confirmation. The student gets 404.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OutcomeConfirm"
+      responses:
+        "200":
+          description: The confirmed or routed outcome
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Outcome"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+  /v1/outcomes/{id}/dispute:
+    post:
+      operationId: disputeOutcome
+      summary: The mentor disputes a pending outcome (reason required)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OutcomeDispute"
+      responses:
+        "200":
+          description: The outcome in platform review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Outcome"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+  /v1/outcomes/{id}/withdraw:
+    post:
+      operationId: withdrawOutcome
+      summary: The reporting student withdraws an open outcome
+      description: Allowed from PENDING_CONFIRMATION, CONFIRMED, and IN_PLATFORM_REVIEW.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The withdrawn outcome
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Outcome"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
 components:
   securitySchemes:
     bearerAuth:
@@ -2238,3 +2428,170 @@ components:
           type: string
           minLength: 1
           maxLength: 500
+    OutcomeStatus:
+      type: string
+      enum:
+        - PENDING_CONFIRMATION
+        - CONFIRMED
+        - IN_PLATFORM_REVIEW
+        - COUNTED
+        - REJECTED
+        - WITHDRAWN
+        - REVERSED
+      description: Stored uppercase; responses use the lowercase form. COUNTED, REJECTED, and REVERSED are unreachable in this change.
+    ContributionLevel:
+      type: string
+      enum: [DIRECTLY_ENABLED, HELPED, MINOR]
+    Outcome:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - mentorship_id
+        - status
+        - outcome_type
+        - title
+        - description
+        - occurred_on
+        - contribution_claimed
+        - contribution_confirmed
+        - evidence_tier
+        - counted_basis
+        - coi_declared
+        - is_paid_relationship
+        - mentor_decision_due_at
+        - confirmed_at
+        - cooling_ends_at
+        - counted_at
+        - withdrawn_at
+        - created_at
+        - student_profile_id
+        - mentor_profile_id
+        - field_id
+        - student_name
+        - mentor_name
+      properties:
+        id:
+          type: string
+        mentorship_id:
+          type: string
+        status:
+          type: string
+          enum:
+            - pending_confirmation
+            - confirmed
+            - in_platform_review
+            - counted
+            - rejected
+            - withdrawn
+            - reversed
+        outcome_type:
+          type: string
+          enum: [admission, internship, job_offer, skill_milestone, interview]
+        title:
+          type: string
+          nullable: true
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 2000
+        occurred_on:
+          type: string
+          format: date
+        contribution_claimed:
+          type: string
+          enum: [directly_enabled, helped, minor]
+        contribution_confirmed:
+          type: string
+          nullable: true
+          enum: [directly_enabled, helped, minor, null]
+        evidence_tier:
+          type: integer
+          minimum: 0
+          maximum: 2
+          description: Tier 0 only in the MVP.
+        counted_basis:
+          type: string
+          nullable: true
+          enum: [mentor_confirmed, platform_decision, null]
+        coi_declared:
+          type: boolean
+        is_paid_relationship:
+          type: boolean
+          description: Copied from the mentorship; always false in the MVP.
+        mentor_decision_due_at:
+          type: string
+          format: date-time
+        confirmed_at:
+          type: string
+          format: date-time
+          nullable: true
+        cooling_ends_at:
+          type: string
+          format: date-time
+          nullable: true
+        counted_at:
+          type: string
+          format: date-time
+          nullable: true
+        withdrawn_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        student_profile_id:
+          type: string
+        mentor_profile_id:
+          type: string
+        field_id:
+          type: string
+        student_name:
+          type: string
+        mentor_name:
+          type: string
+    OutcomeCreate:
+      type: object
+      additionalProperties: false
+      required: [mentorship_id, outcome_type, description, contribution_claimed]
+      properties:
+        mentorship_id:
+          type: string
+        outcome_type:
+          type: string
+          enum: [ADMISSION, INTERNSHIP, JOB_OFFER, SKILL_MILESTONE, INTERVIEW]
+        title:
+          type: string
+          maxLength: 200
+        description:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        contribution_claimed:
+          $ref: "#/components/schemas/ContributionLevel"
+        occurred_on:
+          type: string
+          format: date
+    OutcomeConfirm:
+      type: object
+      additionalProperties: false
+      properties:
+        contribution_level_confirmed:
+          $ref: "#/components/schemas/ContributionLevel"
+        coi_declaration:
+          type: object
+          additionalProperties: true
+          description: >-
+            A declared relationship kind. Present means the outcome goes to
+            platform review and no confirmation is stored, so
+            contribution_level_confirmed is not required in that case.
+    OutcomeDispute:
+      type: object
+      additionalProperties: false
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 1000
