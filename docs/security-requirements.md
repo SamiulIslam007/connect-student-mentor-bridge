@@ -72,7 +72,7 @@ The data model must tag every field with one of these classes (`docs/data-model.
 | **Repudiation:** denied admin action | "I did not approve that" | Immutable audit log with actor, reason, request ID |
 | **Information disclosure:** broken object-level access (IDOR) | Changing an ID to read another mentorship | Object policies, `404` for invisible objects, matrix tests |
 | **Information disclosure:** upload abuse | Malware, oversized files, public bucket | Type and size limits, malware scan before availability, private bucket, signed URLs |
-| **Information disclosure:** directory scraping | Bulk collection of mentor profiles | Authentication to browse, rate limits, no sequential IDs (UUIDs), limited fields in lists |
+| **Information disclosure:** directory scraping | Bulk collection of mentor profiles | Public by owner decision (D-71), with a narrow projection (no email, account id, biography, availability window, or capacity), a capped page (50), opaque UUID ids that are not sequential in practice, and the rate limits shipped by `request-validation-and-rate-limits`. A shared throttle store stays post-pilot (ADR-006) |
 | **Denial of service** | Request flooding, expensive queries, AI cost abuse | Rate limits, pagination caps, query timeouts, per-user and global AI cost caps |
 | **Elevation of privilege** | Role confusion, mass assignment, missing policy on a route | Deny by default, explicit DTO allow-lists, CI gate for routes without policy |
 | **Injection** (SQL, XSS, command, prompt) | Malicious profile text, evidence names, AI prompts | Parameterized queries via ORM, output encoding, input validation, content security policy, prompt-injection handling (section 5.12) |
@@ -110,7 +110,7 @@ Each requirement has an ID, a priority (**Must**, **Should**, **Could**), and th
 
 | ID | Requirement | Priority | Verification |
 |---|---|---|---|
-| SEC-API-1 | All inputs are validated against the OpenAPI schema; unknown fields are rejected; request body size is limited | Must | Contract tests |
+| SEC-API-1 | All inputs are validated against the OpenAPI schema; unknown fields are rejected; request body size is limited | Must | **Built** by `request-validation-and-rate-limits` (2026-11-09): a global interceptor refuses undocumented top-level keys with `422 VALIDATION_FAILED`, the allowlist is contract-parity tested (`ROUTE_BODY_KEYS`), and the JSON body is capped at 100 KiB with a `413 PAYLOAD_TOO_LARGE` |
 | SEC-API-2 | All database access is parameterized (no string-built SQL) | Must | Lint and review |
 | SEC-API-3 | User-generated content is encoded on output; a strict content security policy is set | Must | Automated scan |
 | SEC-API-4 | Security headers: HSTS, `X-Content-Type-Options`, `Referrer-Policy`, frame protection | Must | Automated scan |
@@ -164,7 +164,7 @@ Each requirement has an ID, a priority (**Must**, **Should**, **Could**), and th
 
 | ID | Requirement | Priority | Verification |
 |---|---|---|---|
-| SEC-ABUSE-1 | Rate limits on sign-up, sign-in, password reset, request creation, outcome reporting, and file upload, per account and per IP; bot protection on sign-up | Must | Test |
+| SEC-ABUSE-1 | Rate limits on sign-up, sign-in, password reset, request creation, outcome reporting, and file upload, per account and per IP; bot protection on sign-up | Must | **Partially built** by `request-validation-and-rate-limits` (2026-11-09): per-IP limits on sign-in, register, password reset, request creation, messages, and outcome writes, in process memory (per instance). The per-account bucket and bot protection remain open (DEBT-27) |
 | SEC-ABUSE-2 | Users can report abuse or off-platform pressure; reports reach a moderator with a visible status | Must | Test |
 | SEC-ABUSE-3 | Suspension and removal paths exist, with reasons. Appeals are **Later**; in the MVP a Platform Admin reviews each case once | Should | Process test |
 | SEC-ABUSE-4 | Default limits are stored in configuration, not hard-coded | Should | Review |
@@ -271,7 +271,7 @@ Publish a short security contact (`security.txt` and a mailbox) and a promise to
 | # | Decision | Recommended default |
 |---|---|---|
 | SEC-O1 | Tamper evidence for the ledger (hash chain) | Decide after the first ledger design review |
-| SEC-O2 | Concrete rate-limit values | Set from pilot traffic estimates in the first iterations |
+| SEC-O2 | Concrete rate-limit values | Set from pilot traffic estimates in the first iterations. `request-validation-and-rate-limits` ships documented placeholders in `RATE_LIMITS`; the decision stays Open |
 | SEC-O3 | Audit log retention period | Counsel to advise |
 | SEC-O4 | Penetration test timing and budget | Before the pilot if affordable |
 | SEC-O5 | Vulnerability disclosure response targets | 5 business days to acknowledge |

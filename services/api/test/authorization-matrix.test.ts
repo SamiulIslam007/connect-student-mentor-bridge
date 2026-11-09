@@ -89,6 +89,7 @@ const MATRIX: Requirement[] = [
   { route: /^PUT \/v1\/me\/availability$/, access: "signed-in", mutating: true },
   { route: /^GET \/v1\/fields$/, access: "signed-in" },
   { route: /^POST \/v1\/me\/affiliations$/, access: "signed-in", mutating: true },
+  { route: /^GET \/v1\/mentors$/, access: "public" },
   { route: /^GET \/v1\/mentors\/:id$/, access: "signed-in" },
   // Every principal holds STUDENT (registration grants it), so the matrix's
   // single-role model cannot express "student action" as a refusal; the handler

@@ -50,6 +50,38 @@ export interface MentorContext {
   primaryField: FieldSummary;
 }
 
+/** The directory's derived state (design D4); never stored. */
+export type MentorAccessState = "available" | "application_only" | "full";
+
+/** The public directory projection (design D6): no email, no capacity, no biography. */
+export interface MentorDirectoryCard {
+  id: string;
+  displayName: string;
+  headline: string;
+  accessState: MentorAccessState;
+  accessMode: MentorAccessMode;
+  primaryField: FieldSummary;
+  fields: FieldSummary[];
+  languages: string[];
+}
+
+export interface ListMentorsInput {
+  /** A field uuid; matches the primary field or an additional one. */
+  field?: string;
+  /** One stored language, matched case-insensitively and exactly. */
+  language?: string;
+  accessState?: MentorAccessState;
+  /** The last mentor profile id of the previous page. */
+  cursor?: string;
+  /** 1 to 50, defaulting to 20. */
+  limit: number;
+}
+
+export interface MentorDirectoryPage {
+  cards: MentorDirectoryCard[];
+  nextCursor: string | null;
+}
+
 export interface SaveStudentProfileInput {
   userId: string;
   draft: StudentProfileDraft;
@@ -116,6 +148,23 @@ export function mentorContextPayload(context: MentorContext): Record<string, unk
 }
 
 /**
+ * The directory card's wire shape. The key set is the public allowlist and is
+ * asserted by a test, so a new field cannot be exposed silently (design D6).
+ */
+export function mentorDirectoryPayload(card: MentorDirectoryCard): Record<string, unknown> {
+  return {
+    id: card.id,
+    display_name: card.displayName,
+    headline: card.headline,
+    access_state: card.accessState,
+    access_mode: card.accessMode,
+    primary_field: card.primaryField,
+    fields: card.fields,
+    languages: card.languages,
+  };
+}
+
+/**
  * The profile seam. Every method takes the acting user id, which the controller
  * derives from the session only, so no caller can address another user's profile.
  */
@@ -128,4 +177,6 @@ export interface ProfilesService {
   setMentorAccessMode(input: SetMentorAccessModeInput): Promise<MentorProfileRecord>;
   /** Null unless the profile exists and is ACTIVE (requestable). */
   readMentorContext(mentorProfileId: string): Promise<MentorContext | null>;
+  /** The public directory read: ACTIVE, not PAUSED, keyset by profile id (design D4). */
+  listMentors(input: ListMentorsInput): Promise<MentorDirectoryPage>;
 }

@@ -203,6 +203,8 @@ All items here are **Recommendations** unless marked. They respect your README a
 | Calls | Zoom API first | **Mentor-provided meeting link** in Phase 1 | Avoids Zoom licensing ambiguity (README open decision #9) | Need for auto-created meetings and attendance signals | Zoom behind `VideoProvider` after licensing is verified |
 | Admin | Separate console | **Route group inside the web app** | README already allows this | Separate team or access model | Same |
 | Storage | S3-compatible | **Same (R2 or S3)**, private bucket, signed URLs | Evidence uploads need access control | n/a | Same |
+
+> **Note (2026-11-09):** this table is a historical research snapshot. Its ORM recommendation (Prisma) is superseded by **ADR-018** (Drizzle ORM, `drizzle-kit` migrations); it is not current guidance.
 | Email | Resend/Postmark/SES | **Same**; email is the primary notification channel in Phase 1 | Works when connectivity is poor | Add push with the mobile app | Same |
 | Observability | Sentry, OpenTelemetry | **Sentry + structured logs + uptime check**; OTel later | Enough for a pilot | Multi-service tracing need | Same |
 | CI/CD | GitHub Actions, Docker | **Same** | Standard | n/a | Same |

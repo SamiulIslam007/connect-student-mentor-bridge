@@ -148,3 +148,5 @@ Current state on 2026-10-29: **items 1 to 5 are satisfied by this run.** Hosting
 2. When do you want to set the kill or pivot values (X, Y, Z)? They are needed before the pilot starts, not before coding.
 3. Is the pilot partner type still intentionally open, or do you want to record a preference now?
 4. Age-gate boundary for 29 February birthdays: the implemented rule treats a 29 February birthday as 28 February in non-leap years, so the person turns 18 on 28 February. Confirm that, or choose 1 March. The rule lives in `packages/domain/src/age-gate.ts` and its test and changes with your answer.
+
+5. Should the API send security headers (`helmet`), a Content-Security-Policy, and an explicit CORS policy? **Open.** Not part of `request-validation-and-rate-limits`: the browser reaches only the same-origin BFF, so CORS has no consumer today, security headers belong to the web app's responses, and a CSP would need a nonce for Next's inline scripts. No target date; the owner decides before any third-party browser client.

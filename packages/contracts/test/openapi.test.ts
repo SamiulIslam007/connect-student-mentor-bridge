@@ -6,6 +6,7 @@ import { test } from "node:test";
 
 import { parse } from "yaml";
 
+
 const contractPath = fileURLToPath(new URL("../openapi.yaml", import.meta.url));
 
 interface Operation {
@@ -443,4 +444,37 @@ test("the impact surface is documented, session-guarded, and exposes no score", 
   // No endpoint can count an outcome: counting is a job, not a route.
   const counting = Object.keys(document.paths).filter((path) => path.endsWith("/count"));
   assert.deepEqual(counting, []);
+});
+
+test("the public mentor directory is unauthenticated and keyset-paginated", () => {
+  const document = contract();
+  const operation = document.paths["/v1/mentors"].get as unknown as {
+    security?: unknown[];
+    parameters?: { name: string }[];
+  };
+
+  assert.deepEqual(operation.security, [], "the directory must be readable without a session");
+  assert.deepEqual(
+    operation.parameters?.map((parameter) => parameter.name).sort(),
+    ["access_state", "cursor", "field", "language", "limit"],
+  );
+
+  const card = document.components.schemas.MentorDirectoryCard;
+  const keys = Object.keys(card.properties ?? {});
+  assert.deepEqual(keys.sort(), [
+    "access_mode",
+    "access_state",
+    "display_name",
+    "fields",
+    "headline",
+    "id",
+    "languages",
+    "primary_field",
+  ]);
+  for (const forbidden of ["email", "user_id", "bio", "weekly_capacity", "availability"]) {
+    assert.ok(!keys.includes(forbidden), `${forbidden} must not be in a directory card`);
+  }
+
+  const page = document.components.schemas.MentorDirectoryPage;
+  assert.deepEqual(page.properties?.next_cursor?.type, ["string", "null"]);
 });

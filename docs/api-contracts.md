@@ -274,10 +274,10 @@ Roles: **S** Student, **M** Mentor, **IA** Institution Admin, **PA** Platform Ad
 - A mentor profile has at most **5 fields in total** (the primary field plus up to 4 additional fields), and a student or mentor profile has at most **5 languages** after case-folding and de-duplication. A save above either bound is `422` and writes nothing.
 - `weekly_capacity` is an integer from 1 to 5 in this change (a **Proposed default**, D-38). `0`, `6`, `2.5`, and `"3"` are refused.
 - `200` returns the saved profile. `401 UNAUTHENTICATED` when the session is absent or revoked. `422 VALIDATION_FAILED` for any invalid value, with nothing written (no profile, no join row, no new field).
-- `account_status`, `display_name`, `email`, and any other account-level property in the body are **accepted and ignored**, never applied to the account. Strict unknown-key rejection is a pre-existing API-wide gap (`SEC-API-1`, owner: Sprint 7 hardening), not added here.
+- `account_status` is the **only** tolerated account-level property: it is accepted and ignored, never applied. Every other undocumented top-level property (`display_name`, `email`, `user_id`, `role`, `field_id`, `nid`, `passport_number`, ...) is refused with `422 VALIDATION_FAILED` whose detail names the first unknown key in sorted order (`SEC-API-1`, built by `request-validation-and-rate-limits`). A body above 100 KiB is `413 PAYLOAD_TOO_LARGE` before any handler runs.
 - There is no `If-Match`, no `ETag`, and no version column: one owner edits one profile from one browser (D-39).
 
-`PUT /v1/me/mentor-profile` rejects a capacity cap below the number of active mentorships with code `CAPACITY_BELOW_ACTIVE`. **That check belongs to change #7** and does not ship with this version of the endpoint.
+`PUT /v1/me/mentor-profile` rejects a capacity cap below the number of active mentorships with code `CAPACITY_BELOW_ACTIVE`. The check shipped with `mentorship-thread-and-sessions` (#8, D-61) and also guards resume.
 
 ### 5.2 Affiliation
 
@@ -285,7 +285,7 @@ Roles: **S** Student, **M** Mentor, **IA** Institution Admin, **PA** Platform Ad
 |---|---|---|---|
 | `POST /v1/me/affiliations` | S, M | yes | Claim one institution affiliation. Body: `kind` (required), optional `institution_id`, `department`, `program`, `batch_year` |
 
-Rules: the level is decided by the **verified** account email's domain against the institution's `institution_domains`. A matching domain stores `level_1` / `verified` / `institutional_email`; anything else stores `level_0` / `pending` and grants nothing. When `institution_id` is absent, the institution registered to the email domain is used. A claim is idempotent per institution, and a claim for a different institution revokes the earlier verified row (`revoked_at` set). The subject is the session only; `user_id` and any identity document (`nid`, `passport_number`) in the body are ignored and never stored. Errors: `422 AFFILIATION_EMAIL_UNVERIFIED` (no verified address), `422 AFFILIATION_INSTITUTION_MISMATCH` (no such institution, or the email domain belongs to none).
+Rules: the level is decided by the **verified** account email's domain against the institution's `institution_domains`. A matching domain stores `level_1` / `verified` / `institutional_email`; anything else stores `level_0` / `pending` and grants nothing. When `institution_id` is absent, the institution registered to the email domain is used. A claim is idempotent per institution, and a claim for a different institution revokes the earlier verified row (`revoked_at` set). The subject is the session only; `user_id` and any identity document (`nid`, `passport_number`) in the body are refused with `422 VALIDATION_FAILED` and never stored. Errors: `422 AFFILIATION_EMAIL_UNVERIFIED` (no verified address), `422 AFFILIATION_INSTITUTION_MISMATCH` (no such institution, or the email domain belongs to none).
 
 The institution-admin approve/reject rows (`GET /v1/institutions/{id}/affiliations`, `…/approve`, `…/reject`) are **deferred to the future admin surface** (D-56, DEBT-19). In this release a pending claim has no decision path and the pilot's Level 1 comes from the checked-in seed attestation.
 
@@ -295,13 +295,13 @@ The institution-admin approve/reject rows (`GET /v1/institutions/{id}/affiliatio
 
 | Method and path | Roles | Purpose |
 |---|---|---|
-| `GET /v1/mentors?field=&language=&access_state=&cursor=&limit=` | S | Mentor discovery with rule-based suggestions and a plain-language reason. Full mentors appear with the request action disabled; paused mentors are hidden. Sort by suggestion rank, ties broken by mentor ID for stable pages |
+| `GET /v1/mentors?field=&language=&access_state=&cursor=&limit=` | none (public, D-71) | **Built** by `mentor-directory`: the public directory. Only `ACTIVE` profiles appear and a `PAUSED` mentor is hidden from every filter; results are ordered by mentor profile id (no rank, score, or reason) and keyset-paginated (`limit` 1 to 50, default 20; `cursor` is the last id). A card carries exactly `id`, `display_name`, `headline`, `access_mode`, the derived `access_state` (`available`, `application_only`, `full`), `primary_field`, `fields`, and `languages` — never an email, account id, biography, availability window, or capacity. `full` is derived from the request capacity rule. An unknown field id is an empty page (`200`), and a malformed `field`, `access_state`, `cursor`, or `limit` is `422 VALIDATION_FAILED` |
 | `GET /v1/mentors/{id}` | all | Public profile |
 | `GET /v1/mentors/{id}/impact` | signed-in | **Built** by #10 split: counts of counted outcomes by field and outcome type plus `counted_outcomes`. No score, points, tier, reliability, or ranking key; `404` when the profile is absent or not `ACTIVE`. Response reliability and the confidence tier are not built |
 | `GET /v1/me/impact` | signed-in | **Built** by #10 split: the caller's own counts, the same shape. An account without a mentor profile gets `{ "data": [], "counted_outcomes": 0 }` |
 | `GET /v1/fields?limit=&cursor=` | all | Field taxonomy: active fields only, ordered by normalized slug, each as `{ id, name }` plus a `next_cursor`. `limit` defaults to 100 (maximum 200) and `cursor` is the last slug of the previous page; `next_cursor` is null on the last page. **Ships with `profiles-and-dynamic-fields`**; the list is created by profile saves and is never seeded |
 
-The Match Score is a **sort aid, never a predictor of success** (README 5.2). The response exposes `reasons` as text and never exposes sensitive attributes.
+Match Score, suggestion reasons, and ranking are **not built** in this release (FR-DISC-02, change #6, D-58); the directory exposes no sensitive attribute and no score.
 
 ### 5.4 Requests
 
@@ -490,7 +490,18 @@ Payment gateway webhooks (Phase 3, ADR-015) and meeting-provider webhooks are ve
 
 ## 9. Rate limits
 
-Default limits are configuration, not code (SEC-ABUSE-4). Endpoints with stricter limits: sign-in, sign-up, password reset, `POST /v1/requests`, `POST /v1/outcomes`, evidence upload, `POST /v1/ai/*`, `POST /v1/reports`. Concrete values are an **Open decision** (SEC-O2).
+Default limits are configuration, not code (SEC-ABUSE-4). Concrete values remain an **Open decision** (SEC-O2) and the shipped numbers are **placeholders pending pilot traffic**:
+
+| Route | Limit | Key |
+|---|---|---|
+| `POST /v1/auth/sign-in` | 5 per minute | client IP |
+| `POST /v1/auth/register` | 3 per hour | client IP |
+| `POST /v1/auth/forgot-password`, `reset-password` | 3 per hour | client IP |
+| `POST /v1/requests`, `POST /v1/mentorships/{id}/messages`, `POST /v1/outcomes`, `:{id}/confirm`, `:{id}/dispute` | 60 per minute | client IP |
+| every other route (including the public directory) | 120 per minute | client IP |
+| `GET /healthz`, `GET /readyz` | unthrottled | - |
+
+A refusal is `429 RATE_LIMITED` with a numeric `Retry-After`. The store is in process memory (`@nestjs/throttler`), so the limit is **per instance**: a multi-instance deployment needs a shared store, which ADR-006 defers until after the pilot. The per-account bucket named by `SEC-ABUSE-1` is not implemented yet (DEBT-27).
 
 ## 10. Error catalog (initial)
 
@@ -501,7 +512,8 @@ Default limits are configuration, not code (SEC-ABUSE-4). Endpoints with stricte
 | `INVALID_RESET_TOKEN` | 400 | Reset token missing, invalid, expired, or already used |
 | `FORBIDDEN` | 403 | Role or policy does not allow this |
 | `NOT_FOUND` | 404 | Not found or not visible |
-| `VALIDATION_FAILED` | 422 | Field errors in `errors` |
+| `VALIDATION_FAILED` | 422 | Field errors in `errors`, or an undocumented top-level body property (the detail names it) |
+| `PAYLOAD_TOO_LARGE` | 413 | The body is larger than the API accepts (100 KiB) |
 | `AFFILIATION_EMAIL_UNVERIFIED` | 422 | A claim needs a verified email address |
 | `AFFILIATION_INSTITUTION_MISMATCH` | 422 | No registered institution matches the claim |
 | `UNDER_MINIMUM_AGE` | 422 | Under 18 at sign-up |
@@ -536,7 +548,7 @@ Default limits are configuration, not code (SEC-ABUSE-4). Endpoints with stricte
 2. CI checks the spec, diffs it against the last release for breaking changes, and regenerates the TypeScript client.
 3. Contract tests run the API against the spec. A mismatch fails the build.
 4. The matrix test checks that each operation's declared roles agree with `docs/auth-and-access-control.md`.
-5. NestJS handlers validate the named fields in the schema. Unknown-key rejection is **not implemented** (SEC-API-1, owner: Sprint 7 hardening); the `account_status` no-op in the profile body depends on this leniency.
+5. NestJS handlers validate the named fields in the schema. An API-wide interceptor refuses every undocumented top-level body key with `422 VALIDATION_FAILED`; `ROUTE_BODY_KEYS` in `packages/contracts/src/body-keys.ts` is the allowlist, and a contract test asserts it equals each OpenAPI request schema's `properties`. `account_status` is the single documented no-op.
 
 ## 12. Versioning and deprecation
 

@@ -7,6 +7,9 @@ import { MeRolesController } from "../src/me/roles.controller.js";
 import { AFFILIATIONS_SERVICE } from "../src/affiliations/affiliations.tokens.js";
 import { DrizzleAffiliationsService } from "../src/affiliations/drizzle-affiliations.service.js";
 import { DrizzleProfilesService } from "../src/profiles/drizzle-profiles.service.js";
+import { DrizzleRequestsService } from "../src/requests/drizzle-requests.service.js";
+import { RequestsController } from "../src/requests/requests.controller.js";
+import { REQUESTS_SERVICE } from "../src/requests/requests.tokens.js";
 import { ProfilesController } from "../src/profiles/profiles.controller.js";
 import { PROFILES_SERVICE } from "../src/profiles/profiles.tokens.js";
 import {
@@ -23,11 +26,12 @@ let skipReason = "connect_test is not reachable";
 
 before(async () => {
   const started = await startApiStack({
-    controllers: [AuthController, MeController, MeRolesController, ProfilesController],
-    requestIdRoutes: [AuthController, MeController, MeRolesController, ProfilesController],
+    controllers: [AuthController, MeController, MeRolesController, ProfilesController, RequestsController],
+    requestIdRoutes: [AuthController, MeController, MeRolesController, ProfilesController, RequestsController],
     providers: (database) => [
       { provide: PROFILES_SERVICE, useValue: new DrizzleProfilesService(database) },
       { provide: AFFILIATIONS_SERVICE, useValue: new DrizzleAffiliationsService(database) },
+      { provide: REQUESTS_SERVICE, useValue: new DrizzleRequestsService(database) },
     ],
   });
   if (started.skipped) {
@@ -854,4 +858,289 @@ test("pause and resume require the mentor role and a profile", async (context) =
     mentorToken,
   );
   assert.equal(noProfile.status, 422, "there is nothing to pause without a profile");
+});
+
+/** A requestable mentor: save the profile, then flip the operating status directly. */
+async function activeMentor(
+  current: TestApiStack,
+  email: string,
+  overrides: Record<string, unknown> = {},
+): Promise<{ id: string; token: string }> {
+  const token = await mentorTokenFor(current, email);
+  const saved = await apiRequest(
+    current,
+    "PUT",
+    "/v1/me/mentor-profile",
+    { ...validMentor, ...overrides },
+    token,
+  );
+  assert.equal(saved.status, 200, saved.text);
+  const updated = await current.client.query<{ id: string }>(
+    `UPDATE mentor_profiles SET status = 'ACTIVE'
+      WHERE user_id = (SELECT id FROM users WHERE email = $1) RETURNING id`,
+    [email],
+  );
+  assert.ok(updated.rows[0], `${email} must have a mentor profile`);
+
+  // The request path reads a verified Level 1 affiliation, so the directory's
+  // full-capacity cross-check needs one too.
+  await current.client.query(
+    `INSERT INTO institutions (name, kind, country_code, status)
+     SELECT 'Directory University', 'UNIVERSITY', 'BD', 'ACTIVE'
+      WHERE NOT EXISTS (SELECT 1 FROM institutions)`,
+  );
+  await current.client.query(
+    `INSERT INTO affiliations (user_id, institution_id, kind, level, method, status, verified_at)
+     SELECT u.id, (SELECT id FROM institutions LIMIT 1), 'FACULTY_STAFF', 'LEVEL_1',
+            'ADMIN_ATTESTATION', 'VERIFIED', now()
+       FROM users u WHERE u.email = $1`,
+    [email],
+  );
+  return { id: updated.rows[0].id, token };
+}
+
+function directoryIds(body: Record<string, unknown> | undefined): string[] {
+  return ((body?.data as { id: string }[] | undefined) ?? []).map((card) => card.id);
+}
+
+test("the directory lists only ACTIVE mentors and hides a paused one", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+
+  const active = await activeMentor(current, "directory-active@example.com");
+  const paused = await activeMentor(current, "directory-paused@example.com");
+  const pausedResponse = await apiRequest(
+    current,
+    "POST",
+    "/v1/me/mentor-profile/pause",
+    undefined,
+    paused.token,
+  );
+  assert.equal(pausedResponse.status, 200, pausedResponse.text);
+
+  const draftToken = await mentorTokenFor(current, "directory-draft@example.com");
+  const draft = await apiRequest(
+    current,
+    "PUT",
+    "/v1/me/mentor-profile",
+    validMentor,
+    draftToken,
+  );
+  assert.equal(draft.status, 200, draft.text);
+
+  const page = await apiRequest(current, "GET", "/v1/mentors");
+  assert.equal(page.status, 200, page.text);
+  assert.deepEqual(directoryIds(page.body), [active.id]);
+
+  // A paused mentor stays hidden even when the filter names a state it could have.
+  const available = await apiRequest(current, "GET", "/v1/mentors?access_state=available");
+  assert.deepEqual(directoryIds(available.body), [active.id]);
+  const applicationOnly = await apiRequest(
+    current,
+    "GET",
+    "/v1/mentors?access_state=application_only",
+  );
+  assert.deepEqual(directoryIds(applicationOnly.body), []);
+});
+
+test("an unknown field id is an empty page, not a 404", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  await activeMentor(current, "directory-unknown-field@example.com");
+
+  const page = await apiRequest(
+    current,
+    "GET",
+    "/v1/mentors?field=00000000-0000-0000-0000-000000000000",
+  );
+  assert.equal(page.status, 200, page.text);
+  assert.deepEqual(directoryIds(page.body), []);
+});
+
+test("the field filter matches the primary field and an additional one", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const mentor = await activeMentor(current, "directory-fields@example.com", {
+    primary_field: "Product design",
+    fields: ["Databases"],
+  });
+
+  const primary = await current.client.query<{ id: string }>(
+    "SELECT id FROM fields WHERE normalized_slug = 'product design'",
+  );
+  const additional = await current.client.query<{ id: string }>(
+    "SELECT id FROM fields WHERE normalized_slug = 'databases'",
+  );
+  assert.ok(primary.rows[0] && additional.rows[0]);
+
+  for (const fieldId of [primary.rows[0].id, additional.rows[0].id]) {
+    const page = await apiRequest(current, "GET", `/v1/mentors?field=${fieldId}`);
+    assert.equal(page.status, 200, page.text);
+    assert.deepEqual(directoryIds(page.body), [mentor.id], `field ${fieldId} must match once`);
+  }
+});
+
+test("the language filter is exact and case-insensitive", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const mentor = await activeMentor(current, "directory-language@example.com", {
+    languages: ["en", "bn"],
+  });
+
+  for (const language of ["en", "EN"]) {
+    const page = await apiRequest(current, "GET", `/v1/mentors?language=${language}`);
+    assert.deepEqual(directoryIds(page.body), [mentor.id]);
+  }
+  const french = await apiRequest(current, "GET", "/v1/mentors?language=fr");
+  assert.deepEqual(directoryIds(french.body), []);
+});
+
+test("a full mentor is listed as full and the request path still refuses", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const mentor = await activeMentor(current, "directory-full@example.com", {
+    weekly_capacity: 1,
+  });
+
+  const firstStudent = await tokenFor(current, "directory-full.student1@example.com");
+  const firstProfile = await apiRequest(
+    current,
+    "PUT",
+    "/v1/me/student-profile",
+    { goals: "Find an internship", primary_field: "Software engineering" },
+    firstStudent,
+  );
+  assert.equal(firstProfile.status, 200, firstProfile.text);
+
+  const created = await apiRequest(
+    current,
+    "POST",
+    "/v1/requests",
+    {
+      mentor_id: mentor.id,
+      question: "How do I start?",
+      context_summary: "Final-year student looking for a first internship.",
+      target_outcome: "An internship offer",
+      expected_timeframe: "WITHIN_1_MONTH",
+    },
+    firstStudent,
+  );
+  assert.equal(created.status, 201, created.text);
+
+  const page = await apiRequest(current, "GET", "/v1/mentors");
+  const card = (page.body?.data as { id: string; access_state: string }[]).find(
+    (entry) => entry.id === mentor.id,
+  );
+  assert.ok(card, "the full mentor is listed, not omitted");
+  assert.equal(card.access_state, "full");
+
+  const secondStudent = await tokenFor(current, "directory-full.student2@example.com");
+  await apiRequest(
+    current,
+    "PUT",
+    "/v1/me/student-profile",
+    { goals: "Find an internship", primary_field: "Software engineering" },
+    secondStudent,
+  );
+  const refused = await apiRequest(
+    current,
+    "POST",
+    "/v1/requests",
+    {
+      mentor_id: mentor.id,
+      question: "How do I start?",
+      context_summary: "Final-year student looking for a first internship.",
+      target_outcome: "An internship offer",
+      expected_timeframe: "WITHIN_1_MONTH",
+    },
+    secondStudent,
+  );
+  assert.equal(refused.status, 409, refused.text);
+  assert.equal(refused.body?.code, "MENTOR_AT_CAPACITY");
+});
+
+test("the directory payload carries only the public allowlist", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  await activeMentor(current, "directory-projection@example.com", {
+    languages: ["en", "bn"],
+    fields: ["Databases"],
+  });
+
+  const page = await apiRequest(current, "GET", "/v1/mentors");
+  const cards = page.body?.data as Record<string, unknown>[];
+  assert.equal(cards.length, 1);
+  assert.deepEqual(Object.keys(cards[0]).sort(), [
+    "access_mode",
+    "access_state",
+    "display_name",
+    "fields",
+    "headline",
+    "id",
+    "languages",
+    "primary_field",
+  ]);
+
+  const text = JSON.stringify(page.body);
+  for (const forbidden of [
+    "directory-projection@example.com",
+    "Eight years building APIs.",
+    "weekly_capacity",
+    "user_id",
+    "availability",
+  ]) {
+    assert.ok(!text.includes(forbidden), `${forbidden} must not appear in a directory response`);
+  }
+});
+
+test("directory pagination is keyset ordered and never repeats a mentor", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const created = [
+    await activeMentor(current, "directory-page1@example.com"),
+    await activeMentor(current, "directory-page2@example.com"),
+    await activeMentor(current, "directory-page3@example.com"),
+  ];
+
+  const seen: string[] = [];
+  let cursor: string | null = null;
+  for (let pageNumber = 0; pageNumber < 10; pageNumber += 1) {
+    const query: string = cursor
+      ? `/v1/mentors?limit=1&cursor=${encodeURIComponent(cursor)}`
+      : "/v1/mentors?limit=1";
+    const page = await apiRequest(current, "GET", query);
+    assert.equal(page.status, 200, page.text);
+    seen.push(...directoryIds(page.body));
+    cursor = (page.body?.next_cursor as string | null) ?? null;
+    if (!cursor) {
+      break;
+    }
+  }
+
+  assert.equal(new Set(seen).size, seen.length, "a mentor must not repeat across pages");
+  assert.equal(seen.length, 3);
+  assert.deepEqual(
+    seen,
+    [...created.map((mentor) => mentor.id)].sort(),
+    "the directory is ordered by mentor profile id",
+  );
+});
+
+test("a malformed directory filter is refused with 422 and no list", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+
+  for (const query of [
+    "access_state=paused",
+    "limit=0",
+    "limit=51",
+    "limit=abc",
+    "field=not-a-uuid",
+    "cursor=not-a-uuid",
+  ]) {
+    const response = await apiRequest(current, "GET", `/v1/mentors?${query}`);
+    assert.equal(response.status, 422, `${query}: ${response.text}`);
+    assert.equal(response.body?.code, "VALIDATION_FAILED", query);
+    assert.equal(response.body?.data, undefined, "a refused filter returns no list");
+  }
 });
