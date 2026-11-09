@@ -25,6 +25,9 @@ The MVP is a Pilot build for one partner: about 8 one-week sprints at 3 days per
 8. No payments, no AI features, no Redis or WebSocket in the MVP. `mentorships.is_paid` stays false.
 9. English UI only, but every user-facing string goes through the string catalog.
 10. Keep the diff small. Change only what the task needs; do not add speculative abstractions.
+11. Every new route needs three registrations in the same change: an OpenAPI path, a row in the `authorization-matrix` `MATRIX`, and an entry in `ROUTE_BODY_KEYS` (empty when it takes no body). The inventory and contract-parity tests fail otherwise.
+12. The pilot's `PLATFORM_ADMIN` role is granted by the hand-run `INSERT` in `docs/local-setup.md`, never by a script or route; every admin route requires an enrolled second factor.
+13. Throttling is per route: `@Throttle({ default: RATE_LIMITS.<bucket> })` with the values in `@connect/config`, and `@SkipThrottle()` on `/healthz` and `/readyz`. Any raw 429 (including the identity library's) maps to `429 RATE_LIMITED` in `ProblemDetailsFilter`.
 
 ## Where to find what
 
