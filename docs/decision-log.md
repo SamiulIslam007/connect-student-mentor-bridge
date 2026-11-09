@@ -502,3 +502,107 @@ date: 2026-10-29
 - Reason: Mentor recognition is the only non-monetary reward in the pilot, so a count is worth showing now; the numeric score needs thresholds nobody has set, and discovery (#6) is deferred by D-58, so nothing else consumes the view yet.
 - Status: Decided
 - Affects: `packages/contracts/openapi.yaml`, `docs/api-contracts.md` §5.3, `docs/functional-requirements.md` FR-REP-02 and FR-REP-07, `docs/known-debt.md` (DEBT-24, DEBT-25)
+
+### D-69: The mentor directory has no rank or score
+
+- Date: 2026-11-09
+- Decision: `GET /v1/mentors` orders results by mentor profile id ascending and exposes no `match_score`, rank, points, tier, or "why this mentor" reason. No matching code runs, and nothing reads `match_score`.
+- Reason: Match Score, its weights, and the reason text belong to `matching-and-discovery` (#6), which D-58 defers; D-67 already ships every reputation multiplier as a `1.0` placeholder, so any ranking now would be invented. A stable order is testable and needs no new column.
+- Status: Decided
+- Affects: `openspec/changes/mentor-directory`, `docs/api-contracts.md` §5.3, `docs/functional-requirements.md` FR-DISC-01 and FR-DISC-02
+
+### D-70: The directory ships exactly the documented filters
+
+- Date: 2026-11-09
+- Decision: `GET /v1/mentors` accepts `field`, `language`, `access_state`, `cursor`, and `limit`, and nothing else. `field` matches the primary field or an additional field and is an opaque id; `language` is an exact case-insensitive match; `access_state` is `available`, `application_only`, or `full`; keyset pagination is on the mentor id, 1 to 50 per page, default 20. Filtering by availability windows is not built.
+- Reason: The contract already documents this parameter set, and an availability filter needs a join over weekly windows that no screen needs yet. Shipping a smaller set keeps the change inside one day.
+- Status: Decided
+- Affects: `openspec/changes/mentor-directory`, `docs/api-contracts.md` §5.3, `docs/functional-requirements.md` FR-DISC-01, `docs/known-debt.md`
+
+### D-71: The directory read is public; the request action is not
+
+- Date: 2026-11-09
+- Decision: The mentor directory is readable with no session and returns only mentor profile id, display name, headline, access mode, derived access state, primary field, fields, and languages. It never returns an email, an account id, a biography, an expertise summary, a scope statement, a weekly capacity, availability windows, or onboarding status. The Request action links to a signed-in route. The contract's list access changes from `S` to public, and `profiles/profile-visibility` is restated so the visibility policy still governs profile reads while the directory projection is the only anonymous read.
+- Reason: A visitor should be able to see who is available before signing up, and a partner demo needs it; the narrow projection keeps the archived "an unauthenticated viewer sees nothing" rule meaningful for profiles while making the one exception explicit instead of accidental.
+- Status: Decided
+- Affects: `openspec/changes/mentor-directory`, `openspec/specs/profiles/profile-visibility`, `docs/api-contracts.md` §5.3, `docs/security-requirements.md`
+
+### D-72: Directory cards carry no impact counts
+
+- Date: 2026-11-09
+- Decision: The directory card shows no counted-outcome totals; counts stay on the mentor detail read (`GET /v1/mentors/{id}/impact`).
+- Reason: A count per card is one extra query per result, and DEBT-24 keeps the numeric score internal anyway. The list is for choosing, not for ranking.
+- Status: Decided
+- Affects: `openspec/changes/mentor-directory`, `docs/api-contracts.md` §5.3
+
+### D-73: The pilot's platform admin role is granted by hand
+
+- Date: 2026-11-09
+- Decision: `PLATFORM_ADMIN` is granted for the pilot by one documented `INSERT INTO role_assignments (user_id, role) SELECT id, 'PLATFORM_ADMIN' FROM users WHERE email = '<owner email>' ON CONFLICT DO NOTHING;`. There is no script, no CLI command, and no role-grant page.
+- Reason: One reviewer, one row. A self-service admin grant would be a trust-critical feature with no approval design, and a script drifts from the statement the docs already need.
+- Status: Decided
+- Affects: `openspec/changes/platform-review-queue`, `docs/api-contracts.md` §5.9, `docs/auth-and-access-control.md`, `docs/known-debt.md` (DEBT-19 stays separate)
+
+### D-74: A rejected outcome may be reported again
+
+- Date: 2026-11-09
+- Decision: After a `REJECTED` decision the student may report a new outcome for the same mentorship; the rejected row stays terminal and unchanged. The existing state machine and schema allow several outcomes per mentorship, so no constraint changes.
+- Reason: A rejected report is a failed attempt, not a ban, and append-only history is preserved by adding a row rather than editing one.
+- Status: Decided
+- Affects: `openspec/changes/platform-review-queue`, `docs/data-model.md` §4.4
+
+### D-75: Clawback appends a reversal and re-derives the snapshot
+
+- Date: 2026-11-09
+- Decision: Reversing a counted outcome appends one `reputation_events` row with `event_type = 'REVERSAL'` and the negated points, leaves the original `COUNTED` event untouched, and decrements the field snapshot by one count and the same points. Replay subtracts reversals. Migration `0015` widens the `event_type` check and replaces the single unique index on `outcome_id` with two partial unique indexes.
+- Reason: The ledger is append-only by ADR-008 and the replay test is the guarantee the pilot's credibility rests on; editing a stored total would break both.
+- Status: Decided
+- Affects: `openspec/changes/platform-review-queue`, `docs/data-model.md` §5.6, `docs/reputation-and-verification-policy.md` §7, `services/api/src/db/schema/reputation.ts`
+
+### D-76: The review queue has no assignment, due date, or SLA
+
+- Date: 2026-11-09
+- Decision: FR-ADM-01's review queue ships without assignment, due dates, or time limits; one reviewer decides each case once, with a written reason. This is an explicit narrowing of the requirement's Must text.
+- Reason: The pilot has one reviewer (the owner), so assignment and SLAs would be columns and states no one reads; the resolution and the reason — the part that protects the user — ship.
+- Status: Decided
+- Affects: `openspec/changes/platform-review-queue`, `docs/functional-requirements.md` FR-ADM-01, `docs/known-debt.md`
+
+### D-77: The reviewer routes require an enrolled second factor
+
+- Date: 2026-11-09
+- Decision: The review queue read and the review decision both call `requireRole(identity, request, "PLATFORM_ADMIN", { requiresMfa: true })`, reusing the existing guard and its `403 MFA_REQUIRED` mapping.
+- Reason: `identity/role-authorization` already answers `true` for `PLATFORM_ADMIN`, so the policy exists; the decision that reverses reputation must not be reachable with a password alone.
+- Status: Decided
+- Affects: `openspec/changes/platform-review-queue`, `docs/auth-and-access-control.md`, `docs/api-contracts.md` §5.9
+
+### D-78: Unknown body properties are refused everywhere
+
+- Date: 2026-11-09
+- Decision: One shared guard refuses any top-level body property a route's documented schema does not define, with `422 VALIDATION_FAILED` naming the property, before any field extraction runs. The allowlist per route is asserted against `packages/contracts/openapi.yaml` by a contract test. `account_status` remains the only documented no-op. `user_id`, `student_id`, `mentor_id`, `field_id`, `role`, `roles`, and `actor_role` are refused rather than ignored.
+- Reason: `SEC-API-1` is a Must requirement and DEBT-01 records that the current behaviour silently accepts account-level keys. Refusing is strictly stronger than ignoring, and the contract stays the single source for what a route accepts.
+- Status: Decided
+- Affects: `openspec/changes/request-validation-and-rate-limits`, `openspec/specs/{identity/role-authorization,profiles/student-and-mentor-profiles,profiles/availability-and-access-mode,institutions/affiliation-verification,mentorship/outcome-verification}`, `docs/security-requirements.md`, `docs/api-contracts.md` §1, `docs/known-debt.md` (DEBT-01)
+
+### D-79: Throttling covers the credential routes and the enqueueing writes
+
+- Date: 2026-11-09
+- Decision: `@nestjs/throttler@6.7.1` limits `POST /v1/auth/register`, `sign-in`, `forgot-password`, `reset-password` and the writes that enqueue email or append ledger rows, keyed by IP and, where known, by account; `/healthz` and `/readyz` stay unthrottled. A refusal is `429 RATE_LIMITED` with a numeric `Retry-After`, and the identity library's own `429` is translated to the same shape.
+- Reason: DEBT-02 records unthrottled credential stuffing and signup-block flooding, DEBT-12 records the library's 429 surfacing as a 500, and these are the routes whose abuse costs the most. Throttling every route would throttle ordinary browsing.
+- Status: Decided
+- Affects: `openspec/changes/request-validation-and-rate-limits`, `docs/api-contracts.md` §9 and §10, `docs/security-requirements.md`, `docs/known-debt.md` (DEBT-02, DEBT-12)
+
+### D-80: The throttle store is in process memory
+
+- Date: 2026-11-09
+- Decision: The throttler uses its in-memory store. `docs/security-requirements.md` states that a multi-instance deployment enforces the limit per instance and that a shared store is a post-pilot decision.
+- Reason: ADR-006 forbids Redis in the MVP and the pilot runs one API instance; a shared store would add a dependency for a limit that does not need to be global yet.
+- Status: Decided
+- Affects: `openspec/changes/request-validation-and-rate-limits`, `docs/security-requirements.md`, `docs/local-setup.md`
+
+### D-81: The rate-limit values ship as documented starting points
+
+- Date: 2026-11-09
+- Decision: `RATE_LIMITS` in `@connect/config` holds `auth` 5 per minute, `register` 3 per hour, `reset` 3 per hour, `write` 60 per minute, and `default` 120 per minute. Each is commented as a starting value pending pilot traffic, and `docs/api-contracts.md` §9 keeps concrete values **Open (SEC-O2)**.
+- Reason: A throttle with no numbers does not ship; inventing a calibrated value would be a ranking nobody measured. Labelling them placeholders matches D-67's pattern for the reputation multipliers.
+- Status: Decided
+- Affects: `openspec/changes/request-validation-and-rate-limits`, `packages/config/src/index.ts`, `docs/api-contracts.md` §9, `docs/security-requirements.md`
