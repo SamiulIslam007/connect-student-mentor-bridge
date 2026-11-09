@@ -16,8 +16,8 @@ Reporting SHALL create one outcome in `PENDING_CONFIRMATION` carrying the mentor
 
 #### Scenario: The field comes from the mentorship
 
-- **WHEN** the request body names a different field
-- **THEN** the stored `field_id` is the mentorship's field and the body value has no effect
+- **WHEN** the request body names a `field_id` or any other property outside the documented report schema
+- **THEN** the response is `422` naming that property and no outcome row is written
 
 #### Scenario: A missing description is refused
 
@@ -46,7 +46,7 @@ Only the mentorship's student SHALL report an outcome for that mentorship; the m
 #### Scenario: A foreign id in the body has no effect
 
 - **WHEN** the body carries a `student_id` naming another account
-- **THEN** that property is ignored and the outcome belongs to the caller's own mentorship
+- **THEN** the response is `422` naming that property and no outcome row is written
 
 ### Requirement: The mentor confirms the fact and the contribution separately
 
