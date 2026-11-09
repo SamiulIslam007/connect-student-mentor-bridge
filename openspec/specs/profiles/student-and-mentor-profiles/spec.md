@@ -66,7 +66,7 @@ The system SHALL create or fully replace the signed-in user's student profile on
 #### Scenario: A body user id is ignored
 
 - **WHEN** user A submits a body containing user B's id
-- **THEN** only A's profile is created or replaced, and B's profile is unchanged
+- **THEN** the response is `422` naming that property, A's profile is unchanged, and B's profile is unchanged
 
 #### Scenario: A revoked session cannot save
 
@@ -153,7 +153,7 @@ The system SHALL create or fully replace the signed-in user's mentor profile on 
 #### Scenario: A body user id is ignored
 
 - **WHEN** user A submits a body containing user B's id
-- **THEN** only A's profile is created or replaced, and B's profile is unchanged
+- **THEN** the response is `422` naming that property, A's profile is unchanged, and B's profile is unchanged
 
 ### Requirement: Profiles are readable only by their owner
 

@@ -60,7 +60,7 @@ The system SHALL read the acting account's active role assignments from the data
 #### Scenario: A body-supplied role is ignored
 
 - **WHEN** a request body contains a `role`, `roles`, or `actor_role` property
-- **THEN** the property has no effect on the decision and the request is decided from the stored assignments
+- **THEN** the response is `422` naming that property, nothing is read or written under the named role, and the request is otherwise decided from the stored assignments
 
 ### Requirement: The role guard refuses without the role
 

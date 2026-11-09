@@ -21,8 +21,8 @@ The system SHALL store a caller's availability as a set of weekly windows, each 
 
 #### Scenario: Only the caller's own availability
 
-- **WHEN** a request carries another account's user id or a body property naming one
-- **THEN** that property has no effect and only the caller's windows are written
+- **WHEN** a request carries another account's user id in the path or a body property naming one
+- **THEN** the response is `422` naming the property, and the caller's stored windows are unchanged
 
 #### Scenario: Empty is a valid set
 
