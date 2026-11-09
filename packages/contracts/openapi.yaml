@@ -72,6 +72,8 @@ paths:
                 $ref: "#/components/schemas/StatusResponse"
         "422":
           $ref: "#/components/responses/Problem"
+
+
   /v1/auth/verify:
     get:
       operationId: verifyEmailAddress
@@ -127,6 +129,8 @@ paths:
           $ref: "#/components/responses/Problem"
         "422":
           $ref: "#/components/responses/Problem"
+
+
   /v1/auth/sign-out:
     post:
       operationId: signOut
@@ -180,6 +184,8 @@ paths:
                 $ref: "#/components/schemas/StatusResponse"
         "422":
           $ref: "#/components/responses/Problem"
+
+
   /v1/auth/reset-password:
     post:
       operationId: resetPassword
@@ -203,6 +209,8 @@ paths:
           $ref: "#/components/responses/Problem"
         "422":
           $ref: "#/components/responses/Problem"
+
+
   /v1/auth/mfa/enroll:
     post:
       operationId: enrollMfa
@@ -230,6 +238,7 @@ paths:
           $ref: "#/components/responses/Problem"
         "422":
           $ref: "#/components/responses/Problem"
+
   /v1/auth/mfa/verify:
     post:
       operationId: verifyMfa
@@ -257,6 +266,7 @@ paths:
           $ref: "#/components/responses/Problem"
         "422":
           $ref: "#/components/responses/Problem"
+
   /v1/auth/mfa/disable:
     post:
       operationId: disableMfa
@@ -283,6 +293,7 @@ paths:
           $ref: "#/components/responses/Problem"
         "422":
           $ref: "#/components/responses/Problem"
+
   /v1/auth/sign-in/provider:
     post:
       operationId: startProviderSignIn
@@ -309,6 +320,7 @@ paths:
           $ref: "#/components/responses/Problem"
         "503":
           $ref: "#/components/responses/Problem"
+
   /v1/auth/provider/callback:
     post:
       operationId: completeProviderSignIn
@@ -341,6 +353,7 @@ paths:
           $ref: "#/components/responses/Problem"
         "503":
           $ref: "#/components/responses/Problem"
+
   /v1/me:
     get:
       operationId: getCurrentAccount
@@ -393,6 +406,7 @@ paths:
           $ref: "#/components/responses/Problem"
         "422":
           $ref: "#/components/responses/Problem"
+
   /v1/me/roles/mentor:
     post:
       operationId: grantMentorRole
@@ -442,6 +456,7 @@ paths:
           $ref: "#/components/responses/Problem"
         "422":
           $ref: "#/components/responses/Problem"
+
   /v1/me/mentor-profile:
     put:
       operationId: saveMentorProfile
@@ -470,6 +485,7 @@ paths:
           $ref: "#/components/responses/Problem"
         "422":
           $ref: "#/components/responses/Problem"
+
   /v1/me/sessions:
     get:
       operationId: listSessions
@@ -563,6 +579,7 @@ paths:
           $ref: "#/components/responses/Problem"
         "422":
           $ref: "#/components/responses/Problem"
+
   /v1/me/availability:
     get:
       operationId: getAvailability
@@ -618,6 +635,62 @@ paths:
           $ref: "#/components/responses/Problem"
         "403":
           $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+
+  /v1/mentors:
+    get:
+      operationId: listMentors
+      summary: The public mentor directory
+      description: >-
+        Public read (D-71). Only ACTIVE mentor profiles appear; a paused mentor is
+        hidden from every filter, and a mentor whose slots in use reach the weekly
+        capacity is listed with `access_state: full`. Ordered by mentor profile id
+        and keyset-paginated. A card carries no email, account id, biography,
+        availability window, or capacity number.
+      security: []
+      parameters:
+        - name: field
+          in: query
+          required: false
+          description: A field id; matches the primary field or an additional one.
+          schema:
+            type: string
+            format: uuid
+        - name: language
+          in: query
+          required: false
+          description: One stored language, matched exactly and case-insensitively.
+          schema:
+            type: string
+        - name: access_state
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/MentorAccessState"
+        - name: cursor
+          in: query
+          required: false
+          description: The `next_cursor` value from the previous page (a mentor profile id).
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          required: false
+          description: Page size, 1 to 50. Defaults to 20.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+      responses:
+        "200":
+          description: One page of the public directory
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MentorDirectoryPage"
         "422":
           $ref: "#/components/responses/Problem"
   /v1/mentors/{id}:
@@ -680,6 +753,8 @@ paths:
           $ref: "#/components/responses/Problem"
         "422":
           $ref: "#/components/responses/Problem"
+
+
     get:
       operationId: listRequests
       summary: The caller's own sent or received requests
@@ -803,6 +878,7 @@ paths:
           $ref: "#/components/responses/Problem"
         "409":
           $ref: "#/components/responses/Problem"
+
   /v1/requests/{id}/withdraw:
     post:
       operationId: withdrawRequest
@@ -994,6 +1070,7 @@ paths:
           $ref: "#/components/responses/Problem"
         "422":
           $ref: "#/components/responses/Problem"
+
   /v1/mentorships/{id}/agreement/acknowledge:
     post:
       operationId: acknowledgeMentorshipAgreement
@@ -1092,6 +1169,8 @@ paths:
           $ref: "#/components/responses/Problem"
         "422":
           $ref: "#/components/responses/Problem"
+
+
   /v1/mentorships/{id}/sessions:
     post:
       operationId: createMentorshipSession
@@ -1126,6 +1205,7 @@ paths:
           $ref: "#/components/responses/Problem"
         "422":
           $ref: "#/components/responses/Problem"
+
   /v1/mentorships/{id}/complete:
     post:
       operationId: completeMentorship
@@ -1209,6 +1289,7 @@ paths:
           $ref: "#/components/responses/Problem"
         "422":
           $ref: "#/components/responses/Problem"
+
   /v1/outcomes:
     post:
       operationId: reportOutcome
@@ -1238,6 +1319,8 @@ paths:
           $ref: "#/components/responses/Problem"
         "422":
           $ref: "#/components/responses/Problem"
+
+
     get:
       operationId: listOutcomes
       summary: The caller's own outcomes, newest first
@@ -1340,6 +1423,8 @@ paths:
           $ref: "#/components/responses/Problem"
         "422":
           $ref: "#/components/responses/Problem"
+
+
   /v1/outcomes/{id}/dispute:
     post:
       operationId: disputeOutcome
@@ -1373,6 +1458,8 @@ paths:
           $ref: "#/components/responses/Problem"
         "422":
           $ref: "#/components/responses/Problem"
+
+
   /v1/outcomes/{id}/withdraw:
     post:
       operationId: withdrawOutcome
@@ -2019,6 +2106,47 @@ components:
           type: string
           enum: [level_0, level_1, level_2]
           description: The level the claim itself supports, not an aggregate.
+    MentorAccessState:
+      type: string
+      description: Derived at read time from the capacity rule; never stored.
+      enum: [available, application_only, full]
+    MentorDirectoryCard:
+      type: object
+      additionalProperties: false
+      required: [id, display_name, headline, access_state, access_mode, primary_field, fields, languages]
+      properties:
+        id:
+          type: string
+        display_name:
+          type: string
+        headline:
+          type: string
+        access_state:
+          $ref: "#/components/schemas/MentorAccessState"
+        access_mode:
+          $ref: "#/components/schemas/MentorAccessMode"
+        primary_field:
+          $ref: "#/components/schemas/FieldSummary"
+        fields:
+          type: array
+          items:
+            $ref: "#/components/schemas/FieldSummary"
+        languages:
+          type: array
+          items:
+            type: string
+    MentorDirectoryPage:
+      type: object
+      additionalProperties: false
+      required: [data, next_cursor]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/MentorDirectoryCard"
+        next_cursor:
+          type: [string, "null"]
+          description: The last returned mentor profile id when more exist, otherwise null.
     MentorContext:
       type: object
       additionalProperties: false

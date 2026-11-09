@@ -26,6 +26,8 @@ export function navLinks(signedIn: boolean): NavModel {
       ? [
           { kind: "link", href: "/account", label: strings.nav.account },
           { kind: "link", href: "/profile", label: strings.nav.profile },
+          { kind: "link", href: "/mentors", label: strings.nav.mentors },
+          { kind: "link", href: "/requests", label: strings.nav.requests },
           { kind: "link", href: "/account/sessions", label: strings.nav.sessions },
           { kind: "sign-out", label: strings.nav.signOut },
         ]

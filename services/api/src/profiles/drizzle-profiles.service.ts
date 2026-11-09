@@ -1,11 +1,12 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { and, asc, eq, gt, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, ne, sql, type SQL } from "drizzle-orm";
 
 import {
   IdentityError,
   distinctFieldNames,
   normalizeFieldName,
   normalizeLanguages,
+  slotsInUse,
   validateMentorProfileInput,
   validateStudentProfileInput,
 } from "@connect/domain";
@@ -17,6 +18,7 @@ import {
   fields,
   mentorFields,
   mentorProfiles,
+  mentorshipRequests,
   studentFieldInterests,
   studentProfiles,
   users,
@@ -25,7 +27,11 @@ import type {
   FieldPage,
   FieldSummary,
   ListFieldsInput,
+  ListMentorsInput,
+  MentorAccessState,
   MentorContext,
+  MentorDirectoryCard,
+  MentorDirectoryPage,
   MentorProfileRecord,
   OwnProfiles,
   ProfilesService,
@@ -88,6 +94,20 @@ async function upsertFields(
 
 function fieldSummary(id: string, name: string): FieldSummary {
   return { id, name };
+}
+
+/** A filter that needs derived state rescans pages; 20 × 50 is the pilot bound. */
+const DIRECTORY_SCAN_LIMIT = 20;
+
+function deriveAccessState(
+  slots: number,
+  weeklyCapacity: number,
+  accessMode: "OPEN" | "APPLICATION_ONLY" | "PAUSED",
+): MentorAccessState {
+  if (slots >= weeklyCapacity) {
+    return "full";
+  }
+  return accessMode === "APPLICATION_ONLY" ? "application_only" : "available";
 }
 
 /** Validation runs before the transaction opens, so a refused save writes nothing. */
@@ -306,6 +326,156 @@ export class DrizzleProfilesService implements ProfilesService {
       status: row.status,
       primaryField: fieldSummary(row.primaryFieldId, row.primaryFieldName),
     };
+  }
+
+  /**
+   * The public directory (design D4): one keyset page of ACTIVE, non-paused
+   * mentors, with `FULL` derived from the same `slotsInUse` rule the request
+   * path uses. A scan cap keeps an access-state filter bounded; the pilot
+   * directory is small, so it is a shortcut and not a paging strategy.
+   */
+  async listMentors({
+    field,
+    language,
+    accessState,
+    cursor,
+    limit,
+  }: ListMentorsInput): Promise<MentorDirectoryPage> {
+    const collected: MentorDirectoryCard[] = [];
+    let after = cursor;
+    let hasMore = false;
+
+    for (let scan = 0; scan < DIRECTORY_SCAN_LIMIT; scan += 1) {
+      const conditions: SQL[] = [
+        eq(mentorProfiles.status, "ACTIVE"),
+        // A paused mentor is hidden from every filter (FR-PROF-02).
+        ne(mentorProfiles.accessMode, "PAUSED"),
+      ];
+      if (after) {
+        conditions.push(gt(mentorProfiles.id, after));
+      }
+      if (field) {
+        conditions.push(sql`(
+          ${mentorProfiles.primaryFieldId} = ${field}::uuid
+          OR EXISTS (
+            SELECT 1 FROM mentor_fields mf
+            WHERE mf.mentor_profile_id = ${mentorProfiles.id} AND mf.field_id = ${field}::uuid
+          )
+        )`);
+      }
+      if (language) {
+        conditions.push(sql`EXISTS (
+          SELECT 1 FROM unnest(${mentorProfiles.languages}) AS stored
+          WHERE lower(stored) = lower(${language})
+        )`);
+      }
+
+      const rows = await this.db
+        .select({
+          id: mentorProfiles.id,
+          displayName: users.name,
+          headline: mentorProfiles.headline,
+          accessMode: mentorProfiles.accessMode,
+          languages: mentorProfiles.languages,
+          weeklyCapacity: mentorProfiles.weeklyCapacity,
+          primaryFieldId: mentorProfiles.primaryFieldId,
+          primaryFieldName: fields.name,
+        })
+        .from(mentorProfiles)
+        .innerJoin(users, eq(users.id, mentorProfiles.userId))
+        .innerJoin(fields, eq(fields.id, mentorProfiles.primaryFieldId))
+        .where(and(...conditions))
+        .orderBy(asc(mentorProfiles.id))
+        .limit(limit + 1);
+
+      const ids = rows.map((row) => row.id);
+      const [slots, additional] = await Promise.all([
+        this.readSlotsInUse(ids),
+        this.readMentorFields(ids),
+      ]);
+
+      for (const row of rows) {
+        const counts = slots.get(row.id) ?? { pending: 0, acceptedInWindow: 0 };
+        const card: MentorDirectoryCard = {
+          id: row.id,
+          displayName: row.displayName,
+          headline: row.headline,
+          accessState: deriveAccessState(
+            slotsInUse(counts),
+            row.weeklyCapacity,
+            row.accessMode,
+          ),
+          accessMode: row.accessMode,
+          primaryField: fieldSummary(row.primaryFieldId, row.primaryFieldName),
+          fields: additional.get(row.id) ?? [],
+          languages: row.languages,
+        };
+        if (!accessState || card.accessState === accessState) {
+          collected.push(card);
+        }
+      }
+
+      if (collected.length > limit) {
+        hasMore = true;
+        break;
+      }
+      if (rows.length <= limit) {
+        break;
+      }
+      after = rows[rows.length - 1]?.id ?? after;
+    }
+
+    const page = collected.slice(0, limit);
+    return { cards: page, nextCursor: hasMore ? page[page.length - 1]?.id ?? null : null };
+  }
+
+  /** One aggregate for the whole page: pending plus accepted inside seven days. */
+  private async readSlotsInUse(
+    ids: string[],
+  ): Promise<Map<string, { pending: number; acceptedInWindow: number }>> {
+    if (ids.length === 0) {
+      return new Map();
+    }
+    const rows = await this.db
+      .select({
+        mentorProfileId: mentorshipRequests.mentorProfileId,
+        pending: sql<number>`(count(*) FILTER (WHERE ${mentorshipRequests.status} = 'PENDING'))::int`,
+        acceptedInWindow: sql<number>`(count(*) FILTER (
+          WHERE ${mentorshipRequests.status} = 'ACCEPTED'
+            AND ${mentorshipRequests.decidedAt} > now() - interval '7 days'
+        ))::int`,
+      })
+      .from(mentorshipRequests)
+      .where(inArray(mentorshipRequests.mentorProfileId, ids))
+      .groupBy(mentorshipRequests.mentorProfileId);
+
+    return new Map(
+      rows.map((row) => [
+        row.mentorProfileId,
+        { pending: Number(row.pending), acceptedInWindow: Number(row.acceptedInWindow) },
+      ]),
+    );
+  }
+
+  /** One query for the page's additional fields, grouped in memory (no N+1). */
+  private async readMentorFields(ids: string[]): Promise<Map<string, FieldSummary[]>> {
+    const grouped = new Map<string, FieldSummary[]>();
+    if (ids.length === 0) {
+      return grouped;
+    }
+    const rows = await this.db
+      .select({ mentorProfileId: mentorFields.mentorProfileId, id: fields.id, name: fields.name })
+      .from(mentorFields)
+      .innerJoin(fields, eq(fields.id, mentorFields.fieldId))
+      .where(inArray(mentorFields.mentorProfileId, ids))
+      .orderBy(asc(fields.name));
+
+    for (const row of rows) {
+      const list = grouped.get(row.mentorProfileId) ?? [];
+      list.push({ id: row.id, name: row.name });
+      grouped.set(row.mentorProfileId, list);
+    }
+    return grouped;
   }
 
   async listFields({ limit, cursor }: ListFieldsInput): Promise<FieldPage> {

@@ -6,6 +6,8 @@ export const strings = {
     createAccount: "Create account",
     account: "Account",
     profile: "Profile",
+    mentors: "Mentors",
+    requests: "Requests",
     sessions: "Sessions",
     signOut: "Sign out",
   },
@@ -153,6 +155,7 @@ export const strings = {
     mentorOnboardingLabel: "Onboarding",
     activationPending:
       "A mentor becomes active with a Level 1 affiliation and an enrolled second factor.",
+    findMentor: "Find a mentor",
   },
   verify: {
     title: "Email verification",
@@ -242,6 +245,26 @@ export const strings = {
     sending: "Sending…",
     error: "The request could not be sent.",
     applicationOnlyTitle: "A note is required",
+    backToRequests: "Back to your requests",
+  },
+  mentors: {
+    title: "Find a mentor",
+    intro:
+      "Active mentors you can ask. The state shows whether a request is possible right now.",
+    fieldFilter: "Field",
+    anyField: "Any field",
+    stateFilter: "Availability",
+    anyState: "Any state",
+    stateAvailable: "Available",
+    stateApplicationOnly: "Application only",
+    stateFull: "Full",
+    loading: "Loading mentors…",
+    empty: "No mentors match these filters yet.",
+    loadError: "The mentor directory could not be loaded.",
+    retry: "Try again",
+    request: "Request",
+    fullReason: "This mentor is at weekly capacity. Try again in a few days.",
+    loadMore: "Load more",
     backToRequests: "Back to your requests",
   },
   mfa: {

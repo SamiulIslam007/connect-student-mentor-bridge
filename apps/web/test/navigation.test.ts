@@ -19,6 +19,8 @@ test("a signed-in account is offered the app destinations and sign out", () => {
   assert.deepEqual(nav.items, [
     { kind: "link", href: "/account", label: "Account" },
     { kind: "link", href: "/profile", label: "Profile" },
+    { kind: "link", href: "/mentors", label: "Mentors" },
+    { kind: "link", href: "/requests", label: "Requests" },
     { kind: "link", href: "/account/sessions", label: "Sessions" },
     { kind: "sign-out", label: "Sign out" },
   ]);
@@ -28,7 +30,7 @@ test("the signed-out set contains no signed-in destination", () => {
   const signedOut = navLinks(false);
   const hrefs = signedOut.items.flatMap((item) => (item.kind === "link" ? [item.href] : []));
 
-  for (const signedInOnly of ["/account", "/profile", "/account/sessions"]) {
+  for (const signedInOnly of ["/account", "/profile", "/mentors", "/requests", "/account/sessions"]) {
     assert.ok(!hrefs.includes(signedInOnly), `${signedInOnly} must not be offered signed out`);
   }
   assert.ok(!signedOut.items.some((item) => item.kind === "sign-out"));

@@ -13,7 +13,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "node --import tsx src/db/seed/run.ts",
-    "outbox:test-event": "node --import tsx src/platform/outbox/test-event.ts"
+    "outbox:test-event": "node --import tsx src/platform/outbox/test-event.ts",
+    "db:seed:demo": "node --import tsx src/db/seed/run-demo.ts"
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "1.7.15",
@@ -23,6 +24,7 @@
     "@nestjs/common": "12.3.2",
     "@nestjs/core": "12.3.2",
     "@nestjs/platform-express": "12.3.2",
+    "@nestjs/throttler": "6.7.1",
     "better-auth": "1.7.15",
     "drizzle-orm": "0.45.4",
     "nodemailer": "10.3.1",

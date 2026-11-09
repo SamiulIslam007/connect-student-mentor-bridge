@@ -728,6 +728,7 @@ export default function ProfilePage() {
       <ImpactSection />
 
       <p>
+        <a href="/mentors">{strings.profile.findMentor}</a> ·{" "}
         <a href="/account">{strings.profile.backToAccount}</a>
       </p>
     </main>
