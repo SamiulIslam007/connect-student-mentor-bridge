@@ -7,7 +7,7 @@ Decides, in one pure function with a complete matrix test, who may see which acc
 
 ### Requirement: A profile is visible only per the FR-PROF-04 matrix
 
-The system SHALL decide profile visibility with a pure policy that receives the viewer's roles, whether the viewer is the subject, the subject's profile kind (student or mentor), and whether the viewer holds a relationship that the matrix names, and SHALL answer either `VISIBLE` or `HIDDEN`.
+The system SHALL decide profile visibility with a pure policy that receives the viewer's roles, whether the viewer is the subject, the subject's profile kind (student or mentor), and whether the viewer holds a relationship that the matrix names, and SHALL answer either `VISIBLE` or `HIDDEN`. The policy SHALL govern every profile read, and SHALL NOT govern the public mentor directory projection, which carries no profile object and is specified by `profiles/mentor-directory`.
 
 #### Scenario: A mentor's profile is visible to any signed-in account
 
@@ -47,7 +47,7 @@ The system SHALL decide profile visibility with a pure policy that receives the 
 #### Scenario: An unauthenticated viewer sees nothing
 
 - **WHEN** the viewer has no session
-- **THEN** the policy answers `HIDDEN` for every profile, including a mentor's
+- **THEN** the policy answers `HIDDEN` for every profile, including a mentor's, and an unauthenticated caller may still read the mentor directory projection, which exposes only the attributes listed in `profiles/mentor-directory` and no profile object
 
 ### Requirement: A hidden profile behaves as if it does not exist
 
