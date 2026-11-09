@@ -4,8 +4,9 @@ import { forwardUpstream, proxyJson, unauthenticated } from "../../../../lib/bff
 import { readSessionCookie } from "../../../../lib/session-cookie";
 
 /**
- * `GET|POST /api/outcomes[/{id}[/{confirm|dispute|withdraw}]]`. One handler, one
- * allow-list; a path outside it is a local 404 and never reaches the API.
+ * `GET|POST /api/outcomes[/{id}[/{confirm|dispute|withdraw|review}]]`. One
+ * handler, one allow-list; a path outside it is a local 404 and never reaches
+ * the API.
  */
 const ALLOWED = new Set([
   "GET /",
@@ -14,6 +15,7 @@ const ALLOWED = new Set([
   "POST /:id/confirm",
   "POST /:id/dispute",
   "POST /:id/withdraw",
+  "POST /:id/review",
 ]);
 
 const SEGMENT = /^[A-Za-z0-9-]+$/;

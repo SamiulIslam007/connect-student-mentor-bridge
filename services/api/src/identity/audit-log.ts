@@ -27,7 +27,9 @@ export type AuditAction =
   | "OUTCOME_DISPUTED"
   | "OUTCOME_COI_DECLARED"
   | "OUTCOME_ESCALATED"
-  | "OUTCOME_WITHDRAWN";
+  | "OUTCOME_WITHDRAWN"
+  | "OUTCOME_REVIEWED"
+  | "OUTCOME_REVERSED";
 
 export interface AuditEntry {
   action: AuditAction;

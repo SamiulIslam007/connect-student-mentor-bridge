@@ -307,6 +307,25 @@ test("the application role can use every profile table and nothing else", async 
       "INSERT INTO field_impact_snapshots (mentor_profile_id, field_id, outcome_type, counted_count, points_total) VALUES ($1, $2, 'INTERNSHIP', 1, 1)",
       [mentorId, fieldId],
     );
+    // `0015` allows one COUNTED and one compensating REVERSAL per outcome.
+    await client.query(
+      "INSERT INTO reputation_events (outcome_id, mentor_profile_id, student_profile_id, field_id, outcome_type, event_type, difficulty_weight, tier_multiplier, contribution_multiplier, pair_factor, points, occurred_at) VALUES ($1, $2, $3, $4, 'INTERNSHIP', 'REVERSAL', 1, 1, 1, 1, -1, now())",
+      [outcome.rows[0].id, mentorId, studentId, fieldId],
+    );
+    for (const sql of [
+      "INSERT INTO reputation_events (outcome_id, mentor_profile_id, student_profile_id, field_id, outcome_type, event_type, difficulty_weight, tier_multiplier, contribution_multiplier, pair_factor, points, occurred_at) VALUES ($1, $2, $3, $4, 'INTERNSHIP', 'COUNTED', 1, 1, 1, 1, 1, now())",
+      "INSERT INTO reputation_events (outcome_id, mentor_profile_id, student_profile_id, field_id, outcome_type, event_type, difficulty_weight, tier_multiplier, contribution_multiplier, pair_factor, points, occurred_at) VALUES ($1, $2, $3, $4, 'INTERNSHIP', 'REVERSAL', 1, 1, 1, 1, -1, now())",
+    ]) {
+      await client.query("SAVEPOINT ledger_unique");
+      await assert.rejects(
+        client.query(sql, [outcome.rows[0].id, mentorId, studentId, fieldId]),
+        (error: unknown) => {
+          assert.equal((error as { code?: string }).code, "23505", "one row per event type");
+          return true;
+        },
+      );
+      await client.query("ROLLBACK TO SAVEPOINT ledger_unique");
+    }
     await client.query(
       "UPDATE field_impact_snapshots SET counted_count = counted_count + 1 WHERE mentor_profile_id = $1",
       [mentorId],

@@ -8,9 +8,12 @@ import {
   coolingEndsAt,
   earnsMentorReputation,
   isContributionLevel,
+  reviewDecisionIsLegal,
+  reviewTarget,
   transition,
   type OutcomeAction,
   type OutcomeStatus,
+  type ReviewDecision,
 } from "../src/outcome.js";
 
 const LEGAL: [OutcomeStatus | null, OutcomeAction, OutcomeStatus][] = [
@@ -92,4 +95,34 @@ test("the canonical contribution levels are the three documented values", () => 
   assert.deepEqual([...CONTRIBUTION_LEVELS], ["DIRECTLY_ENABLED", "HELPED", "MINOR"]);
   assert.equal(isContributionLevel("HELPED"), true);
   assert.equal(isContributionLevel("COACHED"), false);
+});
+
+const REVIEW_LEGAL: [OutcomeStatus, ReviewDecision, OutcomeStatus][] = [
+  ["IN_PLATFORM_REVIEW", "valid", "COUNTED"],
+  ["IN_PLATFORM_REVIEW", "invalid", "REJECTED"],
+  ["COUNTED", "invalid", "REVERSED"],
+];
+
+test("the reviewer moves are exactly T8, T9, and T11", () => {
+  for (const [from, decision, to] of REVIEW_LEGAL) {
+    assert.equal(reviewTarget(from, decision), to, `${from} + ${decision}`);
+    assert.equal(reviewDecisionIsLegal(from, decision), true);
+  }
+});
+
+test("valid on a counted outcome and every other pair are illegal", () => {
+  const decisions: ReviewDecision[] = ["valid", "invalid"];
+  for (const from of OUTCOME_STATUSES) {
+    for (const decision of decisions) {
+      const legal = REVIEW_LEGAL.some(([f, d]) => f === from && d === decision);
+      assert.equal(reviewDecisionIsLegal(from, decision), legal, `${from} + ${decision}`);
+      assert.equal(reviewTarget(from, decision), legal ? reviewTarget(from, decision) : null);
+    }
+  }
+  assert.equal(reviewTarget("COUNTED", "valid"), null, "no double count");
+});
+
+test("a reversed outcome cannot be reviewed again in this release", () => {
+  assert.equal(reviewDecisionIsLegal("REVERSED", "valid"), false);
+  assert.equal(reviewDecisionIsLegal("REVERSED", "invalid"), false);
 });

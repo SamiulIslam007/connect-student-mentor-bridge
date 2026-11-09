@@ -19,6 +19,7 @@ import { MeController } from "./me/me.controller.js";
 import { MentorshipsController, SessionsController } from "./mentorships/mentorships.controller.js";
 import { MentorshipsModule } from "./mentorships/mentorships.module.js";
 import { OutcomesController } from "./outcomes/outcomes.controller.js";
+import { ReviewQueueController } from "./outcomes/review-queue.controller.js";
 import { OutcomesModule } from "./outcomes/outcomes.module.js";
 import { ReputationController } from "./reputation/reputation.controller.js";
 import { ReputationModule } from "./reputation/reputation.module.js";
@@ -73,6 +74,7 @@ export class AppModule implements NestModule {
         MentorshipsController,
         SessionsController,
         OutcomesController,
+        ReviewQueueController,
         ReputationController,
       );
   }

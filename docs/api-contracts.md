@@ -414,7 +414,9 @@ The statutory time limit for completing requests is an **Open decision** for cou
 
 | Method and path | Roles | Idem | Purpose |
 |---|---|---|---|
-| `GET /v1/admin/disputes?status=` | PA | no | Dispute and audit queue |
+| `GET /v1/review-queue?cursor=&limit=` | PA + MFA | no | **Built** by `platform-review-queue`: open `IN_PLATFORM_REVIEW` cases, oldest `mentor_decision_due_at` first, keyset by the last outcome id (limit 1 to 50, default 20). A row carries the outcome, `case_kind` (`mentor_dispute`, `conflict_of_interest`, `escalated_d7`), `reason`, `opened_at`, and `waiting_days`. No assignment or due date (D-76) |
+| `POST /v1/outcomes/{id}/review` | PA + MFA | yes | **Built** by `platform-review-queue`: body `decision` (`valid` or `invalid`) and `reason` (1 to 1000 characters). `valid` moves a review case to `COUNTED` with `counted_basis = platform_decision`; `invalid` moves it to `REJECTED`, or performs the T11 clawback on a `COUNTED` outcome (`REVERSED` plus one `REVERSAL` ledger event). Any other pair is `409 OUTCOME_INVALID_STATE`; one audit row and one queued email per decision |
+| `GET /v1/admin/disputes?status=` | PA | no | **Not built.** The review queue above replaces it; this row stays a Phase 1b design note |
 | `POST /v1/admin/disputes/{id}/start-review` | PA | yes | Take a case. The admin must not be a party |
 | `POST /v1/admin/disputes/{id}/resolve` | PA | yes | Body: `decision` (`outcome_valid` or `outcome_not_valid`), `reason` (required). Decided by a Platform Admin, never an Institution Admin |
 | `POST /v1/admin/outcomes/{id}/audit` | PA | yes | Start an audit |
@@ -424,6 +426,8 @@ The statutory time limit for completing requests is an **Open decision** for cou
 | `GET /v1/admin/reports?status=` and `POST /v1/admin/reports/{id}/resolve` | PA | yes | Moderation queue |
 | `POST /v1/admin/users/{id}/suspend` and `/reinstate` | PA | yes | Reason required |
 | `GET /v1/admin/config` and `PUT /v1/admin/config` | PA | yes | Versioned configuration (weights, thresholds). Every change is audited |
+
+Only the two rows marked **Built** exist in this release. The `admin/disputes`, `admin/outcomes/{id}/audit`, break-glass, audit-log search, reports, suspend/reinstate, and config rows are deferred (Phase 1b or the hardening work); they are not served by the API today.
 
 ### 5.10 AI assist (**Later**)
 

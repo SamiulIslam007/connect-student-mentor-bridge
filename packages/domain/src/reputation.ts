@@ -53,6 +53,21 @@ export interface CountedEvent extends PairKey {
   fieldId: string;
   outcomeType: string;
   points: number;
+  /** Absent reads as a first `COUNTED` event (the pre-reversal ledger). */
+  eventType?: "COUNTED" | "REVERSAL";
+}
+
+/** A reversal carries the negated points of the original event (T11). */
+export function reversalPoints(points: number): number {
+  if (!Number.isFinite(points)) {
+    throw new Error("points must be a finite number");
+  }
+  return -points;
+}
+
+/** The snapshot moves by one count in the event's direction. */
+export function snapshotDelta(eventType: CountedEvent["eventType"]): 1 | -1 {
+  return eventType === "REVERSAL" ? -1 : 1;
 }
 
 /**
@@ -62,6 +77,7 @@ export interface CountedEvent extends PairKey {
 export function earlierCountedForPair(events: readonly CountedEvent[], pair: PairKey): number {
   return events.filter(
     (event) =>
+      event.eventType !== "REVERSAL" &&
       event.mentorProfileId === pair.mentorProfileId &&
       event.studentProfileId === pair.studentProfileId,
   ).length;
@@ -83,9 +99,10 @@ export function replaySnapshots(events: readonly CountedEvent[]): SnapshotTotal[
   const totals = new Map<string, SnapshotTotal>();
   for (const event of events) {
     const key = `${event.mentorProfileId}|${event.fieldId}|${event.outcomeType}`;
+    const direction = snapshotDelta(event.eventType);
     const current = totals.get(key);
     if (current) {
-      current.countedCount += 1;
+      current.countedCount += direction;
       current.pointsTotal += event.points;
       continue;
     }
@@ -93,7 +110,7 @@ export function replaySnapshots(events: readonly CountedEvent[]): SnapshotTotal[
       mentorProfileId: event.mentorProfileId,
       fieldId: event.fieldId,
       outcomeType: event.outcomeType,
-      countedCount: 1,
+      countedCount: direction,
       pointsTotal: event.points,
     });
   }

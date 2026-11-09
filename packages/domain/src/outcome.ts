@@ -15,7 +15,7 @@ export const OUTCOME_STATUSES = [
 ] as const;
 export type OutcomeStatus = (typeof OUTCOME_STATUSES)[number];
 
-/** The actions this change exposes; counting and review are later changes. */
+/** Reporting, participant decisions, and the reviewer moves (T8, T9, T11). */
 export const OUTCOME_ACTIONS = [
   "report",
   "confirm",
@@ -57,6 +57,39 @@ export function transition(from: OutcomeStatus | null, action: OutcomeAction): O
 
 export function canWithdraw(status: OutcomeStatus): boolean {
   return OUTCOME_OPEN_STATUSES.includes(status);
+}
+
+/** The reviewer's two decisions (docs/data-model.md T8/T9/T11). */
+export const REVIEW_DECISIONS = ["valid", "invalid"] as const;
+export type ReviewDecision = (typeof REVIEW_DECISIONS)[number];
+
+export function isReviewDecision(value: string): value is ReviewDecision {
+  return (REVIEW_DECISIONS as readonly string[]).includes(value);
+}
+
+/**
+ * `valid` leaves review for `COUNTED`; `invalid` rejects a review case or, on an
+ * already counted outcome, performs the T11 clawback. Every other pair is
+ * illegal, and `valid` on `COUNTED` is illegal on purpose (design D5).
+ */
+export function reviewTarget(
+  from: OutcomeStatus,
+  decision: ReviewDecision,
+): OutcomeStatus | null {
+  if (from === "IN_PLATFORM_REVIEW") {
+    return decision === "valid" ? "COUNTED" : "REJECTED";
+  }
+  if (from === "COUNTED" && decision === "invalid") {
+    return "REVERSED";
+  }
+  return null;
+}
+
+export function reviewDecisionIsLegal(
+  from: OutcomeStatus,
+  decision: ReviewDecision,
+): boolean {
+  return reviewTarget(from, decision) !== null;
 }
 
 /** Canonical contribution levels (docs/data-model.md §4.1). */

@@ -17,6 +17,7 @@ import { MentorshipsController, SessionsController } from "../src/mentorships/me
 import { MENTORSHIP_SERVICE } from "../src/mentorships/mentorships.tokens.js";
 import { DrizzleOutcomeService } from "../src/outcomes/drizzle-outcome.service.js";
 import { OutcomesController } from "../src/outcomes/outcomes.controller.js";
+import { ReviewQueueController } from "../src/outcomes/review-queue.controller.js";
 import { OUTCOME_SERVICE } from "../src/outcomes/outcomes.tokens.js";
 import { DrizzleReputationService } from "../src/reputation/drizzle-reputation.service.js";
 import { ReputationController } from "../src/reputation/reputation.controller.js";
@@ -125,6 +126,8 @@ const MATRIX: Requirement[] = [
   { route: /^POST \/v1\/outcomes\/:id\/confirm$/, access: "signed-in", mutating: true },
   { route: /^POST \/v1\/outcomes\/:id\/dispute$/, access: "signed-in", mutating: true },
   { route: /^POST \/v1\/outcomes\/:id\/withdraw$/, access: "signed-in", mutating: true },
+  { route: /^POST \/v1\/outcomes\/:id\/review$/, access: "PLATFORM_ADMIN", mutating: true, body: { decision: "valid", reason: "matrix probe" } },
+  { route: /^GET \/v1\/review-queue$/, access: "PLATFORM_ADMIN" },
   // Counts-only impact reads: a session, and the mentor-profile 404 (absent or
   // not ACTIVE) is asserted in reputation.integration.test.ts.
   { route: /^GET \/v1\/me\/impact$/, access: "signed-in" },
@@ -150,6 +153,7 @@ before(async () => {
       MentorshipsController,
       SessionsController,
       OutcomesController,
+      ReviewQueueController,
       ReputationController,
     ],
     requestIdRoutes: [
@@ -163,6 +167,7 @@ before(async () => {
       MentorshipsController,
       SessionsController,
       OutcomesController,
+      ReviewQueueController,
       ReputationController,
     ],
     providers: (database) => [

@@ -173,13 +173,13 @@ Authentication internals are **library-native** better-auth tables in the same s
 | `mentorship_status` | `ACTIVE`, `COMPLETED`, `ENDED_EARLY`. **Built** by `mentorship-thread-and-sessions` (#8); `ENDED_EARLY` is a stored value with no participant route yet |
 | `mentorship_session_status` | `SCHEDULED`, `HELD`, `CANCELLED`. **Built** by #8; named `mentorship_session_status` so the auth library's `sessions` table keeps its own name |
 | `mentorship_cadence` | `WEEKLY`, `BIWEEKLY`, `MONTHLY`, `AD_HOC`. **Built** by #8 (`AD_HOC` is a stored value with no UI choice yet) |
-| `outcome_status` | `PENDING_CONFIRMATION`, `CONFIRMED`, `IN_PLATFORM_REVIEW`, `COUNTED`, `REJECTED`, `WITHDRAWN`, `REVERSED`. **Built** by `outcomes-and-verification` (#9); `COUNTED`, `REJECTED`, and `REVERSED` are unreachable until the counting change |
+| `outcome_status` | `PENDING_CONFIRMATION`, `CONFIRMED`, `IN_PLATFORM_REVIEW`, `COUNTED`, `REJECTED`, `WITHDRAWN`, `REVERSED`. **Built** by `outcomes-and-verification` (#9); `COUNTED` became reachable with the counting job (#10), and `REJECTED`/`REVERSED` with `platform-review-queue` (10b). Appeal-driven returns (T12) stay **Later** |
 | `dispute_status` | `OPEN`, `IN_REVIEW`, `RESOLVED`, `WITHDRAWN` |
 | `outcome_type` | `ADMISSION`, `INTERNSHIP`, `JOB_OFFER`, `SKILL_MILESTONE`, `INTERVIEW` |
 | `contribution_level` | `DIRECTLY_ENABLED`, `HELPED`, `MINOR`. **Built** by #9 (the approved design listed different names; the canonical values above win) |
-| `outcome_event_type` | `REPORTED`, `EVIDENCE_ADDED`, `EVIDENCE_REMOVED`, `REMINDER_D3_SENT`, `REMINDER_D5_SENT`, `ESCALATED_D7`, `CONFIRMED`, `CONTRIBUTION_AMENDED`, `DISPUTED`, `COI_DECLARED`, `CASE_OPENED`, `CASE_RESOLVED`, `TIER_CHANGED`, `COUNTED`, `REJECTED`, `WITHDRAWN`, `REVERSED` (`APPEAL_OPENED` and `APPEAL_RESOLVED` are reserved). **Built** by #9; only `REPORTED`, `CONFIRMED`, `DISPUTED`, `COI_DECLARED`, `ESCALATED_D7`, `REMINDER_D3_SENT`, `REMINDER_D5_SENT`, and `WITHDRAWN` are written today |
-| `verifier_kind` | `MENTOR_CONFIRMATION`, `MENTOR_DISPUTE`, `CONFLICT_OF_INTEREST`, `THIRD_PARTY_CONFIRMATION`, `AUDIT_RESULT`, `PLATFORM_DECISION`, `APPEAL_DECISION`. **Built** by #9 (the first three are written; `CONFLICT_OF_INTEREST` was added by the change's design) |
-| `verifier_decision` | `CONFIRMED`, `DISPUTED`, `DECLARED`, `VALID`, `NOT_VALID`, `PASSED`, `FAILED`. **Built** by #9 (only the first three are written) |
+| `outcome_event_type` | `REPORTED`, `EVIDENCE_ADDED`, `EVIDENCE_REMOVED`, `REMINDER_D3_SENT`, `REMINDER_D5_SENT`, `ESCALATED_D7`, `CONFIRMED`, `CONTRIBUTION_AMENDED`, `DISPUTED`, `COI_DECLARED`, `CASE_OPENED`, `CASE_RESOLVED`, `TIER_CHANGED`, `COUNTED`, `REJECTED`, `WITHDRAWN`, `REVERSED` (`APPEAL_OPENED` and `APPEAL_RESOLVED` are reserved). **Built** by #9, #10, and 10b: `REPORTED`, `CONFIRMED`, `DISPUTED`, `COI_DECLARED`, `ESCALATED_D7`, the two reminders, `WITHDRAWN`, `COUNTED`, `CASE_RESOLVED`, and `REVERSED` are written; `CASE_OPENED`, `CONTRIBUTION_AMENDED`, `TIER_CHANGED`, and the appeal events are not |
+| `verifier_kind` | `MENTOR_CONFIRMATION`, `MENTOR_DISPUTE`, `CONFLICT_OF_INTEREST`, `THIRD_PARTY_CONFIRMATION`, `AUDIT_RESULT`, `PLATFORM_DECISION`, `APPEAL_DECISION`. **Built** by #9 and 10b: `MENTOR_CONFIRMATION`, `MENTOR_DISPUTE`, `CONFLICT_OF_INTEREST`, and `PLATFORM_DECISION` are written |
+| `verifier_decision` | `CONFIRMED`, `DISPUTED`, `DECLARED`, `VALID`, `NOT_VALID`, `PASSED`, `FAILED`. **Built** by #9 and 10b: the first three and `VALID`/`NOT_VALID` are written |
 | `interaction_type` | `ASYNC_THREAD`, `ONE_TO_ONE_SESSION`, `GROUP_OFFICE_HOURS` (reserved; not allowed in Phase 1). **Built** by #7, with the `GROUP_OFFICE_HOURS` check |
 | `timeframe_bucket` | `WITHIN_1_MONTH`, `ONE_TO_3_MONTHS`, `THREE_TO_6_MONTHS`, `OVER_6_MONTHS` (**Proposed**). **Built** by #7 |
 | `consent_purpose` | `TERMS`, `PRIVACY_NOTICE`, `VOLUNTEER_AGREEMENT`, `COMMUNITY_GUIDELINES`, `INSTITUTION_DATA_SHARING`, `AI_ASSIST`, `EMPLOYER_DATA_SHARING` (Phase 3), `RECORDING` (reserved) |
@@ -288,6 +288,8 @@ These seven values are the only outcome states. `disputed`, `escalated`, `under_
 The README's word "upheld" is ambiguous (upheld which side?), so resolutions name the outcome's validity directly. `OPEN` to `IN_REVIEW` when assigned; `IN_REVIEW` to `RESOLVED` with a reason; `WITHDRAWN` if the student withdraws the outcome. One appeal per case (`appeal_of_dispute_id` is unique), and the appeal reviewer must differ from the original reviewer.
 
 **MVP rule (owner decision):** a case is decided once by a **Platform Admin**, never by an Institution Admin, with a written reason. Appeals, a second reviewer, and a formal process are **Deferred (owner decision)** until after a successful pilot.
+
+**Not built (10b):** this `disputes` table and its three enums do **not** exist. A case is derived from the outcome row plus its `verification_records` and `outcome_events`; `GET /v1/review-queue` reads that derivation. Assignment, case numbers, and appeal history would need the table, so they stay out of the MVP (DEBT-28).
 
 ---
 
@@ -662,7 +664,7 @@ All periods are **Proposed defaults** unless marked, to be confirmed with counse
 | `thread_messages` | (`mentorship_id`, `created_at`, `id`) | Thread paging |
 | `outcomes` | (`mentor_profile_id`, `field_id`, `status`); (`student_profile_id`); (`mentor_decision_due_at`) where `PENDING_CONFIRMATION`; (`cooling_ends_at`) where `CONFIRMED`; (`mentor_profile_id`, `student_profile_id`, `status`) | Impact view, timers, pair factor |
 | `outcome_events` | unique (`outcome_id`, `seq`); partial unique (`outcome_id`, `event_type`) for `REMINDER_D3_SENT`, `REMINDER_D5_SENT`, `ESCALATED_D7`, `COUNTED` | Replay, idempotent timers |
-| `reputation_events` | (`mentor_profile_id`, `field_id`, `occurred_at`); unique (`outcome_id`) where `COUNTED`; unique (`reverses_event_id`) | Recompute |
+| `reputation_events` | (`mentor_profile_id`, `field_id`, `occurred_at`); partial unique (`outcome_id`) where `COUNTED`; partial unique (`outcome_id`) where `REVERSAL` | Recompute |
 | `disputes` | (`status`, `due_at`); unique (`appeal_of_dispute_id`) | Review queue |
 | `notifications` | unique (`dedupe_key`); (`status`, `send_after`) | Delivery sweeper |
 | `outbox_events` | (`processed_at`, `available_at`) | Worker polling |

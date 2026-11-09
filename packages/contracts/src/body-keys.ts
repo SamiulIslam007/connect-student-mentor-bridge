@@ -87,5 +87,6 @@ export const ROUTE_BODY_KEYS: Readonly<Record<string, readonly string[]>> = {
   ],
   "POST /v1/outcomes/:id/confirm": ["contribution_level_confirmed", "coi_declaration"],
   "POST /v1/outcomes/:id/dispute": ["reason"],
+  "POST /v1/outcomes/:id/review": ["decision", "reason"],
   "POST /v1/outcomes/:id/withdraw": [],
 };
