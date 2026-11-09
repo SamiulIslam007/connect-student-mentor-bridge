@@ -44,3 +44,22 @@ export const REPUTATION_CONTRIBUTION_MULTIPLIERS = {
   HELPED: UNIFORM_PLACEHOLDER,
   MINOR: UNIFORM_PLACEHOLDER,
 } as const;
+
+/**
+ * Rate-limit starting values, **placeholders pending pilot traffic**
+ * (`docs/api-contracts.md` §9 keeps the concrete values Open as SEC-O2). They
+ * are configuration, so tuning needs no code change. `ttl` is milliseconds,
+ * the unit `@nestjs/throttler` expects.
+ */
+export const RATE_LIMITS = {
+  /** Sign-in: credential guessing. */
+  auth: { limit: 5, ttl: 60_000 },
+  /** Registration: account and email flooding. */
+  register: { limit: 3, ttl: 3_600_000 },
+  /** Forgot/reset password: reset-mail flooding. */
+  reset: { limit: 3, ttl: 3_600_000 },
+  /** Writes that enqueue email or append ledger rows. */
+  write: { limit: 60, ttl: 60_000 },
+  /** Every other route, including the public directory. */
+  default: { limit: 120, ttl: 60_000 },
+} as const;

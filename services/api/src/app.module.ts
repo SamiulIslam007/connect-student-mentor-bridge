@@ -1,5 +1,8 @@
 import { Module, type MiddlewareConsumer, type NestModule } from "@nestjs/common";
-import { APP_FILTER } from "@nestjs/core";
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from "@nestjs/core";
+import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
+
+import { RATE_LIMITS } from "@connect/config";
 
 import { AvailabilityController } from "./availability/availability.controller.js";
 import { AvailabilityModule } from "./availability/availability.module.js";
@@ -9,6 +12,7 @@ import { DatabaseModule } from "./db/database.module.js";
 import { DATABASE_PROBE, defaultProbe, HealthController } from "./health/health.controller.js";
 import { RequestIdMiddleware } from "./http/request-id.middleware.js";
 import { ProblemDetailsFilter } from "./http/problem-details.filter.js";
+import { BodyAllowlistInterceptor } from "./http/body-allowlist.interceptor.js";
 import { AuthController } from "./identity/auth.controller.js";
 import { IdentityModule } from "./identity/identity.module.js";
 import { MeController } from "./me/me.controller.js";
@@ -31,6 +35,9 @@ import { RequestsModule } from "./requests/requests.module.js";
  */
 @Module({
   imports: [
+    ThrottlerModule.forRoot([
+      { name: "default", ttl: RATE_LIMITS.default.ttl, limit: RATE_LIMITS.default.limit },
+    ]),
     DatabaseModule,
     IdentityModule,
     MeModule,
@@ -46,6 +53,8 @@ import { RequestsModule } from "./requests/requests.module.js";
   providers: [
     { provide: DATABASE_PROBE, useValue: defaultProbe },
     { provide: APP_FILTER, useClass: ProblemDetailsFilter },
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_INTERCEPTOR, useClass: BodyAllowlistInterceptor },
   ],
 })
 export class AppModule implements NestModule {

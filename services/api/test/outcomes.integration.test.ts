@@ -233,11 +233,16 @@ test("a report is pending with a seven-day deadline, one event, and one email", 
   if (!current) return;
   const { student, mentorshipId } = await acceptedPair(current);
 
-  const created = await report(
+  const refusedExtras = await report(
     current,
     student,
     reportBody(mentorshipId, { field_id: "ignored", student_id: "someone-else" }),
   );
+  assert.equal(refusedExtras.status, 422, refusedExtras.text);
+  assert.equal(refusedExtras.body?.code, "VALIDATION_FAILED");
+  assert.match(String(refusedExtras.body?.detail), /unknown property: /);
+
+  const created = await report(current, student, reportBody(mentorshipId));
   assert.equal(created.status, 201, created.text);
   assert.equal(created.body?.status, "pending_confirmation");
   assert.equal(created.body?.contribution_claimed, "directly_enabled");

@@ -1,4 +1,7 @@
 import { Body, Controller, Get, HttpCode, Inject, Param, Post, Query, Req } from "@nestjs/common";
+import { Throttle } from "@nestjs/throttler";
+
+import { RATE_LIMITS } from "@connect/config";
 
 import {
   IdentityError,
@@ -85,6 +88,7 @@ export class RequestsController {
     @Inject(REQUESTS_SERVICE) private readonly requests: RequestsService,
   ) {}
 
+  @Throttle({ default: RATE_LIMITS.write })
   @Post()
   @HttpCode(201)
   async create(@Body() body: unknown, @Req() request: RequestWithId): Promise<Record<string, unknown>> {

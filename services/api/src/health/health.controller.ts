@@ -1,4 +1,5 @@
 import { Controller, Get, Inject, Res } from "@nestjs/common";
+import { SkipThrottle } from "@nestjs/throttler";
 import type { Response } from "express";
 
 import { READINESS_TIMEOUT_MS } from "@connect/config";
@@ -39,6 +40,7 @@ export const defaultProbe: DatabaseProbe = createDefaultProbe();
  * Operational endpoints (docs/api-contracts.md section 1, SEC-INF-8).
  * Unversioned, unauthenticated, and stable in shape.
  */
+@SkipThrottle()
 @Controller()
 export class HealthController {
   constructor(@Inject(DATABASE_PROBE) private readonly probe: DatabaseProbe) {}

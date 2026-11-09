@@ -226,7 +226,7 @@ test("a refused save keeps the previous set", async (context) => {
   );
 });
 
-test("a body user id writes only the caller's windows", async (context) => {
+test("a body user id is refused and writes no windows", async (context) => {
   const current = requireStack(context);
   if (!current) return;
 
@@ -246,12 +246,15 @@ test("a body user id writes only the caller's windows", async (context) => {
     { context: "STUDENT", user_id: target.rows[0]?.id, windows: [window(1, 540, 600)] },
     caller,
   );
-  assert.equal(saved.status, 200, saved.text);
+  assert.equal(saved.status, 422, saved.text);
+  assert.equal(saved.body?.code, "VALIDATION_FAILED");
+  assert.match(String(saved.body?.detail), /unknown property: user_id/);
 
   const rows = await current.client.query<{ user_id: string }>(
     "SELECT user_id FROM availability_windows",
   );
-  assert.deepEqual(rows.rows, [{ user_id: callerId.rows[0]?.id }]);
+  assert.deepEqual(rows.rows, [], "a refused body writes nothing");
+  assert.ok(callerId.rows[0]?.id, "the caller account still exists");
 });
 
 test("the mentor context needs the mentor role and the student context does not", async (context) => {

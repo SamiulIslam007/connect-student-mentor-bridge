@@ -12,3 +12,5 @@ export interface ReadinessResponse {
   status: "ok" | "unavailable";
   checks: Record<string, "ok" | "unavailable">;
 }
+
+export { ROUTE_BODY_KEYS } from "./body-keys.js";

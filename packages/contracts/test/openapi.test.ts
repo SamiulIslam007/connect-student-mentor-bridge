@@ -6,6 +6,7 @@ import { test } from "node:test";
 
 import { parse } from "yaml";
 
+import { ROUTE_BODY_KEYS } from "../src/body-keys.js";
 
 const contractPath = fileURLToPath(new URL("../openapi.yaml", import.meta.url));
 
@@ -477,4 +478,81 @@ test("the public mentor directory is unauthenticated and keyset-paginated", () =
 
   const page = document.components.schemas.MentorDirectoryPage;
   assert.deepEqual(page.properties?.next_cursor?.type, ["string", "null"]);
+});
+
+type OperationWithBody = {
+  operationId?: string;
+  security?: unknown[];
+  requestBody?: { content: { "application/json": { schema: { $ref?: string } } } };
+  responses: Record<string, unknown>;
+};
+
+function operations(): { document: Contract; list: [string, string, OperationWithBody][] } {
+  const document = contract();
+  const list: [string, string, OperationWithBody][] = [];
+  for (const [path, ops] of Object.entries(document.paths)) {
+    for (const [method, operation] of Object.entries(ops)) {
+      list.push([method.toUpperCase(), path, operation as unknown as OperationWithBody]);
+    }
+  }
+  return { document, list };
+}
+
+function expressPath(path: string): string {
+  return path.replace(/\{([^}]+)\}/g, ":$1");
+}
+
+test("every documented request body equals its route allowlist", () => {
+  const { document, list } = operations();
+  const schemas = document.components.schemas as unknown as Record<
+    string,
+    { properties?: Record<string, unknown> }
+  >;
+  const registry = new Map(
+    Object.entries(ROUTE_BODY_KEYS).map(([route, keys]) => [route, [...keys].sort()]),
+  );
+
+  const documented = list.filter(([, , operation]) => operation.requestBody !== undefined);
+  for (const [method, path, operation] of documented) {
+    const route = `${method} ${expressPath(path)}`;
+    const schema = operation.requestBody?.content["application/json"].schema ?? {};
+    const resolved = (schema.$ref
+      ? schemas[schema.$ref.split("/").pop() ?? ""]
+      : schema) as { properties?: Record<string, unknown> } | undefined;
+    const keys = Object.keys(resolved?.properties ?? {}).sort();
+    assert.ok(registry.has(route), `${route} has a documented body but no allowlist`);
+    assert.deepEqual(registry.get(route), keys, route);
+  }
+
+  const documentedRoutes = new Set(documented.map(([m, p]) => `${m} ${expressPath(p)}`));
+  for (const [route, keys] of registry) {
+    if (!documentedRoutes.has(route)) {
+      assert.deepEqual(keys, [], `${route} declares keys without a documented body`);
+    }
+  }
+});
+
+test("body routes document 413 and the throttled routes document 429", () => {
+  const { list } = operations();
+  for (const [method, path, operation] of list) {
+    if (operation.requestBody) {
+      assert.ok(operation.responses["413"], `${method} ${path} must document 413`);
+    }
+  }
+  for (const route of [
+    "POST /v1/auth/register",
+    "POST /v1/auth/sign-in",
+    "POST /v1/auth/forgot-password",
+    "POST /v1/auth/reset-password",
+    "POST /v1/requests",
+    "POST /v1/mentorships/{id}/messages",
+    "POST /v1/outcomes",
+    "POST /v1/outcomes/{id}/confirm",
+    "POST /v1/outcomes/{id}/dispute",
+  ]) {
+    const [method, path] = route.split(" ");
+    const operation = list.find(([m, p]) => m === method && p === path)?.[2];
+    assert.ok(operation, `${route} must exist`);
+    assert.ok(operation.responses["429"], `${route} must document 429`);
+  }
 });
