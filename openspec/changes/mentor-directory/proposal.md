@@ -11,7 +11,7 @@ Every piece of the core loop is built and merged, but no user can enter it: no s
 - Only `ACTIVE` mentors appear (which already means a verified Level 1 affiliation and an enrolled second factor); `PAUSED` mentors are hidden; `FULL` mentors are shown with a disabled request action and a string-catalog reason.
 - Add the BFF route `apps/web/app/api/mentors/route.ts` and the page `apps/web/app/mentors/page.tsx` with a field filter, cards, and a Request action linking to `/request/new?mentor={id}`.
 - Add `Mentors` and `Requests` to the signed-in header (`apps/web/lib/navigation.ts`) and a "Find a mentor" link on `/profile`.
-- Seed two to three clearly fake demo mentors through a **separate, dev-only** seed entry point so the directory is demoable against a dummy institution domain.
+- Seed two clearly fake demo mentors through a **separate, dev-only** seed entry point so the directory is demoable against a dummy institution domain.
 - Record the owner decisions D-69 to D-72, correct the contract's access level for the list (documented as `S`, decided public), and correct `docs/security-requirements.md`'s "authentication to browse" mitigation.
 - No migration: the endpoint reads existing tables.
 
