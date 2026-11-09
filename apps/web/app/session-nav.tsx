@@ -11,14 +11,22 @@ import { isSignedIn, navLinks } from "../lib/navigation";
  */
 export function SessionNav() {
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
+  const [roles, setRoles] = useState<string[]>([]);
 
   useEffect(() => {
     let active = true;
 
     fetch("/api/me")
-      .then((response) => {
-        if (active) {
-          setSignedIn(isSignedIn(response.status));
+      .then(async (response) => {
+        if (!active) {
+          return;
+        }
+        setSignedIn(isSignedIn(response.status));
+        if (isSignedIn(response.status)) {
+          const payload = (await response.json().catch(() => ({}))) as { roles?: string[] };
+          if (active) {
+            setRoles(payload.roles ?? []);
+          }
         }
       })
       .catch(() => {
@@ -33,7 +41,7 @@ export function SessionNav() {
     };
   }, []);
 
-  const nav = navLinks(signedIn === true);
+  const nav = navLinks(signedIn === true, roles);
 
   async function signOut(): Promise<void> {
     // The BFF clears the cookie on both success and `401`; either way the

@@ -85,6 +85,20 @@ SEED_DEMO_MENTORS=1 pnpm --filter api db:seed:demo   # dev only: two fake mentor
 
 The seed adds two illustrative institutions and, for the automatic Level 1 path, registers `example.edu.bd` on **Illustrative University**. That domain is a documentation placeholder (D-57), not a partnership: replace it when the pilot partner is known. `services/api/src/db/seed/affiliations.ts` also holds the checked-in pilot attestations (D-56); each entry writes one `VERIFIED`/`ADMIN_ATTESTATION` affiliation with its reason and one audit row, and an entry whose account does not exist is reported as skipped rather than failing the run. Run the seed again after the pilot accounts exist; a rerun inserts nothing new.
 
+### Granting the pilot's Platform Admin role
+
+The pilot has one reviewer (the owner). There is no script and no route (D-73): grant the role with one hand-run statement, then enroll a second factor through `/account/security` — the review routes require MFA (`403 MFA_REQUIRED` without one).
+
+```sql
+INSERT INTO role_assignments (user_id, role)
+SELECT id, 'PLATFORM_ADMIN' FROM users WHERE email = '<owner email>'
+ON CONFLICT DO NOTHING;
+```
+
+Run it against the development database, for example `docker compose exec -T postgres psql -U connect -d connect -c "<statement>"`. The queue is at `/admin/reviews`; the header shows `Admin` only when the session holds `PLATFORM_ADMIN`.
+
+### Demo mentors
+
 The demo seed is separate and guarded: it refuses to run when `NODE_ENV=production` or when `SEED_DEMO_MENTORS` is not `1`. It writes two accounts on the reserved `@example.edu.bd` domain (a user, the `MENTOR` role, a Level 1 `ADMIN_ATTESTATION` affiliation, a fixed fake second-factor row, and an `ACTIVE` mentor profile) and is idempotent by email, so a second run inserts nothing. Never wire it into `db:seed`.
 
 When they run on the host, `DATABASE_URL` must point at the published port (`localhost:55432`); inside a container, Compose builds the `postgres:5432` URL. Migrations are owned by the owner/script and are never applied through the read-only `postgresql` MCP.

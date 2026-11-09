@@ -19,7 +19,7 @@ export function isSignedIn(status: number): boolean {
   return status === 200;
 }
 
-export function navLinks(signedIn: boolean): NavModel {
+export function navLinks(signedIn: boolean, roles: readonly string[] = []): NavModel {
   return {
     appName: strings.appName,
     items: signedIn
@@ -29,6 +29,9 @@ export function navLinks(signedIn: boolean): NavModel {
           { kind: "link", href: "/mentors", label: strings.nav.mentors },
           { kind: "link", href: "/requests", label: strings.nav.requests },
           { kind: "link", href: "/account/sessions", label: strings.nav.sessions },
+          ...(roles.includes("PLATFORM_ADMIN")
+            ? [{ kind: "link" as const, href: "/admin/reviews", label: strings.nav.admin }]
+            : []),
           { kind: "sign-out", label: strings.nav.signOut },
         ]
       : [

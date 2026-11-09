@@ -6,11 +6,12 @@ import { RATE_LIMITS } from "@connect/config";
 import {
   IdentityError,
   OUTCOME_STATUSES,
+  isReviewDecision,
   type IdentityService,
   type OutcomeStatus,
 } from "@connect/domain";
 
-import { actingAccountWithRoles } from "../authorization/authorize.js";
+import { actingAccountWithRoles, requireRole } from "../authorization/authorize.js";
 import type { RequestWithId } from "../http/request-id.middleware.js";
 import { IDENTITY_SERVICE } from "../identity/identity.tokens.js";
 import { outcomePayload, type OutcomeService } from "./outcome.service.js";
@@ -142,6 +143,31 @@ export class OutcomesController {
       requestId: request.requestId,
     });
     return outcomePayload(disputed);
+  }
+
+  /** The only exit from `IN_PLATFORM_REVIEW` (and the T11 clawback). */
+  @Post(":id/review")
+  @HttpCode(200)
+  async review(
+    @Param("id") id: string,
+    @Body() body: unknown,
+    @Req() request: RequestWithId,
+  ): Promise<Record<string, unknown>> {
+    const acting = await requireRole(this.identity, request, "PLATFORM_ADMIN", {
+      requiresMfa: true,
+    });
+    const decision = textOf(body, "decision");
+    if (!decision || !isReviewDecision(decision)) {
+      throw new IdentityError("VALIDATION_ERROR", "decision must be valid or invalid");
+    }
+    const reviewed = await this.outcomes.review({
+      userId: acting.account.id,
+      outcomeId: id,
+      decision,
+      reason: textOf(body, "reason") ?? "",
+      requestId: request.requestId,
+    });
+    return outcomePayload(reviewed);
   }
 
   @Post(":id/withdraw")

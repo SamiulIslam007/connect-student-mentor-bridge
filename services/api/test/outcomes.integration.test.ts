@@ -15,6 +15,9 @@ import { DrizzleOutcomeService } from "../src/outcomes/drizzle-outcome.service.j
 import { sweepOutcomes } from "../src/outcomes/outcome-sweeper.js";
 import { OutcomesController } from "../src/outcomes/outcomes.controller.js";
 import { OUTCOME_SERVICE } from "../src/outcomes/outcomes.tokens.js";
+import { ReviewQueueController } from "../src/outcomes/review-queue.controller.js";
+import { countDueOutcomes } from "../src/reputation/counting-job.js";
+import { DrizzleReputationService } from "../src/reputation/drizzle-reputation.service.js";
 import { DrizzleProfilesService } from "../src/profiles/drizzle-profiles.service.js";
 import { ProfilesController } from "../src/profiles/profiles.controller.js";
 import { PROFILES_SERVICE } from "../src/profiles/profiles.tokens.js";
@@ -45,6 +48,7 @@ before(async () => {
     MentorshipsController,
     SessionsController,
     OutcomesController,
+    ReviewQueueController,
   ];
   const started = await startApiStack({
     controllers,
@@ -610,4 +614,225 @@ test("a participant reads the outcome and a third account gets 404", async (cont
   );
   assert.equal(list.status, 200);
   assert.equal((list.body?.data as unknown[]).length, 1);
+});
+
+async function platformReviewer(
+  current: TestApiStack,
+  email = "reviewer@example.com",
+  withMfa = true,
+): Promise<string> {
+  const token = await tokenFor(current, email);
+  const user = await current.client.query<{ id: string }>(
+    "SELECT id FROM users WHERE email = $1",
+    [email],
+  );
+  assert.ok(user.rows[0]);
+  await current.client.query(
+    "INSERT INTO role_assignments (user_id, role) VALUES ($1, 'PLATFORM_ADMIN')",
+    [user.rows[0].id],
+  );
+  if (!withMfa) {
+    return token;
+  }
+  const enrollment = await apiRequest(
+    current,
+    "POST",
+    "/v1/auth/mfa/enroll",
+    { password: TEST_PASSWORD },
+    token,
+  );
+  const secret = new URL(String(enrollment.body?.totp_uri)).searchParams.get("secret");
+  assert.ok(secret);
+  const verified = await apiRequest(
+    current,
+    "POST",
+    "/v1/auth/mfa/verify",
+    { code: totpCode(secret) },
+    token,
+  );
+  assert.equal(verified.status, 200, verified.text);
+  return String(verified.body?.session_token);
+}
+
+test("a disputed outcome is queued and a valid decision counts it as platform-decided", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const { student, mentor, mentorshipId } = await acceptedPair(current, ".review");
+  const created = await report(current, student, reportBody(mentorshipId));
+  const outcomeId = String(created.body?.id);
+  const disputed = await apiRequest(
+    current,
+    "POST",
+    `/v1/outcomes/${outcomeId}/dispute`,
+    { reason: "The internship was not completed." },
+    mentor.token,
+  );
+  assert.equal(disputed.status, 200, disputed.text);
+
+  const reviewer = await platformReviewer(current);
+  const queue = await apiRequest(current, "GET", "/v1/review-queue", undefined, reviewer);
+  assert.equal(queue.status, 200, queue.text);
+  const entry = (queue.body?.data as { id: string; case_kind: string; reason: string }[]).find(
+    (row) => row.id === outcomeId,
+  );
+  assert.ok(entry, "the open case is in the queue");
+  assert.equal(entry.case_kind, "mentor_dispute");
+  assert.equal(entry.reason, "The internship was not completed.");
+
+  const reviewed = await apiRequest(
+    current,
+    "POST",
+    `/v1/outcomes/${outcomeId}/review`,
+    { decision: "valid", reason: "The evidence supports the student." },
+    reviewer,
+  );
+  assert.equal(reviewed.status, 200, reviewed.text);
+  assert.equal(reviewed.body?.status, "counted");
+  assert.equal(reviewed.body?.counted_basis, "platform_decision");
+  assert.equal(
+    await countRows(current, "reputation_events"),
+    0,
+    "a platform-decided outcome never earns mentor reputation",
+  );
+
+  const read = await apiRequest(current, "GET", `/v1/outcomes/${outcomeId}`, undefined, student);
+  const decisions = read.body?.decisions as { decision: string; reason: string }[];
+  assert.equal(decisions.length, 1);
+  assert.equal(decisions[0].decision, "valid");
+  assert.equal(decisions[0].reason, "The evidence supports the student.");
+});
+
+test("the reviewer routes refuse a non-admin, an admin without MFA, and a bad body", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const { student, mentor, mentorshipId } = await acceptedPair(current, ".review-guards");
+  const created = await report(current, student, reportBody(mentorshipId));
+  const outcomeId = String(created.body?.id);
+  await apiRequest(
+    current,
+    "POST",
+    `/v1/outcomes/${outcomeId}/dispute`,
+    { reason: "Not completed." },
+    mentor.token,
+  );
+
+  const mentorAttempt = await apiRequest(
+    current,
+    "POST",
+    `/v1/outcomes/${outcomeId}/review`,
+    { decision: "valid", reason: "Mentor cannot review" },
+    mentor.token,
+  );
+  assert.equal(mentorAttempt.status, 403);
+  assert.equal(mentorAttempt.body?.code, "ROLE_REQUIRED");
+  const queueAttempt = await apiRequest(current, "GET", "/v1/review-queue", undefined, student);
+  assert.equal(queueAttempt.status, 403);
+
+  const noMfa = await platformReviewer(current, "reviewer-no-mfa@example.com", false);
+  const refused = await apiRequest(
+    current,
+    "POST",
+    `/v1/outcomes/${outcomeId}/review`,
+    { decision: "valid", reason: "No second factor" },
+    noMfa,
+  );
+  assert.equal(refused.status, 403);
+  assert.equal(refused.body?.code, "MFA_REQUIRED");
+
+  const reviewer = await platformReviewer(current, "reviewer-body@example.com");
+  for (const body of [
+    { decision: "valid" },
+    { decision: "maybe", reason: "not a decision" },
+    { decision: "valid", reason: "" },
+    { decision: "valid", reason: "x".repeat(1_001) },
+  ]) {
+    const response = await apiRequest(
+      current,
+      "POST",
+      `/v1/outcomes/${outcomeId}/review`,
+      body,
+      reviewer,
+    );
+    assert.equal(response.status, 422, `${JSON.stringify(body)}: ${response.text}`);
+  }
+
+  const invalid = await apiRequest(
+    current,
+    "POST",
+    `/v1/outcomes/${outcomeId}/review`,
+    { decision: "invalid", reason: "Not a completed internship." },
+    reviewer,
+  );
+  assert.equal(invalid.status, 200, invalid.text);
+  assert.equal(invalid.body?.status, "rejected");
+
+  const again = await apiRequest(
+    current,
+    "POST",
+    `/v1/outcomes/${outcomeId}/review`,
+    { decision: "valid", reason: "Already decided." },
+    reviewer,
+  );
+  assert.equal(again.status, 409);
+  assert.equal(again.body?.code, "OUTCOME_INVALID_STATE");
+});
+
+test("invalid on a counted outcome reverses the ledger and the snapshot", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const { student, mentor, mentorshipId } = await acceptedPair(current, ".clawback");
+  const created = await report(current, student, reportBody(mentorshipId));
+  const outcomeId = String(created.body?.id);
+  const confirmed = await apiRequest(
+    current,
+    "POST",
+    `/v1/outcomes/${outcomeId}/confirm`,
+    { contribution_level_confirmed: "HELPED" },
+    mentor.token,
+  );
+  assert.equal(confirmed.status, 200, confirmed.text);
+  await current.client.query(
+    "UPDATE outcomes SET cooling_ends_at = now() - interval '1 day' WHERE id = $1",
+    [outcomeId],
+  );
+  const count = await countDueOutcomes(current.database.db);
+  assert.equal(count.counted, 1);
+
+  const reviewer = await platformReviewer(current, "reviewer-clawback@example.com");
+  const reversed = await apiRequest(
+    current,
+    "POST",
+    `/v1/outcomes/${outcomeId}/review`,
+    { decision: "invalid", reason: "The employer withdrew the offer." },
+    reviewer,
+  );
+  assert.equal(reversed.status, 200, reversed.text);
+  assert.equal(reversed.body?.status, "reversed");
+
+  const events = await current.client.query<{ event_type: string; points: string }>(
+    "SELECT event_type, points FROM reputation_events WHERE outcome_id = $1 ORDER BY event_type",
+    [outcomeId],
+  );
+  assert.deepEqual(
+    events.rows.map((row) => row.event_type),
+    ["COUNTED", "REVERSAL"],
+  );
+  assert.ok(Number(events.rows[1].points) < 0, "the reversal carries negated points");
+
+  const snapshots = await new DrizzleReputationService(current.database.db).storedSnapshots(
+    mentor.profileId,
+  );
+  assert.equal(snapshots[0]?.countedCount, 0);
+  assert.equal(snapshots[0]?.pointsTotal, 0);
+  const replayed = await new DrizzleReputationService(current.database.db).replay(mentor.profileId);
+  assert.deepEqual(replayed, snapshots, "a replay reproduces the reversed total");
+
+  const twice = await apiRequest(
+    current,
+    "POST",
+    `/v1/outcomes/${outcomeId}/review`,
+    { decision: "invalid", reason: "Second clawback." },
+    reviewer,
+  );
+  assert.equal(twice.status, 409);
 });

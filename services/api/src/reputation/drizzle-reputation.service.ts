@@ -100,6 +100,7 @@ export class DrizzleReputationService implements ReputationService {
         fieldId: reputationEvents.fieldId,
         outcomeType: reputationEvents.outcomeType,
         points: reputationEvents.points,
+        eventType: reputationEvents.eventType,
       })
       .from(reputationEvents)
       .where(eq(reputationEvents.mentorProfileId, mentorProfileId));
@@ -110,6 +111,7 @@ export class DrizzleReputationService implements ReputationService {
       fieldId: row.fieldId,
       outcomeType: row.outcomeType,
       points: Number(row.points),
+      eventType: row.eventType,
     }));
     return replaySnapshots(events);
   }

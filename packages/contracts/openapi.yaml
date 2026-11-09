@@ -1442,6 +1442,87 @@ paths:
           $ref: "#/components/responses/Problem"
         "404":
           $ref: "#/components/responses/Problem"
+  /v1/review-queue:
+    get:
+      operationId: listReviewQueue
+      summary: Open platform-review cases for a Platform Admin with a second factor
+      description: >-
+        Derived case rows: the outcome, the case kind from the latest dispute or
+        conflict record (ESCALATED_D7 when there is none), the opening reason and
+        time, and the waiting days. Oldest mentor deadline first, keyset by the
+        last outcome id. No assignment, due dates, or SLA in this release (D-76).
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: cursor
+          in: query
+          required: false
+          description: The `next_cursor` value from the previous page (an outcome id).
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+      responses:
+        "200":
+          description: One page of open cases
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewQueuePage"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+  /v1/outcomes/{id}/review:
+    post:
+      operationId: reviewOutcome
+      summary: Resolve a review case, or claw back a counted outcome, with a reason
+      description: >-
+        Platform Admin with an enrolled second factor only. `valid` moves
+        IN_PLATFORM_REVIEW to COUNTED with counted_basis platform_decision.
+        `invalid` moves IN_PLATFORM_REVIEW to REJECTED, and a COUNTED outcome to
+        REVERSED with a compensating REVERSAL ledger event. Every other pair is
+        409 OUTCOME_INVALID_STATE. The reason is 1 to 1000 characters.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewDecisionRequest"
+      responses:
+        "200":
+          description: The reviewed outcome
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Outcome"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+        "413":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
   /v1/outcomes/{id}/confirm:
     post:
       operationId: confirmOutcome
@@ -2679,6 +2760,74 @@ components:
     ContributionLevel:
       type: string
       enum: [DIRECTLY_ENABLED, HELPED, MINOR]
+    ReviewDecisionRequest:
+      type: object
+      additionalProperties: false
+      required: [decision, reason]
+      properties:
+        decision:
+          type: string
+          enum: [valid, invalid]
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 1000
+    ReviewQueueCase:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - mentorship_id
+        - outcome_type
+        - description
+        - field_name
+        - student_name
+        - mentor_name
+        - case_kind
+        - reason
+        - opened_at
+        - waiting_days
+        - counted_basis
+      properties:
+        id:
+          type: string
+        mentorship_id:
+          type: string
+        outcome_type:
+          type: string
+        description:
+          type: string
+        field_name:
+          type: string
+        student_name:
+          type: string
+        mentor_name:
+          type: string
+        case_kind:
+          type: string
+          enum: [mentor_dispute, conflict_of_interest, escalated_d7]
+        reason:
+          type: string
+          nullable: true
+        opened_at:
+          type: string
+          format: date-time
+        waiting_days:
+          type: integer
+        counted_basis:
+          type: string
+          nullable: true
+    ReviewQueuePage:
+      type: object
+      additionalProperties: false
+      required: [data, next_cursor]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReviewQueueCase"
+        next_cursor:
+          type: [string, "null"]
     Outcome:
       type: object
       additionalProperties: false
@@ -2788,6 +2937,22 @@ components:
           type: string
         mentor_name:
           type: string
+        decisions:
+          type: array
+          description: Present on the single-outcome read only.
+          items:
+            type: object
+            additionalProperties: false
+            required: [decision, reason, decided_at]
+            properties:
+              decision:
+                type: string
+                enum: [valid, invalid]
+              reason:
+                type: string
+              decided_at:
+                type: string
+                format: date-time
     OutcomeCreate:
       type: object
       additionalProperties: false

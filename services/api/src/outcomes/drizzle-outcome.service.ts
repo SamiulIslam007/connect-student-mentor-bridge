@@ -8,18 +8,25 @@ import {
   OUTCOME_FIELD_LIMITS,
   coolingEndsAt,
   isContributionLevel,
+  isReviewDecision,
+  reversalPoints,
+  reviewTarget,
   transition,
   type OutcomeStatus,
+  type ReviewDecision,
 } from "@connect/domain";
 import { OUTCOME_COOLING_PERIOD_DAYS } from "@connect/config";
 
 import { DATABASE } from "../db/database.module.js";
 import type { Database } from "../db/database.js";
 import {
+  fieldImpactSnapshots,
+  fields,
   mentorProfiles,
   mentorships,
   outcomeEvents,
   outcomes,
+  reputationEvents,
   studentProfiles,
   users,
   verificationRecords,
@@ -30,9 +37,13 @@ import type {
   ConfirmOutcomeInput,
   DisputeOutcomeInput,
   ListOutcomesInput,
+  OutcomeDecision,
   OutcomeRecord,
   OutcomeService,
   ReportOutcomeInput,
+  ReviewInput,
+  ReviewQueueInput,
+  ReviewQueuePage,
 } from "./outcome.service.js";
 
 type Executor = Pick<Database, "select">;
@@ -224,6 +235,29 @@ function requireParticipant<T extends { studentUserId: string; mentorUserId: str
   return participants;
 }
 
+/** The participant-visible reviewer decisions, oldest first (design D7). */
+async function decisionsFor(executor: Executor, outcomeId: string): Promise<OutcomeDecision[]> {
+  const rows = await executor
+    .select({
+      decision: verificationRecords.decision,
+      statement: verificationRecords.statement,
+      createdAt: verificationRecords.createdAt,
+    })
+    .from(verificationRecords)
+    .where(
+      and(
+        eq(verificationRecords.outcomeId, outcomeId),
+        eq(verificationRecords.kind, "PLATFORM_DECISION"),
+      ),
+    )
+    .orderBy(verificationRecords.createdAt);
+  return rows.map((row) => ({
+    decision: row.decision.toLowerCase(),
+    reason: row.statement ?? "",
+    decidedAt: row.createdAt,
+  }));
+}
+
 /** One append-only event per transition, with a gap-free per-outcome `seq`. */
 async function appendEvent(
   tx: Transaction,
@@ -369,7 +403,8 @@ export class DrizzleOutcomeService implements OutcomeService {
   async read(userId: string, outcomeId: string): Promise<OutcomeRecord> {
     uuidOf(outcomeId, "outcome id");
     requireParticipant(await readOutcomeParticipants(this.db, outcomeId), userId);
-    return await readRecord(this.db, outcomeId);
+    const record = await readRecord(this.db, outcomeId);
+    return { ...record, decisions: await decisionsFor(this.db, outcomeId) };
   }
 
   async confirm(input: ConfirmOutcomeInput): Promise<OutcomeRecord> {
@@ -583,5 +618,215 @@ export class DrizzleOutcomeService implements OutcomeService {
 
       return await readRecord(tx, outcomeId);
     });
+  }
+
+  /**
+   * The only exit from `IN_PLATFORM_REVIEW` (design D2/D5). `invalid` on a
+   * COUNTED outcome is the T11 clawback: a compensating REVERSAL event and a
+   * decremented snapshot in the same transaction. A valid decision counts with
+   * `PLATFORM_DECISION`, so it never earns mentor reputation (D6).
+   */
+  async review(input: ReviewInput): Promise<OutcomeRecord> {
+    if (!isReviewDecision(input.decision)) {
+      throw new IdentityError("VALIDATION_ERROR", "decision must be valid or invalid");
+    }
+    const reason = requiredText(input.reason, "reason", OUTCOME_FIELD_LIMITS.reason);
+
+    return await this.db.transaction(async (tx) => {
+      const current = await readRecord(tx, input.outcomeId, true);
+      const target = reviewTarget(current.status, input.decision as ReviewDecision);
+      if (!target) {
+        throw new IdentityError(
+          "OUTCOME_INVALID_STATE",
+          "this outcome cannot take that review decision now",
+        );
+      }
+
+      const participants = await readOutcomeParticipants(tx, input.outcomeId);
+      const now = new Date();
+      await tx
+        .update(outcomes)
+        .set({
+          status: target,
+          updatedAt: now,
+          ...(target === "COUNTED"
+            ? { countedAt: now, countedBasis: "PLATFORM_DECISION" }
+            : {}),
+          ...(target === "REJECTED" ? { rejectedAt: now } : {}),
+          ...(target === "REVERSED" ? { reversedAt: now } : {}),
+        })
+        .where(and(eq(outcomes.id, input.outcomeId), eq(outcomes.status, current.status)));
+
+      await tx.insert(verificationRecords).values({
+        outcomeId: input.outcomeId,
+        kind: "PLATFORM_DECISION",
+        decision: input.decision === "valid" ? "VALID" : "NOT_VALID",
+        attesterUserId: input.userId,
+        statement: reason,
+      });
+
+      await appendEvent(tx, {
+        outcomeId: input.outcomeId,
+        eventType: "CASE_RESOLVED",
+        fromStatus: current.status,
+        toStatus: target,
+        actorUserId: input.userId,
+        actorRole: "PLATFORM_ADMIN",
+        requestId: input.requestId,
+        payload: { decision: input.decision, reason },
+      });
+      await appendAuditEntry(tx, {
+        action: target === "REVERSED" ? "OUTCOME_REVERSED" : "OUTCOME_REVIEWED",
+        actorUserId: input.userId,
+        actorRole: "PLATFORM_ADMIN",
+        objectType: "outcomes",
+        objectId: input.outcomeId,
+        requestId: input.requestId,
+      });
+
+      if (target === "REVERSED") {
+        await this.reverseLedger(tx, input.outcomeId, now);
+      }
+
+      if (participants) {
+        await enqueueOutboxEvent(tx, {
+          aggregateType: "OUTCOME",
+          aggregateId: input.outcomeId,
+          eventType: "EmailRequested",
+          dedupeKey: `email:outcome-review:${input.outcomeId}:${input.decision}`,
+          payload: {
+            to: participants.studentEmail,
+            template: target === "REVERSED" ? "outcome-reversed" : "outcome-reviewed",
+            subject:
+              target === "REVERSED"
+                ? "A counted outcome was reversed"
+                : target === "COUNTED"
+                  ? "A reviewer counted your outcome"
+                  : "A reviewer did not count your outcome",
+            text: [
+              `Decision: ${input.decision}.`,
+              `Reason: ${reason}`,
+              "",
+              `Open it: ${appOrigin()}/mentorship/${participants.mentorshipId}`,
+            ].join("\n"),
+          },
+        });
+      }
+
+      return await readRecord(tx, input.outcomeId);
+    });
   }
+
+  /** One compensating event and a decremented snapshot; the original stays. */
+  private async reverseLedger(tx: Transaction, outcomeId: string, now: Date): Promise<void> {
+    const [counted] = await tx
+      .select()
+      .from(reputationEvents)
+      .where(and(eq(reputationEvents.outcomeId, outcomeId), eq(reputationEvents.eventType, "COUNTED")))
+      .limit(1);
+    if (!counted) {
+      return;
+    }
+
+    await tx.insert(reputationEvents).values({
+      outcomeId,
+      mentorProfileId: counted.mentorProfileId,
+      studentProfileId: counted.studentProfileId,
+      fieldId: counted.fieldId,
+      outcomeType: counted.outcomeType,
+      eventType: "REVERSAL",
+      difficultyWeight: counted.difficultyWeight,
+      tierMultiplier: counted.tierMultiplier,
+      contributionMultiplier: counted.contributionMultiplier,
+      pairFactor: counted.pairFactor,
+      points: reversalPoints(Number(counted.points)).toFixed(6),
+      occurredAt: now,
+    });
+
+    await tx
+      .update(fieldImpactSnapshots)
+      .set({
+        countedCount: sql`${fieldImpactSnapshots.countedCount} - 1`,
+        pointsTotal: sql`${fieldImpactSnapshots.pointsTotal} - ${counted.points}::numeric`,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(fieldImpactSnapshots.mentorProfileId, counted.mentorProfileId),
+          eq(fieldImpactSnapshots.fieldId, counted.fieldId),
+          eq(fieldImpactSnapshots.outcomeType, counted.outcomeType),
+        ),
+      );
+  }
+
+  async reviewQueue({ limit, cursor }: ReviewQueueInput): Promise<ReviewQueuePage> {
+    const conditions = [eq(outcomes.status, "IN_PLATFORM_REVIEW")];
+    if (cursor) {
+      conditions.push(sql`(
+        ${outcomes.mentorDecisionDueAt}, ${outcomes.id}
+      ) > (
+        SELECT due.mentor_decision_due_at, due.id FROM outcomes due WHERE due.id = ${cursor}
+      )`);
+    }
+
+    const rows = await this.db
+      .select({
+        id: outcomes.id,
+        mentorshipId: outcomes.mentorshipId,
+        outcomeType: outcomes.outcomeType,
+        description: outcomes.description,
+        countedBasis: outcomes.countedBasis,
+        fieldName: fields.name,
+        studentName: studentUser.name,
+        mentorName: mentorUser.name,
+        caseKind: sql<string>`COALESCE((
+          SELECT record.kind::text FROM verification_records record
+          WHERE record.outcome_id = ${outcomes.id}
+            AND record.kind IN ('MENTOR_DISPUTE', 'CONFLICT_OF_INTEREST')
+          ORDER BY record.created_at DESC LIMIT 1
+        ), 'ESCALATED_D7')`,
+        reason: sql<string | null>`(
+          SELECT record.statement FROM verification_records record
+          WHERE record.outcome_id = ${outcomes.id}
+          ORDER BY record.created_at DESC LIMIT 1
+        )`,
+        openedAt: sql<Date>`COALESCE((
+          SELECT event.occurred_at FROM outcome_events event
+          WHERE event.outcome_id = ${outcomes.id}
+            AND event.event_type IN ('CASE_OPENED', 'ESCALATED_D7', 'DISPUTED', 'COI_DECLARED')
+          ORDER BY event.occurred_at DESC LIMIT 1
+        ), ${outcomes.createdAt})`,
+      })
+      .from(outcomes)
+      .innerJoin(fields, eq(fields.id, outcomes.fieldId))
+      .innerJoin(studentProfiles, eq(studentProfiles.id, outcomes.studentProfileId))
+      .innerJoin(studentUser, eq(studentUser.id, studentProfiles.userId))
+      .innerJoin(mentorProfiles, eq(mentorProfiles.id, outcomes.mentorProfileId))
+      .innerJoin(mentorUser, eq(mentorUser.id, mentorProfiles.userId))
+      .where(and(...conditions))
+      .orderBy(outcomes.mentorDecisionDueAt, outcomes.id)
+      .limit(limit + 1);
+
+    const hasMore = rows.length > limit;
+    const page = hasMore ? rows.slice(0, limit) : rows;
+    const now = Date.now();
+    return {
+      cases: page.map((row) => ({
+        id: row.id,
+        mentorshipId: row.mentorshipId,
+        outcomeType: row.outcomeType,
+        description: row.description,
+        fieldName: row.fieldName,
+        studentName: row.studentName,
+        mentorName: row.mentorName,
+        caseKind: row.caseKind,
+        reason: row.reason,
+        openedAt: row.openedAt,
+        waitingDays: Math.max(0, Math.floor((now - new Date(row.openedAt).getTime()) / 86_400_000)),
+        countedBasis: row.countedBasis,
+      })),
+      nextCursor: hasMore ? page[page.length - 1]?.id ?? null : null,
+    };
+  }
+
 }

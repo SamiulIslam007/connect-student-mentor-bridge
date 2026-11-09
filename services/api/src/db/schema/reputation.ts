@@ -48,8 +48,17 @@ export const reputationEvents = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
-    uniqueIndex("reputation_events_outcome_unique").on(table.outcomeId),
-    check("reputation_events_counted_only", sql`${table.eventType} = 'COUNTED'`),
+    // One COUNTED event and one compensating REVERSAL per outcome (T11).
+    uniqueIndex("reputation_events_counted_unique")
+      .on(table.outcomeId)
+      .where(sql`${table.eventType} = 'COUNTED'`),
+    uniqueIndex("reputation_events_reversal_unique")
+      .on(table.outcomeId)
+      .where(sql`${table.eventType} = 'REVERSAL'`),
+    check(
+      "reputation_events_counted_only",
+      sql`${table.eventType} IN ('COUNTED', 'REVERSAL')`,
+    ),
     index("reputation_events_mentor_field_idx").on(
       table.mentorProfileId,
       table.fieldId,

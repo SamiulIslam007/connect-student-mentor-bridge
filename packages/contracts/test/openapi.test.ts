@@ -356,6 +356,7 @@ test("the outcome surface is documented, session-guarded, and matches the contro
     "/v1/outcomes/{id}/confirm",
     "/v1/outcomes/{id}/dispute",
     "/v1/outcomes/{id}/withdraw",
+    "/v1/outcomes/{id}/review",
   ];
 
   const documented = Object.keys(document.paths)

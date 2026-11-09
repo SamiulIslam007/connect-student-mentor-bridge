@@ -160,6 +160,8 @@ export async function countDueOutcomes(
           and(
             eq(reputationEvents.mentorProfileId, locked.mentorProfileId),
             eq(reputationEvents.studentProfileId, locked.studentProfileId),
+            // A reversal is a compensating row, not a second earned outcome.
+            eq(reputationEvents.eventType, "COUNTED"),
           ),
         );
       const factor = pairFactor(Number(earlier?.value ?? 0));

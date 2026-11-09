@@ -7,6 +7,8 @@ import {
   pointsToNumeric,
   replaySnapshots,
   reputationPoints,
+  reversalPoints,
+  snapshotDelta,
   type CountedEvent,
 } from "../src/reputation.js";
 
@@ -86,4 +88,35 @@ test("replay recomputes the snapshot totals deterministically", () => {
       ["f-2", "ADMISSION", 1, 1],
     ],
   );
+});
+
+test("a reversal is negative points and a minus-one count", () => {
+  assert.equal(reversalPoints(0.5), -0.5);
+  assert.equal(snapshotDelta("REVERSAL"), -1);
+  assert.equal(snapshotDelta("COUNTED"), 1);
+  assert.equal(snapshotDelta(undefined), 1);
+  assert.throws(() => reversalPoints(Number.NaN));
+});
+
+test("replay reproduces a snapshot after a reversal", () => {
+  const events: CountedEvent[] = [
+    { ...pair, fieldId: "f-1", outcomeType: "INTERNSHIP", points: 1, eventType: "COUNTED" },
+    {
+      ...pair,
+      fieldId: "f-1",
+      outcomeType: "INTERNSHIP",
+      points: reversalPoints(1),
+      eventType: "REVERSAL",
+    },
+  ];
+  assert.deepEqual(replaySnapshots(events), [
+    {
+      mentorProfileId: "m-1",
+      fieldId: "f-1",
+      outcomeType: "INTERNSHIP",
+      countedCount: 0,
+      pointsTotal: 0,
+    },
+  ]);
+  assert.equal(earlierCountedForPair(events, pair), 1, "a reversal is not a second count");
 });
