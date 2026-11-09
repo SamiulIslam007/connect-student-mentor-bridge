@@ -1,4 +1,7 @@
 import { Body, Controller, Get, HttpCode, Inject, Param, Post, Put, Query, Req } from "@nestjs/common";
+import { Throttle } from "@nestjs/throttler";
+
+import { RATE_LIMITS } from "@connect/config";
 
 import {
   IdentityError,
@@ -137,6 +140,7 @@ export class MentorshipsController {
     return { data: page.messages.map(messagePayload), next_cursor: page.nextCursor };
   }
 
+  @Throttle({ default: RATE_LIMITS.write })
   @Post(":id/messages")
   @HttpCode(201)
   async postMessage(

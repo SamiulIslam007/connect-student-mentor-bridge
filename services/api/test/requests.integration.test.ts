@@ -610,7 +610,7 @@ test("a requestable mentor's context is readable; a draft mentor is not", async 
   );
 });
 
-test("a body user_id cannot create a request for another account", async (context) => {
+test("a body user_id on a request is refused and writes nothing", async (context) => {
   const current = requireStack(context);
   if (!current) return;
   await studentWithProfile(current, "owner.student@example.com");
@@ -623,10 +623,9 @@ test("a body user_id cannot create a request for another account", async (contex
   const mentor = await activeMentor(current, "body.mentor@example.edu.bd");
 
   const created = await createRequest(current, caller, mentor.profileId, { user_id: otherId });
-  assert.equal(created.status, 201, created.text);
-  const owners = await current.client.query(
-    "SELECT id FROM mentorship_requests WHERE student_profile_id = (SELECT id FROM student_profiles WHERE user_id = $1)",
-    [otherId],
-  );
-  assert.equal(owners.rowCount, 0);
+  assert.equal(created.status, 422, created.text);
+  assert.equal(created.body?.code, "VALIDATION_FAILED");
+  assert.match(String(created.body?.detail), /unknown property: user_id/);
+  const all = await current.client.query("SELECT id FROM mentorship_requests");
+  assert.equal(all.rowCount, 0, "a refused body writes nothing");
 });

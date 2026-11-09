@@ -1,11 +1,16 @@
 import "reflect-metadata";
 
 import { NestFactory } from "@nestjs/core";
+import type { NestExpressApplication } from "@nestjs/platform-express";
 
 import { AppModule } from "./app.module.js";
+import { API_MAX_BODY_BYTES } from "./http/request-body.js";
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    bodyParser: false,
+  });
+  app.useBodyParser("json", { limit: API_MAX_BODY_BYTES, strict: false });
   app.enableShutdownHooks();
 
   const port = Number(process.env.PORT ?? 3001);

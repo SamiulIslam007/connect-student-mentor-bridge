@@ -1,5 +1,8 @@
 import { Body, Controller, Get, HttpCode, Inject, Post, Query, Req } from "@nestjs/common";
 
+import { Throttle } from "@nestjs/throttler";
+
+import { RATE_LIMITS } from "@connect/config";
 import { IdentityError, type IdentityService } from "@connect/domain";
 
 import { bearerToken, optionalBearerToken } from "../http/bearer.js";
@@ -65,6 +68,7 @@ function emailField(body: unknown): string {
 export class AuthController {
   constructor(@Inject(IDENTITY_SERVICE) private readonly identity: IdentityService) {}
 
+  @Throttle({ default: RATE_LIMITS.register })
   @Post("register")
   @HttpCode(200)
   async register(@Body() body: unknown, @Req() request: RequestWithId): Promise<{ status: string }> {
@@ -91,6 +95,7 @@ export class AuthController {
     return { status: "verified" };
   }
 
+  @Throttle({ default: RATE_LIMITS.auth })
   @Post("sign-in")
   @HttpCode(200)
   async signIn(@Body() body: unknown, @Req() request: RequestWithId) {
@@ -217,6 +222,7 @@ export class AuthController {
     return { status: "signed_out_everywhere" };
   }
 
+  @Throttle({ default: RATE_LIMITS.reset })
   @Post("forgot-password")
   @HttpCode(200)
   async forgotPassword(
@@ -230,6 +236,7 @@ export class AuthController {
     return { status: "reset_email_sent_if_account_exists" };
   }
 
+  @Throttle({ default: RATE_LIMITS.reset })
   @Post("reset-password")
   @HttpCode(200)
   async resetPassword(@Body() body: unknown, @Req() request: RequestWithId): Promise<{ status: string }> {

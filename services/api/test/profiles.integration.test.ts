@@ -440,7 +440,7 @@ test("a field name with zero-width characters reuses the same row", async (conte
   assert.equal((await current.client.query("SELECT id FROM fields")).rowCount, 1);
 });
 
-test("GET /v1/me returns both profiles and ignores account-level body properties", async (context) => {
+test("GET /v1/me returns both profiles and tolerates only account_status", async (context) => {
   const current = requireStack(context);
   if (!current) {
     return;
@@ -451,7 +451,7 @@ test("GET /v1/me returns both profiles and ignores account-level body properties
     current,
     "PUT",
     "/v1/me/student-profile",
-    { ...validStudent, account_status: "SUSPENDED", display_name: "Changed Name" },
+    { ...validStudent, account_status: "SUSPENDED" },
     token,
   );
   assert.equal(student.status, 200, student.text);
@@ -459,7 +459,7 @@ test("GET /v1/me returns both profiles and ignores account-level body properties
     current,
     "PUT",
     "/v1/me/mentor-profile",
-    { ...validMentor, account_status: "SUSPENDED", display_name: "Changed Name" },
+    { ...validMentor, account_status: "SUSPENDED" },
     token,
   );
   assert.equal(mentor.status, 200, mentor.text);
@@ -468,6 +468,15 @@ test("GET /v1/me returns both profiles and ignores account-level body properties
   assert.equal(me.status, 200);
   assert.equal(me.body?.account_status, "active", "the account status was not assigned");
   assert.equal(me.body?.display_name, "Rahim Uddin", "the display name was not assigned");
+  const refused = await apiRequest(
+    current,
+    "PUT",
+    "/v1/me/student-profile",
+    { ...validStudent, display_name: "Changed Name" },
+    token,
+  );
+  assert.equal(refused.status, 422, "display_name is not a documented profile key");
+  assert.match(String(refused.body?.detail), /unknown property: display_name/);
 
   const studentProfile = me.body?.student_profile as Record<string, unknown>;
   assert.equal(studentProfile.goals, validStudent.goals);
@@ -604,7 +613,7 @@ test("profile saves need a session and write nothing without one", async (contex
   assert.deepEqual(counts.rows[0], { profiles: 0, fields: 0 });
 });
 
-test("a body user_id is ignored: only the caller's profile is written", async (context) => {
+test("a body user_id is refused and writes no profile", async (context) => {
   const current = requireStack(context);
   if (!current) {
     return;
@@ -620,13 +629,14 @@ test("a body user_id is ignored: only the caller's profile is written", async (c
     { ...validStudent, user_id: otherId },
     token,
   );
-  assert.equal(saved.status, 200, saved.text);
+  assert.equal(saved.status, 422, saved.text);
+  assert.equal(saved.body?.code, "VALIDATION_FAILED");
+  assert.match(String(saved.body?.detail), /unknown property: user_id/);
 
   const profiles = await current.client.query<{ user_id: string }>(
     "SELECT user_id FROM student_profiles",
   );
-  assert.equal(profiles.rowCount, 1);
-  assert.notEqual(profiles.rows[0].user_id, otherId);
+  assert.equal(profiles.rowCount, 0, "a refused body writes nothing");
 });
 
 test("a refused save returns 422 with a request id and creates no field", async (context) => {

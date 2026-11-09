@@ -172,7 +172,7 @@ test("GET /v1/me returns the caller's own roles only", async (context) => {
   assert.ok(!studentMe.text.includes("MENTOR"), "no other account's roles");
 });
 
-test("a body user_id cannot grant a role to another account", async (context) => {
+test("a body user_id is refused and grants no role", async (context) => {
   const current = requireStack(context);
   if (!current) return;
 
@@ -188,9 +188,11 @@ test("a body user_id cannot grant a role to another account", async (context) =>
     { user_id: targetId, userId: targetId, role: "PLATFORM_ADMIN", roles: ["PLATFORM_ADMIN"] },
     callerToken,
   );
-  assert.equal(response.status, 200, response.text);
+  assert.equal(response.status, 422, response.text);
+  assert.equal(response.body?.code, "VALIDATION_FAILED");
+  assert.match(String(response.body?.detail), /unknown property: /);
 
-  assert.deepEqual(await roleRows(current, callerId), ["STUDENT", "MENTOR"]);
+  assert.deepEqual(await roleRows(current, callerId), ["STUDENT"]);
   assert.deepEqual(await roleRows(current, targetId), ["STUDENT"], "the target is untouched");
 });
 

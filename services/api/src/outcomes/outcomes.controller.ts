@@ -1,4 +1,7 @@
 import { Body, Controller, Get, HttpCode, Inject, Param, Post, Query, Req } from "@nestjs/common";
+import { Throttle } from "@nestjs/throttler";
+
+import { RATE_LIMITS } from "@connect/config";
 
 import {
   IdentityError,
@@ -63,6 +66,7 @@ export class OutcomesController {
     @Inject(OUTCOME_SERVICE) private readonly outcomes: OutcomeService,
   ) {}
 
+  @Throttle({ default: RATE_LIMITS.write })
   @Post()
   @HttpCode(201)
   async report(@Body() body: unknown, @Req() request: RequestWithId): Promise<Record<string, unknown>> {
@@ -103,6 +107,7 @@ export class OutcomesController {
     return outcomePayload(await this.outcomes.read(acting.account.id, id));
   }
 
+  @Throttle({ default: RATE_LIMITS.write })
   @Post(":id/confirm")
   @HttpCode(200)
   async confirm(
@@ -121,6 +126,7 @@ export class OutcomesController {
     return outcomePayload(confirmed);
   }
 
+  @Throttle({ default: RATE_LIMITS.write })
   @Post(":id/dispute")
   @HttpCode(200)
   async dispute(

@@ -9,6 +9,11 @@ import {
   type Type,
 } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
+import type { NestExpressApplication } from "@nestjs/platform-express";
+import { APP_GUARD } from "@nestjs/core";
+import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
+
+import { RATE_LIMITS } from "@connect/config";
 
 import { BetterAuthIdentityService } from "../../src/identity/better-auth-identity.service.js";
 import { createIdentityAuth } from "../../src/identity/better-auth.js";
@@ -16,6 +21,8 @@ import { IDENTITY_SERVICE } from "../../src/identity/identity.tokens.js";
 import { createDatabaseConnection, type Database, type DatabaseConnection } from "../../src/db/database.js";
 import type { EmailMessage, EmailSender } from "../../src/email/email-sender.js";
 import { ProblemDetailsFilter } from "../../src/http/problem-details.filter.js";
+import { BodyAllowlistInterceptor } from "../../src/http/body-allowlist.interceptor.js";
+import { API_MAX_BODY_BYTES } from "../../src/http/request-body.js";
 import { RequestIdMiddleware } from "../../src/http/request-id.middleware.js";
 import {
   openTestDatabase,
@@ -78,6 +85,8 @@ export interface StartApiStackOptions {
   google?: { clientId: string; clientSecret: string };
   /** Replay the migrations before booting (default true). */
   reset?: boolean;
+  /** Register the global throttler (default false: shared stacks would exhaust it). */
+  throttle?: boolean;
 }
 
 interface RouterLayer {
@@ -142,10 +151,16 @@ export async function startApiStack(
   const requestIdRoutes = options.requestIdRoutes;
 
   @Module({
+    imports: options.throttle
+      ? [ThrottlerModule.forRoot([
+          { name: "default", ttl: RATE_LIMITS.default.ttl, limit: RATE_LIMITS.default.limit },
+        ])]
+      : [],
     controllers,
     providers: [
       { provide: IDENTITY_SERVICE, useValue: identity },
       ...(options.providers ? options.providers(connection.db) : []),
+      ...(options.throttle ? [{ provide: APP_GUARD, useClass: ThrottlerGuard }] : []),
     ],
   })
   class StackModule implements NestModule {
@@ -154,8 +169,13 @@ export async function startApiStack(
     }
   }
 
-  const app: INestApplication = await NestFactory.create(StackModule, { logger: false });
+  const app: NestExpressApplication = await NestFactory.create<NestExpressApplication>(StackModule, {
+    logger: false,
+    bodyParser: false,
+  });
+  app.useBodyParser("json", { limit: API_MAX_BODY_BYTES, strict: false });
   app.useGlobalFilters(new ProblemDetailsFilter());
+  app.useGlobalInterceptors(new BodyAllowlistInterceptor());
   await app.listen(0, "127.0.0.1");
   const baseUrl = await app.getUrl();
 
@@ -181,6 +201,7 @@ export interface HttpResult {
   status: number;
   body: Record<string, unknown> | undefined;
   text: string;
+  headers: Headers;
 }
 
 export async function apiRequest(
@@ -208,6 +229,7 @@ export async function apiRequest(
     status: response.status,
     body: text ? (JSON.parse(text) as Record<string, unknown>) : undefined,
     text,
+    headers: response.headers,
   };
 }
 

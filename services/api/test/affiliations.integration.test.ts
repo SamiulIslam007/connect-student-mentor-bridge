@@ -313,7 +313,7 @@ test("a claim for another institution revokes the earlier verified row", async (
   assert.equal(audit.rows[0].count, "1");
 });
 
-test("a body user_id and identity documents are ignored and never stored", async (context) => {
+test("a body user_id and identity documents are refused and never stored", async (context) => {
   const current = requireStack(context);
   if (!current) return;
   await createInstitution(current, "Ignore University", ["example.edu.bd"]);
@@ -328,12 +328,16 @@ test("a body user_id and identity documents are ignored and never stored", async
     { kind: "STUDENT", user_id: otherId, nid: "1234567890123", passport_number: "BX1234567" },
     caller,
   );
-  assert.equal(claimed.status, 200, claimed.text);
+  assert.equal(claimed.status, 422, claimed.text);
+  assert.equal(claimed.body?.code, "VALIDATION_FAILED");
+  assert.match(String(claimed.body?.detail), /unknown property: /);
 
   const otherRows = await current.client.query("SELECT id FROM affiliations WHERE user_id = $1", [
     otherId,
   ]);
   assert.equal(otherRows.rowCount, 0, "the other account is untouched");
+  const anyRows = await current.client.query("SELECT id FROM affiliations");
+  assert.equal(anyRows.rowCount, 0, "a refused body writes nothing");
 
   const leaked = await current.client.query<{ count: string }>(
     "SELECT count(*)::text AS count FROM affiliations WHERE row_to_json(affiliations)::text LIKE '%1234567890123%' OR row_to_json(affiliations)::text LIKE '%BX1234567%'",

@@ -72,6 +72,50 @@ export class ProblemDetailsFilter implements ExceptionFilter {
       return;
     }
 
+    // One boundary for both throttlers: `@nestjs/throttler`'s own exception and
+    // the identity library's raw 429 (design D8; DEBT-12 closes here).
+    const rawStatus =
+      (exception as { statusCode?: unknown }).statusCode ??
+      (exception as { status?: unknown }).status;
+    const throttled =
+      rawStatus === 429 || (exception instanceof HttpException && exception.getStatus() === 429);
+    if (throttled) {
+      const header = Number(response.getHeader("retry-after") ?? 60);
+      const retryAfter = Number.isFinite(header) && header > 0 ? Math.ceil(header) : 60;
+      response
+        .setHeader("Retry-After", String(retryAfter))
+        .status(429)
+        .type("application/problem+json")
+        .json({
+          type: `${PROBLEM_BASE}rate-limited`,
+          title: "Too many requests",
+          status: 429,
+          detail: "try again later",
+          instance: request.originalUrl,
+          code: "RATE_LIMITED",
+          request_id: requestId,
+        });
+      return;
+    }
+
+    // body-parser rejects an oversized body before a handler runs; Nest does not
+    // wrap that error, so it must not fall through to the generic 500.
+    if (rawStatus === 413 || (exception as { type?: unknown }).type === "entity.too.large") {
+      response
+        .status(413)
+        .type("application/problem+json")
+        .json({
+          type: `${PROBLEM_BASE}payload-too-large`,
+          title: "Request body is too large",
+          status: 413,
+          detail: "the request body is larger than the API accepts",
+          instance: request.originalUrl,
+          code: "PAYLOAD_TOO_LARGE",
+          request_id: requestId,
+        });
+      return;
+    }
+
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
       response
