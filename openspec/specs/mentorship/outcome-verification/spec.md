@@ -150,7 +150,7 @@ Every outcome transition SHALL be decided by one pure transition function, and a
 
 #### Scenario: Counting has no route in this change
 
-- **WHEN** any client requests a counted state
+- **WHEN** a client requests a counted, rejected, or reversed state directly, without the review route
 - **THEN** the response is `404` because no such endpoint exists, and the stored status is unchanged
 
 ### Requirement: Every transition appends an event and an audit entry
