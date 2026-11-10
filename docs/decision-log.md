@@ -623,3 +623,27 @@ date: 2026-10-29
 - Reason: credibility depends on not overstating a check; one sentence in the catalog is the only place the wording can drift.
 - Status: Decided
 - Affects: `trust/verified-badge-disclaimer`, `docs/functional-requirements.md` FR-VER-05, `apps/web/lib/strings.ts`
+
+### D-84: The data export is one synchronous JSON document
+
+- Date: 2026-11-10
+- Decision: `POST /v1/privacy/export` returns the caller's own rows from a fixed allowlist of tables and columns as one JSON document, with `Cache-Control: no-store` and `Content-Disposition: attachment`. No object storage, no signed URL, and no S3 client in the pilot; FR-PRIV-01's "short-lived download link" is narrowed to a direct response and the deeper delivery is DEBT-39. The allowlist is `users`, `accounts` (provider name only), `sessions` (id and timestamps, no token), `consent_records`, `audit_logs` where the caller is actor or object, `affiliations`, `availability_windows`, `student_profiles` with `student_field_interests`, `mentor_profiles` with `mentor_fields`, `role_assignments`, `mentorship_requests` sent and received, `mentorships`, `thread_messages` written by the caller only, `mentorship_sessions`, `outcomes` reported by the caller with their `outcome_events` and `verification_records`, and `privacy_requests`. The whole document is read in one repeatable-read transaction.
+- Reason: a signed URL would add the first object-storage integration, a lifecycle and an expiry job for a document the user can receive directly at pilot volume.
+- Status: Decided
+- Affects: `trust/privacy-export-and-erasure`, `docs/api-contracts.md` §5.8, `docs/functional-requirements.md` FR-PRIV-01, `docs/known-debt.md`
+
+### D-85: Deletion is a tombstone that leaves the ledger intact
+
+- Date: 2026-11-10
+- Decision: `POST /v1/privacy/delete` runs one transaction that sets `users.status = ANONYMIZED` and `anonymized_at`, replaces the stored email with the application's keyed HMAC-SHA256 hash (the same key the signup block uses), replaces `users.name` with `Deleted user` and the personal profile text columns with empty strings (placeholders, never `NULL`, because every one of those columns is `NOT NULL`), sets a mentor profile to `REMOVED` so it leaves discovery, replaces the caller's own `thread_messages.body` with a fixed tombstone string, deletes every session, every two-factor row, and every availability window, appends one `ACCOUNT_DELETED` audit entry and one `privacy_requests` row, and never updates or deletes an `outcomes`, `outcome_events`, `verification_records`, `reputation_events`, or `audit_logs` row. Interpretation of `mentorship/thread-and-sessions`: its "SHALL NOT accept attachments or edits" is a rule about routes and participants — no participant edit route exists and none is added — while erasure is a sanctioned system operation that writes a tombstone body; no MODIFIED delta is needed for that capability because its requirement text and scenarios stay true.
+- Reason: FR-PRIV-02 is Must and the ledger rule (ADR-008) forbids rewriting history; the `RESTRICT` foreign keys and the `NOT NULL` columns forbid a hard delete and forbid `NULL`.
+- Status: Decided
+- Affects: `trust/privacy-export-and-erasure`, `docs/data-model.md`, `docs/data-privacy-and-retention.md`, `mentorship/thread-and-sessions` (interpretation only, no text change), `services/api/src/db/schema/`
+
+### D-86: Deletion is confirmed by repeating the account email
+
+- Date: 2026-11-10
+- Decision: The delete body carries `confirm_email`, compared case-insensitively to the stored address; a mismatch is `422 VALIDATION_FAILED` naming the field and changes nothing. This replaces the "requires recent re-authentication" wording in `docs/api-contracts.md` §5.8.
+- Reason: no `IdentityService` method verifies a password without creating a session, and the confirmation's job is to stop an accidental or cross-site delete, which `SameSite=Lax` plus a `POST` body already mostly does.
+- Status: Decided
+- Affects: `trust/privacy-export-and-erasure`, `docs/api-contracts.md` §5.8, `docs/auth-and-access-control.md`

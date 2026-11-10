@@ -136,6 +136,14 @@ The reputation ledger is append-only so that reputation can be recomputed and au
 
 **Mentor edge case:** if a mentor deletes their account, their counted outcomes remain in the ledger as pseudonymous history; their public profile is removed.
 
+**Built (2026-11-10, `privacy-export-and-erasure`, D-85).** The design above is implemented as a tombstone in one transaction:
+
+- **Removed:** the raw email (replaced by the application's keyed HMAC-SHA256 hash, the same value the 12-month signup block uses), the display name and every personal profile text column (empty placeholders, because they are `NOT NULL`), the messages the deleted user wrote (replaced by a fixed tombstone string), the avatar image and last-seen timestamp, the provider password and tokens, every session row, every second-factor row (secret and backup codes), every availability window, and a deleted mentor's place in discovery (`mentor_profiles.status = REMOVED`).
+- **Kept, unchanged:** `outcomes`, `outcome_events`, `verification_records`, `reputation_events`, `field_impact_snapshots`, `consent_records`, and `audit_logs` — every foreign key from them still resolves to the tombstoned `users` row. That is what makes a counted outcome auditable after the person is gone.
+- **Recorded:** one `ACCOUNT_DELETED` audit entry and one `privacy_requests` row of kind `DELETE`, in the same transaction. The `privacy_requests` row itself contains no deleted content.
+- **Irreversible:** deletion is immediate, with no cooling window and no admin queue. Evidence files are not purged because no evidence file exists yet (DEBT-22).
+- **Export:** `POST /v1/privacy/export` returns the caller's own rows as one JSON document; it contains no password hash, second-factor material, session token, or provider token (D-84).
+
 ## 10. Processors and transfers
 
 List is a **template**; fill in when providers are chosen (checklist E-01 to E-03).

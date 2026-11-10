@@ -404,12 +404,12 @@ Terminal states: `counted`, `rejected`, `reversed`, `withdrawn`. Every transitio
 
 | Method and path | Roles | Idem | Purpose |
 |---|---|---|---|
-| `POST /v1/privacy/export` | all (own) | yes | Request a data export. `202`; the user is emailed when it is ready |
-| `GET /v1/privacy/export/{id}/download` | all (own) | no | Download a completed export through a short-lived signed URL |
-| `POST /v1/privacy/delete` | all (own) | yes | Request deletion. `202`. Requires recent re-authentication |
-| `GET /v1/privacy/requests` | all (own) | no | Status of own requests |
+| `POST /v1/privacy/export` | all (own) | no | **Built** by `privacy-export-and-erasure`: one synchronous JSON document of the caller's own rows from a fixed allowlist (D-84), with `Cache-Control: no-store` and `Content-Disposition: attachment`. A `SUSPENDED`, `ANONYMIZED`, or `DEACTIVATED` account is `403 FORBIDDEN`. One `privacy_requests` row of kind `EXPORT` is written in the same transaction. Throttled on its own bucket (3 per hour, a starting value) |
+| `POST /v1/privacy/delete` | all (own) | no | **Built** by `privacy-export-and-erasure`: one transaction tombstones the account — status `ANONYMIZED`, keyed email hash, `Deleted user`, empty profile text, mentor profile `REMOVED`, the caller's own message bodies replaced with a tombstone string, every session and second-factor row deleted, one `ACCOUNT_DELETED` audit entry and one `privacy_requests` row — and never touches a ledger, verification, reputation, or audit row (D-85). Body: `confirm_email`, compared case-insensitively (D-86); a mismatch is `422 VALIDATION_FAILED` naming the field. Deletion is immediate and irreversible. A second request finds the account anonymized and changes nothing |
+| `GET /v1/privacy/export/{id}/download` | all (own) | no | **Not built.** The synchronous document above replaces it; the signed-URL depth is DEBT-39 |
+| `GET /v1/privacy/requests` | all (own) | no | **Not built.** Each request is recorded in `privacy_requests`; no read route exists yet |
 
-The statutory time limit for completing requests is an **Open decision** for counsel.
+There is no export-request id, no `202`, and no completion email: the export is the response (D-84). The statutory time limit for completing requests remains an **Open decision** for counsel.
 
 ### 5.9 Platform admin and trust and safety
 

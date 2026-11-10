@@ -140,7 +140,8 @@ The README's 11-entity diagram is preserved and extended. Section 11 lists every
 | `consent_records` | **Append-only** consents and withdrawals | privacy | Insert only | **High** |
 | `abuse_reports`, `account_sanctions` | Moderation | trust | Mutable | **High** |
 | `audit_logs` | **Append-only** audit trail | audit | Insert only | Medium |
-| `data_rights_requests` | Export and deletion requests | privacy | Mutable | Medium |
+| `data_rights_requests` | Export and deletion requests (the design name) | privacy | Mutable | Medium |
+| `privacy_requests` | **Built** by `privacy-export-and-erasure` (migration `0016`): the implemented tracking row — `user_id`, `kind` (`EXPORT`/`DELETE`), `status`, `requested_at`, `completed_at` (D-84, D-85) | privacy | Mutable | Medium |
 | `ai_interaction_logs` | AI call metadata (Phase 1b) | ai | Insert | Medium |
 | `outbox_events`, `notifications`, `notification_preferences`, `email_suppressions` | Events and notifications | notifications | Mutable | Medium |
 | `idempotency_keys` | Safe retries | platform | Insert, expire | Low |
@@ -547,7 +548,11 @@ Shape (Proposed, policy governs): `points = difficulty_weight x tier_multiplier 
 
 ### 5.7 Trust, privacy, and audit
 
-**`consent_records`** (append-only, High): `id`, `user_id` (text FK to `users.id`), `purpose` (`consent_purpose`), `action` (`GRANTED` or `WITHDRAWN`), `document_version`, `institution_id?` (for institution sharing), `occurred_at`. Current consent for a purpose is the latest record; history is never edited. Registration writes one `TERMS` and one `PRIVACY_NOTICE` row with the same document version.
+**`consent_records`** (append-only, High): `id`, `user_id` (text FK to `users.id`), `purpose` (`consent_purpose`), `action` (`GRANTED` or `WITHDRAWN`), `document_version`, `institution_id?` (for institution sharing), `occurred_at`. Current consent for a purpose is the latest record; history is never edited. Registration writes one `TERMS` and one `PRIVACY_NOTICE` row with the same document version, and refuses a registration that does not carry `consent_accepted: true` (D-82).
+
+**`privacy_requests`** (mutable, Medium; migration `0016`): `id` (uuid), `user_id` (text FK to `users.id`, `ON DELETE RESTRICT`), `kind` (`privacy_request_kind`: `EXPORT` or `DELETE`), `status` (`privacy_request_status`: `COMPLETED` or `FAILED`), `requested_at`, `completed_at`. One row is written inside the transaction that performs the work.
+
+**The tombstone (D-85).** Account deletion never removes the `users` row, because `audit_logs` and `consent_records` reference it with `ON DELETE RESTRICT`. It writes: `users.email` = the same keyed HMAC-SHA256 hash `signup_blocks` uses, `users.name` = `Deleted user`, `users.image` and `last_seen_at` = `NULL`, `users.status` = `ANONYMIZED`, `users.anonymized_at` = now; `accounts.password`, the provider tokens and `scope` = `NULL`, `account_id` = `deleted`; every `sessions` and `two_factors` row deleted; every `availability_windows` row deleted; `student_profiles.goals` = `''` and `languages` = `'{}'`; `mentor_profiles.headline`, `.bio`, `.expertise_summary`, `.scope_statement` = `''`, `languages` = `'{}'`, `status` = `REMOVED`; `thread_messages.body` = the fixed tombstone string for the rows the deleted user wrote. **Nothing else is written**: `outcomes`, `outcome_events`, `verification_records`, `reputation_events`, `field_impact_snapshots`, `consent_records`, and `audit_logs` keep every row. `thread_messages.body` therefore has exactly one sanctioned system writer (erasure) and still no participant edit route.
 
 **`abuse_reports`**: `reporter_user_id`, `subject_type` (`USER`, `THREAD_MESSAGE`, `MENTOR_PROFILE`, `OUTCOME`), `subject_id`, `category` (`HARASSMENT`, `EXPLOITATION`, `FRAUD`, `SPAM`, `OTHER`), `description`, `status` (`OPEN`, `IN_REVIEW`, `ACTION_TAKEN`, `DISMISSED`), `assigned_to_user_id?`, `resolution_note?`, `resolved_at?`.
 **`account_sanctions`**: `user_id`, `kind` (`WARNING`, `SUSPENSION`, `REMOVAL`), `reason`, `starts_at`, `ends_at?`, `issued_by_user_id`, `related_report_id?`, `revoked_at?`.

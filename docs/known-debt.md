@@ -52,6 +52,7 @@ sources: [docs/milestones-and-phases.md, docs/decision-log.md, docs/security-req
 | DEBT-36 | FR-CONS-02 revocable institution data-sharing consent does not exist: no `INSTITUTION_DATA_SHARING` record, no withdrawal, no consent screen | A student cannot grant or withdraw institution-level sharing, so the sharing decision has no record | With `FR-CONS-02` (unscheduled); recorded by `trust-surfaces` (2026-11-10) | Open |
 | DEBT-37 | FR-UX-01 installable PWA does not exist: no manifest, no service worker, no install path; the app is responsive Next.js only | A student cannot install the app on a low-end Android phone, which is the pilot's main device | Before the pilot's device testing; recorded by `trust-surfaces` (2026-11-10) | Open |
 | DEBT-38 | FR-UX-04 WCAG 2.1 AA evidence does not exist: no automated axe run and no recorded keyboard or screen-reader pass | Accessibility is asserted in the requirements, not measured; a Must row has no evidence either way | Before the pilot's accessibility sign-off; recorded by `trust-surfaces` (2026-11-10) | Open |
+| DEBT-39 | FR-PRIV-01's short-lived download link is not built: the export is one synchronous JSON response, so no object storage, no signed URL, no expiry job, and no resumable download for a very large record | A pilot-size record downloads in one response; a large one is limited by memory and by the BFF's body cap, and there is no way to fetch an export later | Post-pilot, if export volume grows; recorded by `privacy-export-and-erasure` (2026-11-10, D-84) | Open |
 
 ## 2. Not debt
 
