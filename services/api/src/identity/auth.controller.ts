@@ -72,11 +72,18 @@ export class AuthController {
   @Post("register")
   @HttpCode(200)
   async register(@Body() body: unknown, @Req() request: RequestWithId): Promise<{ status: string }> {
+    // Acceptance is the trust boundary, so it is read before any other field:
+    // no user, session, or consent row is written without it (D-82).
+    const consentAccepted = bodyRecord(body).consent_accepted === true;
+    if (!consentAccepted) {
+      throw new IdentityError("VALIDATION_ERROR", "consent_accepted must be true");
+    }
     const result = await this.identity.register({
       displayName: textField(body, "display_name"),
       email: emailField(body),
       password: textField(body, "password"),
       dateOfBirth: textField(body, "date_of_birth"),
+      consentAccepted,
       timezone: optionalTextField(body, "timezone"),
       requestId: request.requestId,
     });

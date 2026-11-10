@@ -176,6 +176,7 @@ async function register(email: string, dateOfBirth = "2000-01-01"): Promise<Http
     email,
     password: PASSWORD,
     date_of_birth: dateOfBirth,
+    consent_accepted: true,
   });
 }
 
@@ -200,6 +201,42 @@ async function sessionCount(client: TestDatabase["client"], email: string): Prom
   );
   return result.rowCount ?? 0;
 }
+
+test("registration without consent is refused and writes no user and no consent row", async (context) => {
+  const stack = requireStack(context);
+  if (!stack) {
+    return;
+  }
+  const { client } = stack;
+
+  for (const body of [
+    {
+      display_name: "No Consent",
+      email: "no-consent@example.com",
+      password: PASSWORD,
+      date_of_birth: "2000-01-01",
+    },
+    {
+      display_name: "False Consent",
+      email: "false-consent@example.com",
+      password: PASSWORD,
+      date_of_birth: "2000-01-01",
+      consent_accepted: false,
+    },
+  ]) {
+    const refused = await request("POST", "/v1/auth/register", body);
+    assert.equal(refused.status, 422, refused.text);
+    assert.equal(refused.body?.code, "VALIDATION_FAILED");
+    assert.match(String(refused.body?.detail), /consent_accepted/);
+  }
+
+  const users = await client.query("SELECT id FROM users");
+  assert.equal(users.rowCount, 0, "no account is written");
+  const consent = await client.query("SELECT id FROM consent_records");
+  assert.equal(consent.rowCount, 0, "no consent is written");
+  const audit = await client.query("SELECT id FROM audit_logs");
+  assert.equal(audit.rowCount, 0, "no audit entry is written");
+});
 
 test("registration writes one account, two consent rows, an audit entry, and sends the email", async (context) => {
   const stack = requireStack(context);
@@ -1036,6 +1073,7 @@ test("a short password is rejected at registration and at reset", async (context
     email: "short@example.com",
     password: "elevenchars",
     date_of_birth: "2000-01-01",
+    consent_accepted: true,
   });
   assert.equal(registration.status, 422);
   assert.equal(registration.body?.code, "VALIDATION_FAILED");
@@ -1044,6 +1082,7 @@ test("a short password is rejected at registration and at reset", async (context
     display_name: "Missing Email",
     password: PASSWORD,
     date_of_birth: "2000-01-01",
+    consent_accepted: true,
   });
   assert.equal(missingField.status, 422);
   assert.equal(missingField.body?.code, "VALIDATION_FAILED");
@@ -1061,6 +1100,7 @@ test("registration ignores account-level keys in the body", async (context) => {
     email: "extra-keys@example.com",
     password: PASSWORD,
     date_of_birth: "2000-01-01",
+    consent_accepted: true,
     account_status: "ACTIVE",
     accountStatus: "ACTIVE",
     email_verified: true,

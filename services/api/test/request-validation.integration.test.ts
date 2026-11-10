@@ -154,6 +154,7 @@ test("account_status stays an accepted no-op on registration and profile saves",
     email: "account-status@example.com",
     password: "a sufficiently long passphrase",
     date_of_birth: "2000-01-01",
+    consent_accepted: true,
     account_status: "ACTIVE",
   });
   assert.equal(registration.status, 200, registration.text);

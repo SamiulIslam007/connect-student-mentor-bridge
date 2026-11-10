@@ -4,6 +4,14 @@
  */
 export const APP_NAME = "connect";
 
+/**
+ * The version of the terms of service and privacy notice shown at registration
+ * and rendered by `/terms` and `/privacy` (D-82). Stored on every consent
+ * record, so a text change bumps this one value.
+ */
+export const CONSENT_DOCUMENT_VERSION = "2026-11";
+
+
 export const API_SERVICE_NAME = "api";
 
 /** Proposed default from design.md D5: bounded dependency checks. */
