@@ -155,6 +155,7 @@ export default function MentorsPage() {
                 {card.primary_field.name} · {card.languages.join(", ")} ·{" "}
                 {accessStateLabel(card.access_state)}
               </p>
+              <p>{strings.disclaimer.verified}</p>
               {canRequest(card.access_state) ? (
                 <p>
                   <a href={`/request/new?mentor=${encodeURIComponent(card.id)}`}>

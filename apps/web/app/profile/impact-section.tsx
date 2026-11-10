@@ -51,6 +51,7 @@ export function ImpactSection() {
     <section>
       <h2>{strings.impact.title}</h2>
       <p>{strings.impact.intro}</p>
+      <p>{strings.disclaimer.verified}</p>
 
       {state === "loading" ? <p>{strings.impact.loading}</p> : null}
       {state === "error" ? (

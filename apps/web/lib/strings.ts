@@ -26,6 +26,11 @@ export const strings = {
     submit: "Create account",
     success: "Check your email for the verification link.",
     ageGateNote: "You must be 18 or older to use connect.",
+    consentLabel: "I have read and accept the",
+    consentTerms: "terms of service",
+    consentAnd: "and the",
+    consentPrivacy: "privacy notice",
+    consentRequired: "Tick the consent box to create an account.",
     underAge: "You must be 18 or older to create an account. This address cannot be registered.",
     invalid: "Some of those details are not valid. Check each field and try again.",
     error: "Registration failed. Check the fields and try again.",
@@ -458,5 +463,77 @@ export const strings = {
     outcomeJobOffer: "Job offer",
     outcomeSkillMilestone: "Skill milestone",
     outcomeInterview: "Interview",
+  },
+  /** FR-VER-05 (D-83): one sentence, rendered wherever a badge or a count appears. */
+  disclaimer: {
+    verified:
+      "A verified badge means the affiliation was checked. A counted outcome means the mentor confirmed it; outcomes are not independently audited by connect.",
+  },
+  legal: {
+    draftNotice:
+      "Pilot draft, pending legal review. This text describes how connect works during the pilot. It is not reviewed legal terms.",
+    versionLabel: "Document version",
+    terms: {
+      title: "Terms of service",
+      sections: [
+        {
+          heading: "Who may use connect",
+          body: "connect is for people aged 18 and over: students seeking guidance and volunteer mentors. One account per person, with accurate details.",
+        },
+        {
+          heading: "Your account",
+          body: "You keep your password private and you are responsible for activity under your account. You can sign out of every session at any time.",
+        },
+        {
+          heading: "Mentorship",
+          body: "Mentors volunteer their time and may accept or decline a request within 48 hours. A declined request is not a penalty. Mentorship is guidance, not employment, legal, medical, or financial advice.",
+        },
+        {
+          heading: "Outcomes and reputation",
+          body: "A student reports an outcome; the mentor confirms or disputes it. Only a confirmed outcome counts, after a cooling period, and reputation is shown per field as counts, never as a public score.",
+        },
+        {
+          heading: "Content and conduct",
+          body: "You keep ownership of what you write. Harassment, spam, and misrepresentation are not allowed; a participant can report a user, message, profile, or outcome, and the platform may suspend an account with a written reason.",
+        },
+        {
+          heading: "Ending your account",
+          body: "You can delete your account from the account page. Your identifiers and personal text are erased, while confirmed outcomes and audit records stay in pseudonymised form so the record stays auditable.",
+        },
+        {
+          heading: "Changes and contact",
+          body: "The document version above changes when this text changes. Questions about these terms go to the platform team through the contact address published with the pilot.",
+        },
+      ],
+    },
+    privacy: {
+      title: "Privacy notice",
+      sections: [
+        {
+          heading: "What we collect",
+          body: "Account details (name, email, timezone, date of birth checked once and not stored), your profile, requests, messages, sessions, outcomes, and the consent and audit records the platform keeps.",
+        },
+        {
+          heading: "Why we use it",
+          body: "To run requests and mentorship, to verify affiliations, to count confirmed outcomes, to keep the platform safe, and to meet the record-keeping the product promises.",
+        },
+        {
+          heading: "Who sees it",
+          body: "Your counterpart in a mentorship sees your profile, your messages, and the outcomes you share with them. Platform administrators see a moderation queue and the audit trail. Your data is not sold.",
+        },
+        {
+          heading: "How long we keep it",
+          body: "Profile and contact data while your account exists. Confirmed outcomes, verification records, and audit entries are append-only and are kept in pseudonymised form after deletion.",
+        },
+        {
+          heading: "Your choices",
+          body: "You can download your data and delete your account from the account page. Deletion is immediate and irreversible. Consent is recorded at registration with the document version above.",
+        },
+        {
+          heading: "Contact",
+          body: "Privacy questions go to the platform team through the contact address published with the pilot.",
+        },
+      ],
+    },
   },
 } as const;

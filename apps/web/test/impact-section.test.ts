@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 
 import {
   hasScoreKey,
@@ -47,4 +49,21 @@ test("a payload with a score-like key is detected and refused by the view", () =
   for (const key of ["score", "points", "tier", "ranking", "percentage"]) {
     assert.equal(hasScoreKey({ [key]: 1 }), true, key);
   }
+});
+
+test("the impact summary carries the disclaimer and makes no audit claim", () => {
+  const text = strings.disclaimer.verified;
+  assert.match(text, /mentor confirmed/i, "it says what a counted outcome is");
+  assert.match(text, /not independently audited by connect/i);
+  assert.ok(
+    !/audit/i.test(text.replace(/not independently audited by connect/i, "")),
+    "every mention of auditing is the negation",
+  );
+
+  // The section renders the catalog string; the badge rule is one sentence (D-83).
+  const source = readFileSync(
+    fileURLToPath(new URL("../app/profile/impact-section.tsx", import.meta.url)),
+    "utf8",
+  );
+  assert.match(source, /strings\.disclaimer\.verified/);
 });

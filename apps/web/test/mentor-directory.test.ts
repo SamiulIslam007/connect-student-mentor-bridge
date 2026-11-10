@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 
 import {
   accessStateLabel,
@@ -51,4 +53,17 @@ test("only a full mentor refuses the request action", () => {
   assert.equal(canRequest("available"), true);
   assert.equal(canRequest("application_only"), true);
   assert.equal(canRequest("full"), false);
+});
+
+test("every directory card carries the verified-badge disclaimer", () => {
+  const text = strings.disclaimer.verified;
+  assert.match(text, /verified badge means the affiliation was checked/i);
+  assert.match(text, /not independently audited by connect/i);
+
+  // The card renders the catalog string; the badge rule is one sentence (D-83).
+  const source = readFileSync(
+    fileURLToPath(new URL("../app/mentors/page.tsx", import.meta.url)),
+    "utf8",
+  );
+  assert.match(source, /strings\.disclaimer\.verified/);
 });
