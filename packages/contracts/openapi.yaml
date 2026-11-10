@@ -1092,6 +1092,165 @@ paths:
           $ref: "#/components/responses/Problem"
         "429":
           $ref: "#/components/responses/Problem"
+  /v1/reports:
+    post:
+      operationId: createReport
+      summary: Report a user, message, profile, or outcome
+      description: >-
+        Any signed-in user may report one target. The target kind is one of
+        `user`, `message`, `profile`, or `outcome`, and the reason is one of
+        `harassment`, `spam`, `impersonation`, `misrepresentation`, or `other`.
+        A target the reporter cannot see answers `404`, exactly like an absent
+        one, so the route reveals nothing about a hidden id. The reported user is
+        never told who reported them.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReportCreateRequest"
+      responses:
+        "201":
+          description: The report is open in the moderation queue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportResponse"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "413":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        "429":
+          $ref: "#/components/responses/Problem"
+    get:
+      operationId: listReports
+      summary: The open report queue
+      description: >-
+        Platform Admin with an enrolled second factor only. Open reports, oldest
+        first, keyset-paginated on `(created_at, id)`; `limit` is 1 to 50
+        (default 20) and `next_cursor` is the last report id of the page.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+      responses:
+        "200":
+          description: One page of open reports
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportQueuePage"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+  /v1/reports/{id}/resolve:
+    post:
+      operationId: resolveReport
+      summary: Resolve one open report with a written reason
+      description: >-
+        Platform Admin with an enrolled second factor only. Exactly one
+        resolution is stored (`actioned` or `dismissed`) with the reason, the
+        resolver, and the time; a second call answers `409
+        REPORT_ALREADY_RESOLVED`. One `REPORT_RESOLVED` audit entry and exactly
+        one queued email to the reporter are written in the same transaction; the
+        email states that the report was resolved and names no sanction.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReportResolveRequest"
+      responses:
+        "200":
+          description: The report is resolved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportResponse"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+        "413":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        "429":
+          $ref: "#/components/responses/Problem"
+  /v1/admin/accounts/{id}/suspend:
+    post:
+      operationId: suspendAccount
+      summary: Suspend an account with a reason and an optional end date
+      description: >-
+        Platform Admin with an enrolled second factor only. One transaction sets
+        the status to `suspended`, stores `suspended_until` when an `end_date` is
+        given, revokes every session row, appends one `ACCOUNT_SUSPENDED` audit
+        entry, and queues one notice email carrying the reason and the date. The
+        end date is stored, shown, and audited but **never lifted
+        automatically**; there is no lift route yet (DEBT-40), so an early lift
+        needs SQL.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SuspendAccountRequest"
+      responses:
+        "200":
+          description: The account is suspended and every session is revoked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuspendAccountResponse"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "413":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        "429":
+          $ref: "#/components/responses/Problem"
   /v1/mentorships:
     get:
       operationId: listMentorships
@@ -1825,6 +1984,93 @@ components:
         account_status:
           type: string
           description: Accepted and ignored (no-op); the server owns account status.
+    ReportCreateRequest:
+      type: object
+      additionalProperties: false
+      required: [target_kind, target_id, reason]
+      properties:
+        target_kind:
+          type: string
+          enum: [user, message, profile, outcome]
+        target_id:
+          type: string
+          description: A user id for `user`, a uuid for the other three kinds.
+        reason:
+          type: string
+          enum: [harassment, spam, impersonation, misrepresentation, other]
+        details:
+          type: string
+          minLength: 1
+          maxLength: 2000
+    ReportResolveRequest:
+      type: object
+      additionalProperties: false
+      required: [decision, reason]
+      properties:
+        decision:
+          type: string
+          enum: [actioned, dismissed]
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 1000
+    SuspendAccountRequest:
+      type: object
+      additionalProperties: false
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        end_date:
+          type: string
+          format: date
+          description: Stored, shown, and notified; never lifts the suspension automatically.
+    ReportResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        reporter_user_id:
+          type: string
+        target_kind:
+          type: string
+        target_id:
+          type: string
+        reason:
+          type: string
+        details:
+          type: [string, "null"]
+        status:
+          type: string
+        decision:
+          type: [string, "null"]
+        resolution_reason:
+          type: [string, "null"]
+        resolved_by_user_id:
+          type: [string, "null"]
+        resolved_at:
+          type: [string, "null"]
+        created_at:
+          type: string
+    ReportQueuePage:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReportResponse"
+        next_cursor:
+          type: [string, "null"]
+    SuspendAccountResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        suspended_until:
+          type: [string, "null"]
     DeleteAccountRequest:
       type: object
       additionalProperties: false

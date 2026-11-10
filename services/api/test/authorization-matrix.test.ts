@@ -23,6 +23,10 @@ import { DrizzleReputationService } from "../src/reputation/drizzle-reputation.s
 import { ReputationController } from "../src/reputation/reputation.controller.js";
 import { REPUTATION_SERVICE } from "../src/reputation/reputation.tokens.js";
 import { DrizzlePrivacyService } from "../src/privacy/drizzle-privacy.service.js";
+import { ReportsAdminController } from "../src/reports/admin.controller.js";
+import { DrizzleReportsService } from "../src/reports/drizzle-reports.service.js";
+import { ReportsController } from "../src/reports/reports.controller.js";
+import { REPORTS_SERVICE } from "../src/reports/reports.tokens.js";
 import { PrivacyController } from "../src/privacy/privacy.controller.js";
 import { PRIVACY_SERVICE } from "../src/privacy/privacy.tokens.js";
 import { DrizzleProfilesService } from "../src/profiles/drizzle-profiles.service.js";
@@ -138,6 +142,12 @@ const MATRIX: Requirement[] = [
   // Privacy: the caller's own record only; the account id comes from the session.
   { route: /^POST \/v1\/privacy\/export$/, access: "signed-in", mutating: true },
   { route: /^POST \/v1\/privacy\/delete$/, access: "signed-in", mutating: true },
+  // Moderation: reporting is any signed-in user; the queue, the resolution, and
+  // the suspension are platform-admin actions with an enrolled second factor.
+  { route: /^POST \/v1\/reports$/, access: "signed-in", mutating: true },
+  { route: /^GET \/v1\/reports$/, access: "PLATFORM_ADMIN" },
+  { route: /^POST \/v1\/reports\/:id\/resolve$/, access: "PLATFORM_ADMIN", mutating: true },
+  { route: /^POST \/v1\/admin\/accounts\/:id\/suspend$/, access: "PLATFORM_ADMIN", mutating: true },
 ];
 
 const PRINCIPAL_ROLES: Role[] = ["STUDENT", "MENTOR", "INSTITUTION_ADMIN", "PLATFORM_ADMIN"];
@@ -162,6 +172,8 @@ before(async () => {
       ReviewQueueController,
       ReputationController,
       PrivacyController,
+      ReportsController,
+      ReportsAdminController,
     ],
     requestIdRoutes: [
       AuthController,
@@ -177,6 +189,8 @@ before(async () => {
       ReviewQueueController,
       ReputationController,
       PrivacyController,
+      ReportsController,
+      ReportsAdminController,
     ],
     providers: (database) => [
       { provide: PROFILES_SERVICE, useValue: new DrizzleProfilesService(database) },
@@ -190,6 +204,7 @@ before(async () => {
         provide: PRIVACY_SERVICE,
         useValue: new DrizzlePrivacyService({ database, secret: "x".repeat(32) }),
       },
+      { provide: REPORTS_SERVICE, useValue: new DrizzleReportsService(database) },
     ],
   });
   if (started.skipped) {

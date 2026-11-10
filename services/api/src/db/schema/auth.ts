@@ -31,6 +31,8 @@ export const users = pgTable("users", {
   ageGateVersion: text("age_gate_version"),
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
   anonymizedAt: timestamp("anonymized_at", { withTimezone: true }),
+  /** Stored, shown, and audited by a suspension; never lifted automatically (D-88). */
+  suspendedUntil: timestamp("suspended_until", { withTimezone: true }),
   // Owned by the `twoFactor` plugin (`input: false`, so a request body can
   // never set it). Written only by the library's enable/disable endpoints.
   twoFactorEnabled: boolean("two_factor_enabled").default(false).notNull(),

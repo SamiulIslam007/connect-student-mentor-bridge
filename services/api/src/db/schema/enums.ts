@@ -41,6 +41,11 @@ export const privacyRequestKind = pgEnum("privacy_request_kind", ["EXPORT", "DEL
 
 export const privacyRequestStatus = pgEnum("privacy_request_status", ["COMPLETED", "FAILED"]);
 
+/** Moderation (`trust/abuse-reports-and-sanctions`). One flat table, four targets (D-87). */
+export const reportKind = pgEnum("report_kind", ["USER", "MESSAGE", "PROFILE", "OUTCOME"]);
+
+export const reportStatus = pgEnum("report_status", ["OPEN", "RESOLVED", "DISMISSED"]);
+
 export const signupBlockReason = pgEnum("signup_block_reason", ["UNDER_18"]);
 
 export const fieldStatus = pgEnum("field_status", ["ACTIVE", "RETIRED"]);

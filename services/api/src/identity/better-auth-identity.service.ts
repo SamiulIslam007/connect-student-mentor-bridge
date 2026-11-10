@@ -58,6 +58,7 @@ import type { IdentityAuth } from "./better-auth.js";
 import { appendAuditEntry, type AuditEntry } from "./audit-log.js";
 import { runWithRequestId } from "./request-context.js";
 import { hashEmail } from "./email-hash.js";
+import { enqueueOutboxEvent } from "../platform/outbox/outbox.js";
 import { syncMentorActivation } from "../onboarding/mentor-activation.js";
 
 /** Re-exported for the identity tests; the value lives in `@connect/config` (D-82). */
@@ -176,6 +177,25 @@ function statusRefusal(error: unknown): IdentityErrorCode | null {
     JSON.stringify({ event: "identity.sign_in_refused", code: typeof code === "string" ? code : "unknown" }),
   );
   return "EMAIL_NOT_VERIFIED";
+}
+
+/**
+ * The post-session status rule (DEBT-09, D-89). The library owns the session
+ * insert, so the sign-in path re-reads the status after the fact and refuses the
+ * session it just issued when the account is no longer `ACTIVE`. Exported so a
+ * table-driven test can cover every status without staging a true race.
+ */
+export function postSessionRefusal(status: AccountStatus): IdentityErrorCode | null {
+  switch (status) {
+    case "ACTIVE":
+      return null;
+    case "SUSPENDED":
+      return "ACCOUNT_SUSPENDED";
+    case "PENDING":
+      return "EMAIL_NOT_VERIFIED";
+    default:
+      return "FORBIDDEN";
+  }
 }
 
 function refusalMessage(code: IdentityErrorCode): string {
@@ -436,6 +456,13 @@ export class BetterAuthIdentityService implements IdentityService {
       // Always read the account back: the hook may have moved it to `ACTIVE`
       // after the library read the row, so `result.user` can be stale.
       account = await this.requireAccount(result.user.id);
+      // The library's hook and this insert are not one transaction, so a
+      // suspension can land in between (DEBT-09): refuse and let the catch below
+      // revoke the session it just created.
+      const refused = postSessionRefusal(account.accountStatus);
+      if (refused) {
+        throw new IdentityError(refused, refusalMessage(refused));
+      }
       const session = await this.readSession(sessionToken);
       if (!session) {
         throw new Error("the new session could not be read back");
@@ -608,10 +635,15 @@ export class BetterAuthIdentityService implements IdentityService {
   }
 
   async suspendAccount(input: SuspendAccountInput): Promise<AccountSummary> {
+    const suspendedUntil = input.suspendedUntil ? new Date(`${input.suspendedUntil}T00:00:00.000Z`) : null;
+    if (suspendedUntil && Number.isNaN(suspendedUntil.getTime())) {
+      throw new IdentityError("VALIDATION_ERROR", "end_date must be a calendar date");
+    }
+
     return this.database.transaction(async (tx) => {
       const [suspended] = await tx
         .update(users)
-        .set({ status: "SUSPENDED" })
+        .set({ status: "SUSPENDED", suspendedUntil })
         .where(eq(users.id, input.userId))
         .returning();
       if (!suspended) {
@@ -629,6 +661,29 @@ export class BetterAuthIdentityService implements IdentityService {
         objectId: input.userId,
         requestId: input.requestId,
         reason: input.reason,
+        metadata: { suspended_until: input.suspendedUntil ?? null },
+      });
+
+      // One queued notice: the reason and the end date, never who reported what
+      // (D-90). The request id makes a retried suspension send once.
+      await enqueueOutboxEvent(tx, {
+        aggregateType: "USER",
+        aggregateId: input.userId,
+        eventType: "EmailRequested",
+        dedupeKey: `email:account-suspended:${input.userId}:${input.requestId}`,
+        payload: {
+          to: suspended.email,
+          template: "account-suspended",
+          subject: "Your connect account is suspended",
+          text: [
+            "Your connect account has been suspended.",
+            "",
+            `Reason: ${input.reason}`,
+            input.suspendedUntil
+              ? `Suspension ends: ${input.suspendedUntil} (it is not lifted automatically; contact support when the date passes).`
+              : "No end date was set. Contact support if you think this is a mistake.",
+          ].join("\n"),
+        },
       });
 
       return toAccount(suspended);

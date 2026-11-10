@@ -13,7 +13,9 @@ export type EmailTemplate =
   | "outcome-reminder"
   | "outcome-escalated"
   | "outcome-reviewed"
-  | "outcome-reversed";
+  | "outcome-reversed"
+  | "account-suspended"
+  | "report-resolved";
 
 export interface EmailMessage {
   to: string;

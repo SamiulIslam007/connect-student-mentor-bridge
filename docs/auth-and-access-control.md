@@ -226,7 +226,9 @@ Legend: **Y** allowed, **-** not allowed, **own** only for their own records, **
 ## 10. Platform admin access and break-glass
 
 - No shared admin accounts. Each platform admin has a personal account with MFA.
-- Reading private content (threads, evidence, student-level data) requires a **break-glass** action: a mandatory reason, a linked dispute or support case, and a time limit (**Proposed default: 60 minutes**). Every access is logged with who, what, why, and when.
+- The shipped admin surface (2026-11-10, `abuse-reports-and-sanctions`) is the outcome review queue (`/v1/review-queue`, `/v1/outcomes/{id}/review`), the abuse report queue (`GET /v1/reports`), one resolution per report (`POST /v1/reports/{id}/resolve`), and one suspension (`POST /v1/admin/accounts/{id}/suspend`). Every one of them calls `requireRole(..., "PLATFORM_ADMIN", { requiresMfa: true })`, so a password alone is never enough, and every action appends one audit row and queues one notice (D-90).
+- A suspension revokes every session and stores an optional end date, but nothing lifts it automatically and no route lifts it: an early lift is SQL until DEBT-40 lands (D-88).
+- Reading private content (threads, evidence, student-level data) requires a **break-glass** action: a mandatory reason, a linked dispute or support case, and a time limit (**Proposed default: 60 minutes**). Every access is logged with who, what, why, and when. This is **not built** (FR-ADM-06, DEBT-30), so a moderator acting on a report sees the report's target id and the reporter's written details, not the thread.
 - Break-glass entries are reviewed weekly. With one operator today (N7 is an **Open decision**), a second reviewer should be added before the pilot where possible.
 - Whether and when the affected user is notified of a break-glass access is an **Open decision** for counsel.
 - Production database access for engineers is separate from application access, logged, and limited to named people.

@@ -14,6 +14,7 @@ import {
   sessionStatusLabel,
 } from "../../../lib/mentorship-view";
 import { strings } from "../../../lib/strings";
+import { REPORT_REASON_OPTIONS, showReportControl } from "../../../lib/reports";
 import { OutcomeSection } from "./outcome-section";
 
 interface SessionRecord {
@@ -72,6 +73,10 @@ export default function MentorshipPage({ params }: { params: Promise<{ id: strin
   const [start, setStart] = useState("");
   const [duration, setDuration] = useState("45");
   const [meetingUrl, setMeetingUrl] = useState("");
+  const [reportMessageId, setReportMessageId] = useState<string | null>(null);
+  const [reportReason, setReportReason] = useState("");
+  const [reportDetails, setReportDetails] = useState("");
+  const [reportNotice, setReportNotice] = useState<string | null>(null);
 
   useEffect(() => {
     void params.then((value) => setId(value.id));
@@ -200,6 +205,42 @@ export default function MentorshipPage({ params }: { params: Promise<{ id: strin
   const stateMessage = pageStateMessage(state);
   const isParticipant = state === "ready" && mentorship !== null;
 
+  async function sendReport(): Promise<void> {
+    if (!reportMessageId) {
+      return;
+    }
+    if (!reportReason) {
+      setReportNotice(strings.report.reasonRequired);
+      return;
+    }
+    setBusy(true);
+    try {
+      const details = reportDetails.trim();
+      const response = await fetch("/api/reports", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          target_kind: "message",
+          target_id: reportMessageId,
+          reason: reportReason,
+          ...(details ? { details } : {}),
+        }),
+      });
+      if (!response.ok) {
+        setReportNotice(strings.report.failed);
+        return;
+      }
+      setReportMessageId(null);
+      setReportDetails("");
+      setReportReason("");
+      setReportNotice(strings.report.sent);
+    } catch {
+      setReportNotice(strings.report.failed);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <main>
       <h1>{strings.mentorship.title}</h1>
@@ -314,10 +355,60 @@ export default function MentorshipPage({ params }: { params: Promise<{ id: strin
                       <strong>{message.sender_name}</strong> · {dateLabel(message.created_at)}
                     </p>
                     <p>{message.body}</p>
+                    {showReportControl(mentorship.viewer_role) ? (
+                      reportMessageId === message.id ? (
+                        <div>
+                          <p>{strings.report.title}</p>
+                          <label>
+                            {strings.report.reasonLabel}{" "}
+                            <select
+                              value={reportReason}
+                              onChange={(event) => setReportReason(event.target.value)}
+                            >
+                              <option value="">—</option>
+                              {REPORT_REASON_OPTIONS.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <p>
+                            <label>
+                              {strings.report.detailsLabel}
+                              <textarea
+                                value={reportDetails}
+                                maxLength={2000}
+                                onChange={(event) => setReportDetails(event.target.value)}
+                              />
+                            </label>
+                          </p>
+                          <button type="button" disabled={busy} onClick={() => void sendReport()}>
+                            {strings.report.submit}
+                          </button>{" "}
+                          <button type="button" onClick={() => setReportMessageId(null)}>
+                            {strings.report.cancel}
+                          </button>
+                        </div>
+                      ) : (
+                        <p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setReportMessageId(message.id);
+                              setReportNotice(null);
+                            }}
+                          >
+                            {strings.report.control}
+                          </button>
+                        </p>
+                      )
+                    ) : null}
                   </li>
                 ))}
               </ul>
             )}
+            <p role="status">{reportNotice}</p>
             <p>
               <label>
                 {strings.mentorship.messageLabel}

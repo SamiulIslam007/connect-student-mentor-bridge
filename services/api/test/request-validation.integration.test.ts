@@ -19,6 +19,10 @@ import { DrizzleOutcomeService } from "../src/outcomes/drizzle-outcome.service.j
 import { OutcomesController } from "../src/outcomes/outcomes.controller.js";
 import { OUTCOME_SERVICE } from "../src/outcomes/outcomes.tokens.js";
 import { DrizzlePrivacyService } from "../src/privacy/drizzle-privacy.service.js";
+import { ReportsAdminController } from "../src/reports/admin.controller.js";
+import { DrizzleReportsService } from "../src/reports/drizzle-reports.service.js";
+import { ReportsController } from "../src/reports/reports.controller.js";
+import { REPORTS_SERVICE } from "../src/reports/reports.tokens.js";
 import { PrivacyController } from "../src/privacy/privacy.controller.js";
 import { PRIVACY_SERVICE } from "../src/privacy/privacy.tokens.js";
 import { DrizzleProfilesService } from "../src/profiles/drizzle-profiles.service.js";
@@ -48,6 +52,8 @@ const CONTROLLERS = [
   SessionsController,
   OutcomesController,
   PrivacyController,
+  ReportsController,
+  ReportsAdminController,
 ];
 
 let stack: TestApiStack | undefined;
@@ -63,6 +69,7 @@ before(async () => {
         provide: PRIVACY_SERVICE,
         useValue: new DrizzlePrivacyService({ database, secret: "x".repeat(32) }),
       },
+      { provide: REPORTS_SERVICE, useValue: new DrizzleReportsService(database) },
       { provide: AVAILABILITY_SERVICE, useValue: new DrizzleAvailabilityService(database) },
       { provide: AFFILIATIONS_SERVICE, useValue: new DrizzleAffiliationsService(database) },
       { provide: REQUESTS_SERVICE, useValue: new DrizzleRequestsService(database) },

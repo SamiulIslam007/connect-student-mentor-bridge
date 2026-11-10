@@ -423,12 +423,14 @@ There is no export-request id, no `202`, and no completion email: the export is 
 | `POST /v1/admin/outcomes/{id}/audit` | PA | yes | Start an audit |
 | `POST /v1/admin/break-glass` | PA | yes | Request time-limited access to private content. Body: `case_reference`, `reason`. Returns an expiring grant |
 | `GET /v1/admin/audit-log?actor=&object=&from=&to=` | PA | no | Search the audit log |
-| `POST /v1/reports` | all | yes | File an abuse report (any user) |
-| `GET /v1/admin/reports?status=` and `POST /v1/admin/reports/{id}/resolve` | PA | yes | Moderation queue |
-| `POST /v1/admin/users/{id}/suspend` and `/reinstate` | PA | yes | Reason required |
+| `POST /v1/reports` | all | no | **Built** by `abuse-reports-and-sanctions`: report a `user`, `message`, `profile`, or `outcome` with a fixed `reason` (`harassment`, `spam`, `impersonation`, `misrepresentation`, `other`) and optional `details` (1 to 2000 characters). A target the reporter cannot see is `404`, never `403`; a malformed kind, id, or reason is `422`. `201` with the open report. The reported user is never told who reported them |
+| `GET /v1/reports?cursor=&limit=` | PA + MFA | no | **Built**: the open queue, oldest first, keyset on `(created_at, id)`; `limit` 1 to 50 (default 20). `403 ROLE_REQUIRED` / `403 MFA_REQUIRED` |
+| `POST /v1/reports/{id}/resolve` | PA + MFA | no | **Built**: body `decision` (`actioned` or `dismissed`) and `reason` (1 to 1000 characters). One conditional update stores the decision, the reason, the resolver, and the time; a second call is `409 REPORT_ALREADY_RESOLVED`. One `REPORT_RESOLVED` audit row and one queued email to the reporter |
+| `POST /v1/admin/accounts/{id}/suspend` | PA + MFA | no | **Built**: body `reason` (required, 1 to 1000) and optional `end_date` (`YYYY-MM-DD`). One transaction sets `SUSPENDED`, stores `suspended_until`, deletes every session row, appends one `ACCOUNT_SUSPENDED` audit entry, and queues one notice email; `422` when the reason is missing, and nothing changes. The end date never lifts the suspension automatically (D-88, DEBT-40) |
+| `POST /v1/admin/accounts/{id}/reinstate` | PA + MFA | no | **Not built.** Lifting a suspension needs SQL today (DEBT-40) |
 | `GET /v1/admin/config` and `PUT /v1/admin/config` | PA | yes | Versioned configuration (weights, thresholds). Every change is audited |
 
-Only the two rows marked **Built** exist in this release. The `admin/disputes`, `admin/outcomes/{id}/audit`, break-glass, audit-log search, reports, suspend/reinstate, and config rows are deferred (Phase 1b or the hardening work); they are not served by the API today.
+Only the rows marked **Built** exist in this release. The `admin/disputes`, `admin/outcomes/{id}/audit`, break-glass, audit-log search, reinstate, and config rows are deferred (Phase 1b or the hardening work); they are not served by the API today.
 
 ### 5.10 AI assist (**Later**)
 
@@ -536,6 +538,7 @@ A refusal is `429 RATE_LIMITED` with a numeric `Retry-After`. The store is in pr
 | `DUPLICATE_PENDING_REQUEST` | 409 | Already a pending request to this mentor |
 | `REQUEST_INVALID_STATE` | 409 | Request cannot take this action now |
 | `OUTCOME_INVALID_STATE` | 409 | Outcome cannot take this action now |
+| `REPORT_ALREADY_RESOLVED` | 409 | The report was resolved by an earlier request |
 | `CONFLICT_DECLARATION_REQUIRED` | 422 | Mentor must declare conflicts |
 | `CONSENT_REQUIRED` | 403 | Active consent missing |
 | `EVIDENCE_REJECTED` | 422 | File type, size, or scan result not allowed |
