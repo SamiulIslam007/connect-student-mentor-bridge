@@ -248,6 +248,7 @@ export async function registerAndVerify(stack: TestApiStack, email: string): Pro
     email,
     password: TEST_PASSWORD,
     date_of_birth: "2000-01-01",
+    consent_accepted: true,
   });
   assert.equal(registration.status, 200, "registration must succeed before verification");
   const token = tokenFromEmail(await stack.sender.last("verify-email"), "/api/auth/verify");

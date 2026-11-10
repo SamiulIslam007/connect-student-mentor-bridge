@@ -44,6 +44,8 @@ export interface RegisterAccountInput {
   password: string;
   /** ISO calendar date (`YYYY-MM-DD`). Checked once and never persisted. */
   dateOfBirth: string;
+  /** Explicit acceptance of the terms and privacy notice (D-82). */
+  consentAccepted: boolean;
   timezone?: string;
   requestId: string;
 }

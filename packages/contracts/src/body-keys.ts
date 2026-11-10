@@ -10,6 +10,7 @@ export const ROUTE_BODY_KEYS: Readonly<Record<string, readonly string[]>> = {
     "email",
     "password",
     "date_of_birth",
+    "consent_accepted",
     "timezone",
     "account_status",
   ],

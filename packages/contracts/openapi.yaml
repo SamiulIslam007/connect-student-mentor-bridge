@@ -1718,7 +1718,7 @@ components:
     RegisterRequest:
       type: object
       additionalProperties: false
-      required: [display_name, email, password, date_of_birth]
+      required: [display_name, email, password, date_of_birth, consent_accepted]
       properties:
         display_name:
           type: string
@@ -1735,6 +1735,13 @@ components:
           type: string
           format: date
           description: Evaluated in the request only; never persisted.
+        consent_accepted:
+          type: boolean
+          description: >-
+            Required. Explicit acceptance of the terms of service and the privacy
+            notice published at `/terms` and `/privacy`. Absent or false is refused
+            with `422 VALIDATION_FAILED` naming `consent_accepted`, and no user row
+            and no consent record is written (D-82).
         timezone:
           type: string
           default: Asia/Dhaka

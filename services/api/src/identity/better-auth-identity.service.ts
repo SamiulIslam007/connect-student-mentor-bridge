@@ -43,6 +43,8 @@ import {
   type VerifyMfaResult,
 } from "@connect/domain";
 
+import { CONSENT_DOCUMENT_VERSION } from "@connect/config";
+
 import type { Database } from "../db/database.js";
 import {
   auditLogs,
@@ -59,8 +61,8 @@ import { appendAuditEntry, type AuditEntry } from "./audit-log.js";
 import { runWithRequestId } from "./request-context.js";
 import { syncMentorActivation } from "../onboarding/mentor-activation.js";
 
-/** Version of the terms and privacy notice shown at registration (Proposed). */
-export const CONSENT_DOCUMENT_VERSION = "2026-11";
+/** Re-exported for the identity tests; the value lives in `@connect/config` (D-82). */
+export { CONSENT_DOCUMENT_VERSION };
 
 /** Twelve months, the Proposed default in `docs/data-model.md`. */
 const SIGNUP_BLOCK_DURATION_MS = 365 * 24 * 60 * 60 * 1000;
@@ -236,6 +238,11 @@ export class BetterAuthIdentityService implements IdentityService {
   }
 
   async register(input: RegisterAccountInput): Promise<RegisterAccountResult> {
+    // Acceptance is a precondition, not a field to store: without it the service
+    // writes nothing at all, whatever the controller already refused (D-82).
+    if (input.consentAccepted !== true) {
+      throw new IdentityError("VALIDATION_ERROR", "consent_accepted must be true");
+    }
     const displayName = input.displayName;
     if (displayNameViolation(displayName)) {
       throw new IdentityError("VALIDATION_ERROR", "display name must be 1 to 100 characters");

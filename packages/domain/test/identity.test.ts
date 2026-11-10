@@ -100,6 +100,7 @@ test("a second implementation satisfies the identity interface", async () => {
     email: "fake@example.com",
     password: "a sufficiently long passphrase",
     dateOfBirth: "2000-01-01",
+    consentAccepted: true,
     requestId: "req-1",
   });
 

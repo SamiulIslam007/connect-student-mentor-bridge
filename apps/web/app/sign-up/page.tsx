@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 
+import { canSubmitSignUp } from "../../lib/consent-document";
 import { NETWORK_ERROR_STATUS, signUpErrorMessage } from "../../lib/sign-up-errors";
 import { strings } from "../../lib/strings";
 
@@ -15,9 +16,16 @@ function messageFor(status: number, code: string | undefined): string {
 export default function SignUpPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [consentAccepted, setConsentAccepted] = useState(false);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
+    // The browser gate only; the API refuses the same request without the flag (D-82).
+    if (!canSubmitSignUp(consentAccepted)) {
+      setSuccess(false);
+      setMessage(strings.signUp.consentRequired);
+      return;
+    }
     const form = new FormData(event.currentTarget);
 
     let status: number;
@@ -31,6 +39,7 @@ export default function SignUpPage() {
           email: form.get("email"),
           password: form.get("password"),
           date_of_birth: form.get("date_of_birth"),
+          consent_accepted: consentAccepted,
         }),
       });
       status = response.status;
@@ -94,7 +103,22 @@ export default function SignUpPage() {
           <input id="date_of_birth" name="date_of_birth" type="date" required />
         </p>
         <p>{strings.signUp.ageGateNote}</p>
-        <button type="submit">{strings.signUp.submit}</button>
+        <p>
+          <label>
+            <input
+              type="checkbox"
+              name="consent_accepted"
+              required
+              checked={consentAccepted}
+              onChange={(event) => setConsentAccepted(event.target.checked)}
+            />{" "}
+            {strings.signUp.consentLabel} <a href="/terms">{strings.signUp.consentTerms}</a>{" "}
+            {strings.signUp.consentAnd} <a href="/privacy">{strings.signUp.consentPrivacy}</a>
+          </label>
+        </p>
+        <button type="submit" disabled={!canSubmitSignUp(consentAccepted)}>
+          {strings.signUp.submit}
+        </button>
       </form>
       <p>
         <button type="button" onClick={onGoogleSignIn}>
