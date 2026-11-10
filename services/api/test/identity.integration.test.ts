@@ -600,7 +600,8 @@ test("suspension kills an open session on its next request", async (context) => 
   assert.equal(audit.rowCount, 1);
   assert.equal(audit.rows[0].actor_user_id, user.id);
   assert.equal(audit.rows[0].reason, "pilot suspension");
-  assert.deepEqual(audit.rows[0].metadata, {});
+  // The suspension records the end date it was given (here: none) in its metadata.
+  assert.deepEqual(audit.rows[0].metadata, { suspended_until: null });
   assert.ok(!JSON.stringify(audit.rows[0]).includes(token), "no session token in the audit entry");
 });
 

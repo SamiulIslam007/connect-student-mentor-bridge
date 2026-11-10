@@ -30,7 +30,8 @@ export type AuditAction =
   | "OUTCOME_WITHDRAWN"
   | "OUTCOME_REVIEWED"
   | "OUTCOME_REVERSED"
-  | "ACCOUNT_DELETED";
+  | "ACCOUNT_DELETED"
+  | "REPORT_RESOLVED";
 
 export interface AuditEntry {
   action: AuditAction;

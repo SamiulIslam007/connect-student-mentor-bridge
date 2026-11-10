@@ -69,6 +69,7 @@ export function createIdentityAuth({
         ageGateVersion: { type: "string", required: false, input: false },
         lastSeenAt: { type: "date", required: false, input: false },
         anonymizedAt: { type: "date", required: false, input: false },
+        suspendedUntil: { type: "date", required: false, input: false },
       },
     },
     session: {

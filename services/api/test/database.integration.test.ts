@@ -44,7 +44,7 @@ async function expectPermissionDenied(client: TestDatabase["client"], sql: strin
   }
 }
 
-test("the migrations create the twenty-nine tables and protect the ledger", async (context) => {
+test("the migrations create the thirty tables and protect the ledger", async (context) => {
   const current = requireDatabase(context);
   if (!current) {
     return;
@@ -75,6 +75,7 @@ test("the migrations create the twenty-nine tables and protect the ledger", asyn
       "outcome_events",
       "outcomes",
       "privacy_requests",
+      "reports",
       "reputation_events",
       "role_assignments",
       "sessions",
@@ -152,6 +153,16 @@ test("the application role can use every profile table and nothing else", async 
     );
     await client.query("UPDATE two_factors SET verified = false WHERE id = 'factor-grants'");
     await client.query("DELETE FROM two_factors WHERE id = 'factor-grants'");
+
+    // `0017` grants the moderation table: a report is inserted, resolved, and read.
+    const report = await client.query<{ id: string }>(
+      "INSERT INTO reports (reporter_user_id, target_kind, target_id, reason) VALUES ('user-grants', 'USER', 'someone-else', 'SPAM') RETURNING id",
+    );
+    await client.query(
+      "UPDATE reports SET status = 'DISMISSED', decision = 'DISMISSED', resolution_reason = 'probe', resolved_by_user_id = 'user-grants', resolved_at = now() WHERE id = $1",
+      [report.rows[0].id],
+    );
+    await client.query("DELETE FROM reports WHERE id = $1", [report.rows[0].id]);
 
     // `0007` grants the role table; registration writes the default role through it.
     const assignment = await client.query<{ id: string }>(

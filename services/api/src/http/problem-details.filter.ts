@@ -39,6 +39,7 @@ const PROBLEMS: Record<IdentityErrorCode, ProblemMapping> = {
   MENTORSHIP_INVALID_STATE: { status: 409, code: "MENTORSHIP_INVALID_STATE", title: "This mentorship cannot take that action now" },
   CAPACITY_BELOW_ACTIVE: { status: 409, code: "CAPACITY_BELOW_ACTIVE", title: "Resuming needs a free mentoring slot" },
   OUTCOME_INVALID_STATE: { status: 409, code: "OUTCOME_INVALID_STATE", title: "This outcome cannot take that action now" },
+  REPORT_ALREADY_RESOLVED: { status: 409, code: "REPORT_ALREADY_RESOLVED", title: "This report is already resolved" },
 };
 
 const PROBLEM_BASE = "https://docs.connect.example/problems/";

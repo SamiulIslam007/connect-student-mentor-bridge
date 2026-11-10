@@ -188,6 +188,8 @@ export interface SuspendAccountInput {
   userId: string;
   /** Free text with no PII; FR-ADM-05 owns the vocabulary. */
   reason: string;
+  /** ISO calendar date (`YYYY-MM-DD`): stored, shown, and audited, never enforced (D-88). */
+  suspendedUntil?: string;
   actorUserId: string;
   requestId: string;
 }
@@ -222,7 +224,8 @@ export type IdentityErrorCode =
   | "REQUEST_INVALID_STATE"
   | "MENTORSHIP_INVALID_STATE"
   | "CAPACITY_BELOW_ACTIVE"
-  | "OUTCOME_INVALID_STATE";
+  | "OUTCOME_INVALID_STATE"
+  | "REPORT_ALREADY_RESOLVED";
 
 /** A failure a feature module may map to a response, with no library detail. */
 export class IdentityError extends Error {
