@@ -32,7 +32,7 @@ import {
 } from "./database.js";
 
 /** Test-only value: 32 identical characters, never used outside the test suite. */
-const TEST_AUTH_SECRET = "x".repeat(32);
+export const TEST_AUTH_SECRET = "x".repeat(32);
 const APP_ORIGIN = "http://localhost:3000";
 
 export const TEST_PASSWORD = "a sufficiently long passphrase";

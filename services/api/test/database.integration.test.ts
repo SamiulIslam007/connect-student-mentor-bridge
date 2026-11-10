@@ -44,7 +44,7 @@ async function expectPermissionDenied(client: TestDatabase["client"], sql: strin
   }
 }
 
-test("the migrations create the twenty-eight tables and protect the ledger", async (context) => {
+test("the migrations create the twenty-nine tables and protect the ledger", async (context) => {
   const current = requireDatabase(context);
   if (!current) {
     return;
@@ -74,6 +74,7 @@ test("the migrations create the twenty-eight tables and protect the ledger", asy
       "outbox_events",
       "outcome_events",
       "outcomes",
+      "privacy_requests",
       "reputation_events",
       "role_assignments",
       "sessions",

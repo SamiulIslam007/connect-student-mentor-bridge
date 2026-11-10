@@ -22,6 +22,9 @@ import { OUTCOME_SERVICE } from "../src/outcomes/outcomes.tokens.js";
 import { DrizzleReputationService } from "../src/reputation/drizzle-reputation.service.js";
 import { ReputationController } from "../src/reputation/reputation.controller.js";
 import { REPUTATION_SERVICE } from "../src/reputation/reputation.tokens.js";
+import { DrizzlePrivacyService } from "../src/privacy/drizzle-privacy.service.js";
+import { PrivacyController } from "../src/privacy/privacy.controller.js";
+import { PRIVACY_SERVICE } from "../src/privacy/privacy.tokens.js";
 import { DrizzleProfilesService } from "../src/profiles/drizzle-profiles.service.js";
 import { ProfilesController } from "../src/profiles/profiles.controller.js";
 import { PROFILES_SERVICE } from "../src/profiles/profiles.tokens.js";
@@ -132,6 +135,9 @@ const MATRIX: Requirement[] = [
   // not ACTIVE) is asserted in reputation.integration.test.ts.
   { route: /^GET \/v1\/me\/impact$/, access: "signed-in" },
   { route: /^GET \/v1\/mentors\/:id\/impact$/, access: "signed-in" },
+  // Privacy: the caller's own record only; the account id comes from the session.
+  { route: /^POST \/v1\/privacy\/export$/, access: "signed-in", mutating: true },
+  { route: /^POST \/v1\/privacy\/delete$/, access: "signed-in", mutating: true },
 ];
 
 const PRINCIPAL_ROLES: Role[] = ["STUDENT", "MENTOR", "INSTITUTION_ADMIN", "PLATFORM_ADMIN"];
@@ -155,6 +161,7 @@ before(async () => {
       OutcomesController,
       ReviewQueueController,
       ReputationController,
+      PrivacyController,
     ],
     requestIdRoutes: [
       AuthController,
@@ -169,6 +176,7 @@ before(async () => {
       OutcomesController,
       ReviewQueueController,
       ReputationController,
+      PrivacyController,
     ],
     providers: (database) => [
       { provide: PROFILES_SERVICE, useValue: new DrizzleProfilesService(database) },
@@ -178,6 +186,10 @@ before(async () => {
       { provide: MENTORSHIP_SERVICE, useValue: new DrizzleMentorshipService(database) },
       { provide: OUTCOME_SERVICE, useValue: new DrizzleOutcomeService(database) },
       { provide: REPUTATION_SERVICE, useValue: new DrizzleReputationService(database) },
+      {
+        provide: PRIVACY_SERVICE,
+        useValue: new DrizzlePrivacyService({ database, secret: "x".repeat(32) }),
+      },
     ],
   });
   if (started.skipped) {

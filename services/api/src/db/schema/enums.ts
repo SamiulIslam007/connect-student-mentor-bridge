@@ -36,6 +36,11 @@ export const consentPurpose = pgEnum("consent_purpose", [
 
 export const consentAction = pgEnum("consent_action", ["GRANTED", "WITHDRAWN"]);
 
+/** Privacy requests tracked by `trust/privacy-export-and-erasure` (D-84, D-85). */
+export const privacyRequestKind = pgEnum("privacy_request_kind", ["EXPORT", "DELETE"]);
+
+export const privacyRequestStatus = pgEnum("privacy_request_status", ["COMPLETED", "FAILED"]);
+
 export const signupBlockReason = pgEnum("signup_block_reason", ["UNDER_18"]);
 
 export const fieldStatus = pgEnum("field_status", ["ACTIVE", "RETIRED"]);

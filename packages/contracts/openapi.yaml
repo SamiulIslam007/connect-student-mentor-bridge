@@ -1015,6 +1015,83 @@ paths:
                 $ref: "#/components/schemas/StatusResponse"
         "401":
           $ref: "#/components/responses/Problem"
+  /v1/privacy/export:
+    post:
+      operationId: exportAccountData
+      summary: Export the caller's own record as one JSON document
+      description: >-
+        Returns the caller's own rows from a fixed allowlist of tables and
+        columns, as one synchronous document, with `Cache-Control: no-store`
+        and an attachment disposition. It contains no password hash, no
+        second-factor secret or backup code, no session token, no provider
+        token, and no other user's rows (D-84). A `SUSPENDED`, `ANONYMIZED`, or
+        `DEACTIVATED` account is refused with `403`. The request is recorded in
+        `privacy_requests` in the same transaction.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The caller's own data as one JSON attachment
+          headers:
+            Cache-Control:
+              description: Always `no-store`
+              schema:
+                type: string
+            Content-Disposition:
+              description: Always an attachment disposition
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "429":
+          $ref: "#/components/responses/Problem"
+  /v1/privacy/delete:
+    post:
+      operationId: deleteAccount
+      summary: Tombstone the caller's own account and keep the ledger intact
+      description: >-
+        One transaction sets the account status to `ANONYMIZED`, replaces the
+        stored email with the application's keyed hash, replaces the display
+        name and personal profile text with neutral placeholders, replaces the
+        caller's own message bodies with a tombstone string, removes every
+        session, second-factor row, and availability window, sets a deleted
+        mentor's profile to `REMOVED`, appends one `ACCOUNT_DELETED` audit entry
+        and one `privacy_requests` row, and never updates or deletes an outcome,
+        ledger, verification, reputation, or audit row (D-85). Deletion is
+        immediate and irreversible. A second request finds the account already
+        anonymized and changes nothing.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeleteAccountRequest"
+      responses:
+        "200":
+          description: The account is tombstoned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "413":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        "429":
+          $ref: "#/components/responses/Problem"
   /v1/mentorships:
     get:
       operationId: listMentorships
@@ -1748,6 +1825,19 @@ components:
         account_status:
           type: string
           description: Accepted and ignored (no-op); the server owns account status.
+    DeleteAccountRequest:
+      type: object
+      additionalProperties: false
+      required: [confirm_email]
+      properties:
+        confirm_email:
+          type: string
+          format: email
+          description: >-
+            Must equal the account's stored address, case-insensitively, which
+            is the confirmation in place of recent re-authentication (D-86). A
+            mismatch is `422 VALIDATION_FAILED` naming the field and changes
+            nothing.
     SignInRequest:
       type: object
       additionalProperties: false
