@@ -30,7 +30,14 @@ export function navLinks(signedIn: boolean, roles: readonly string[] = []): NavM
           { kind: "link", href: "/requests", label: strings.nav.requests },
           { kind: "link", href: "/account/sessions", label: strings.nav.sessions },
           ...(roles.includes("PLATFORM_ADMIN")
-            ? [{ kind: "link" as const, href: "/admin/reviews", label: strings.nav.admin }]
+            ? [
+                { kind: "link" as const, href: "/admin/reviews", label: strings.nav.admin },
+                {
+                  kind: "link" as const,
+                  href: "/admin/reports",
+                  label: strings.nav.adminReports,
+                },
+              ]
             : []),
           { kind: "sign-out", label: strings.nav.signOut },
         ]
