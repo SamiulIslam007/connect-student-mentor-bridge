@@ -647,3 +647,35 @@ date: 2026-10-29
 - Reason: no `IdentityService` method verifies a password without creating a session, and the confirmation's job is to stop an accidental or cross-site delete, which `SameSite=Lax` plus a `POST` body already mostly does.
 - Status: Decided
 - Affects: `trust/privacy-export-and-erasure`, `docs/api-contracts.md` §5.8, `docs/auth-and-access-control.md`
+
+### D-87: Reports live in one flat table with four target kinds
+
+- Date: 2026-11-10
+- Decision: `reports` stores `reporter_user_id`, `target_kind` (`USER`, `MESSAGE`, `PROFILE`, `OUTCOME`), `target_id`, a fixed-set `reason`, optional `details` (1 to 2000 characters), `status` (`OPEN`, `RESOLVED`, `DISMISSED`), and the resolution fields. `target_id` is `text` because a user id is text and the other three are uuids, so visibility is verified per kind in the service (the same participant and ACTIVE rules the read routes use) and a target the reporter cannot see answers `404`. One queue page and one resolution route serve all four kinds. No case object, no assignment, no SLA, no appeal history — that is DEBT-28.
+- Reason: four target kinds share one queue and one decision; four tables would mean four queue pages, and four nullable foreign keys would mean four partial indexes and a check that exactly one is set.
+- Status: Decided
+- Affects: `trust/abuse-reports-and-sanctions`, `docs/data-model.md`, `docs/known-debt.md` (DEBT-28)
+
+### D-88: Sanctions are suspend-only, with a stored end date that never lifts itself
+
+- Date: 2026-11-10
+- Decision: The only sanction is suspension (`POST /v1/admin/accounts/{id}/suspend`) with a required reason and an optional `end_date`. One transaction sets `users.status = SUSPENDED`, stores `suspended_until`, deletes every session row, appends one `ACCOUNT_SUSPENDED` audit entry carrying the reason and the date, and queues one notice email with the reason and the date. There is no warn state, no remove state, and no automatic reinstatement: the column is stored, shown in the admin page, and audited, and lifting a suspension needs SQL (DEBT-40).
+- Reason: a warning is an email rather than a state, removal is deletion (owned by `privacy-export-and-erasure`), and lifting a sanction is a decision a single reviewer makes, not a timer.
+- Status: Decided
+- Affects: `trust/abuse-reports-and-sanctions`, `docs/functional-requirements.md` FR-ADM-05, `docs/data-model.md`, `docs/known-debt.md`
+
+### D-89: DEBT-09 is closed by a post-session status re-check
+
+- Date: 2026-11-10
+- Decision: `signIn()` re-reads the account status after the identity library issued the session and, for every non-`ACTIVE` status, revokes the just-issued session and throws the same refusal the library hook would have thrown. The status predicate is one exported pure function with a table-driven test over every `accountStatus` value. The suspension transaction was already atomic and is not what the debt described. Honest limit: the interleaving itself is not staged in a test, because the library owns its own connection and insert.
+- Reason: the seam is a re-check, not a shared transaction; the library inserts the session outside any transaction the API can join.
+- Status: Decided
+- Affects: `trust/abuse-reports-and-sanctions`, `identity/account-status-lifecycle` (no text change), `docs/known-debt.md` (DEBT-09)
+
+### D-90: Admin notices reuse the outbox with two new templates
+
+- Date: 2026-11-10
+- Decision: `account-suspended` (to the suspended account: the reason and the end date if any, no reporter) and `report-resolved` (to the reporter: resolved, the decision, no sanction detail) are written as `EmailRequested` outbox rows in the same transaction as their action. Dedupe keys are `<user>:<request_id>` and the report id, so a retried request sends once.
+- Reason: FR-NOT-01 requires one queued email per state change with retry, and the two recipients must not receive each other's facts.
+- Status: Decided
+- Affects: `trust/abuse-reports-and-sanctions`, `docs/api-contracts.md` §5.9, `docs/functional-requirements.md` FR-NOT-01
