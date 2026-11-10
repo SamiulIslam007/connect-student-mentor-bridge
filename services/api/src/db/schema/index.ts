@@ -6,6 +6,7 @@ export * from "./enums.js";
 export * from "./fields.js";
 export * from "./mentorships.js";
 export * from "./outcomes.js";
+export * from "./privacy.js";
 export * from "./reputation.js";
 export * from "./platform.js";
 export * from "./profiles.js";

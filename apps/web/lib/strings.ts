@@ -75,6 +75,21 @@ export const strings = {
     manageSessions: "Your sessions",
     manageSecurity: "Second factor",
     backToAccount: "Back to your account",
+    privacyTitle: "Your data",
+    exportLabel: "Download my data",
+    exportHelp:
+      "One JSON file with your account, profiles, requests, mentorship, messages you wrote, outcomes, and consent records. It does not include passwords, second factors, or session tokens.",
+    exportStarted: "Preparing your data…",
+    exportDone: "Your data has been downloaded.",
+    exportError: "Your data could not be prepared. Try again in a moment.",
+    deleteLabel: "Delete my account",
+    deleteHelp:
+      "Deletion is immediate and irreversible. Your name, email, profile text, and the messages you wrote are erased, and you are signed out everywhere. Confirmed outcomes and audit records stay in pseudonymised form so the record stays auditable.",
+    deleteEmailPrompt: "Type your email address to confirm",
+    deleteConfirm: "Delete my account permanently",
+    deleteMismatch: "That email address does not match your account.",
+    deleteDone: "Your account has been deleted.",
+    deleteError: "Your account could not be deleted. Try again in a moment.",
   },
   profile: {
     title: "Your profiles",

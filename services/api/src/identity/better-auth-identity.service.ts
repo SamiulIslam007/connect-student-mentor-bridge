@@ -1,5 +1,3 @@
-import { createHmac } from "node:crypto";
-
 import { and, desc, eq, gt, isNull } from "drizzle-orm";
 import { hashPassword } from "better-auth/crypto";
 
@@ -59,6 +57,7 @@ import { activatePendingAccount } from "./account-activation.js";
 import type { IdentityAuth } from "./better-auth.js";
 import { appendAuditEntry, type AuditEntry } from "./audit-log.js";
 import { runWithRequestId } from "./request-context.js";
+import { hashEmail } from "./email-hash.js";
 import { syncMentorActivation } from "../onboarding/mentor-activation.js";
 
 /** Re-exported for the identity tests; the value lives in `@connect/config` (D-82). */
@@ -1001,7 +1000,7 @@ export class BetterAuthIdentityService implements IdentityService {
   }
 
   private emailHash(email: string): string {
-    return createHmac("sha256", this.secret).update(email.trim().toLowerCase()).digest("hex");
+    return hashEmail(this.secret, email);
   }
 
   private async recordUnderageAttempt(email: string, now: Date): Promise<void> {

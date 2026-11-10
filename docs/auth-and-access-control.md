@@ -244,7 +244,12 @@ Legend: **Y** allowed, **-** not allowed, **own** only for their own records, **
 - The terms of service (`/terms`) and the privacy notice (`/privacy`) are session-free pages that render `CONSENT_DOCUMENT_VERSION` (`2026-11`), the same string stored as `document_version` on the two `GRANTED` rows (`TERMS`, `PRIVACY_NOTICE`).
 - Withdrawing or changing a consent is not built yet: `GET /v1/me/consents` and `PUT /v1/me/consents/{purpose}` remain documented but unbuilt (`FR-CONS-02`, DEBT-36).
 
-### 11.2 Institution SSO (Later)
+### 11.2 Account data rights
+
+- `POST /v1/privacy/export` and `POST /v1/privacy/delete` act on the caller's own record only; the account id comes from the session, never the body. The export refuses a `SUSPENDED`, `ANONYMIZED`, or `DEACTIVATED` account with `403 FORBIDDEN`; deletion is confirmed by repeating the account email (D-86) because no credential check exists that does not create a session.
+- Deletion revokes every session and second-factor row, so a deleted account authenticates nothing afterwards, and the deletion is recorded in `privacy_requests` plus one `ACCOUNT_DELETED` audit entry. No admin route can delete or restore an account (D-85).
+
+### 11.3 Institution SSO (Later)
 
 - Trigger: the first university that requires SAML or SCIM.
 - Path: connect the institution through an identity broker (WorkOS for SSO only, or Keycloak). The `IdentityService` seam and the stable user UUID keep this a configuration and adapter change.

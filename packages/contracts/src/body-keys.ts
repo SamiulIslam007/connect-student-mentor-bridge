@@ -24,6 +24,8 @@ export const ROUTE_BODY_KEYS: Readonly<Record<string, readonly string[]>> = {
   "POST /v1/auth/sign-out-everywhere": [],
   "POST /v1/auth/forgot-password": ["email"],
   "POST /v1/auth/reset-password": ["token", "new_password"],
+  "POST /v1/privacy/export": [],
+  "POST /v1/privacy/delete": ["confirm_email"],
   "POST /v1/me/deactivate": [],
   "POST /v1/me/roles/mentor": [],
   "PUT /v1/me/student-profile": [

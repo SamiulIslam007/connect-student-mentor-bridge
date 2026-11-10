@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { deletionConfirmed } from "../../lib/privacy-controls";
 import { strings } from "../../lib/strings";
 
 interface Account {
@@ -34,6 +35,8 @@ export default function AccountPage() {
   const [account, setAccount] = useState<Account | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const [confirmEmail, setConfirmEmail] = useState("");
+  const [privacyBusy, setPrivacyBusy] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -79,6 +82,64 @@ export default function AccountPage() {
     }
   }
 
+  async function exportData(): Promise<void> {
+    setPrivacyBusy(true);
+    setMessage(strings.account.exportStarted);
+    try {
+      // An empty JSON body: the export takes no fields, and the BFF needs one.
+      const response = await fetch("/api/privacy/export", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{}",
+      });
+      if (!response.ok) {
+        setMessage(response.status === 401 ? strings.account.signedOut : strings.account.exportError);
+        return;
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "connect-export.json";
+      link.click();
+      URL.revokeObjectURL(url);
+      setMessage(strings.account.exportDone);
+    } catch {
+      setMessage(strings.account.exportError);
+    } finally {
+      setPrivacyBusy(false);
+    }
+  }
+
+  async function deleteOwnAccount(): Promise<void> {
+    if (!account) {
+      return;
+    }
+    // The API refuses the same mismatch; this keeps the request off the wire.
+    if (!deletionConfirmed(account.email, confirmEmail)) {
+      setMessage(strings.account.deleteMismatch);
+      return;
+    }
+    setPrivacyBusy(true);
+    try {
+      const response = await fetch("/api/privacy/delete", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ confirm_email: confirmEmail }),
+      });
+      if (!response.ok) {
+        setMessage(response.status === 401 ? strings.account.signedOut : strings.account.deleteError);
+        return;
+      }
+      setAccount(null);
+      setMessage(strings.account.deleteDone);
+    } catch {
+      setMessage(strings.account.deleteError);
+    } finally {
+      setPrivacyBusy(false);
+    }
+  }
+
   return (
     <main>
       <h1>{strings.account.title}</h1>
@@ -120,6 +181,28 @@ export default function AccountPage() {
             {strings.account.deactivate}
           </button>
         )
+      ) : null}
+      {account ? (
+        <section>
+          <h2>{strings.account.privacyTitle}</h2>
+          <p>{strings.account.exportHelp}</p>
+          <button type="button" disabled={privacyBusy} onClick={() => void exportData()}>
+            {strings.account.exportLabel}
+          </button>
+          <p>{strings.account.deleteHelp}</p>
+          <label>
+            {strings.account.deleteEmailPrompt}{" "}
+            <input
+              type="email"
+              value={confirmEmail}
+              onChange={(event) => setConfirmEmail(event.target.value)}
+              autoComplete="off"
+            />
+          </label>{" "}
+          <button type="button" disabled={privacyBusy} onClick={() => void deleteOwnAccount()}>
+            {strings.account.deleteConfirm}
+          </button>
+        </section>
       ) : null}
     </main>
   );

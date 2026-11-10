@@ -66,6 +66,12 @@ export const RATE_LIMITS = {
   register: { limit: 3, ttl: 3_600_000 },
   /** Forgot/reset password: reset-mail flooding. */
   reset: { limit: 3, ttl: 3_600_000 },
+  /**
+   * Data export: a bulk read of almost every table for one user. A starting
+   * value pending pilot traffic (`docs/api-contracts.md` §9 keeps it Open as
+   * SEC-O2).
+   */
+  export: { limit: 3, ttl: 3_600_000 },
   /** Writes that enqueue email or append ledger rows. */
   write: { limit: 60, ttl: 60_000 },
   /** Every other route, including the public directory. */
