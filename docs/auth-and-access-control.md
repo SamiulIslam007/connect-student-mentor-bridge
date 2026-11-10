@@ -238,7 +238,13 @@ Legend: **Y** allowed, **-** not allowed, **own** only for their own records, **
 - **Small-cohort suppression:** aggregates below **5** individuals are hidden (owner decision). The KPI definitions that apply suppression live in `docs/kpis-and-metrics.md` (**Planned, not yet created**).
 - Institution admins are created by the platform (invitation only), never by self-registration, and must complete MFA enrollment before first use.
 
-### 11.1 Institution SSO (Later)
+### 11.1 Consent at registration is an explicit act the API enforces
+
+- `POST /v1/auth/register` refuses a body without `consent_accepted: true` with `422 VALIDATION_FAILED` naming the field, before any user, session, or consent row is written (D-82, `trust-surfaces`). The browser checkbox is a convenience; the API is the trust boundary, so a direct client cannot create an account with consent records for a document nobody opened.
+- The terms of service (`/terms`) and the privacy notice (`/privacy`) are session-free pages that render `CONSENT_DOCUMENT_VERSION` (`2026-11`), the same string stored as `document_version` on the two `GRANTED` rows (`TERMS`, `PRIVACY_NOTICE`).
+- Withdrawing or changing a consent is not built yet: `GET /v1/me/consents` and `PUT /v1/me/consents/{purpose}` remain documented but unbuilt (`FR-CONS-02`, DEBT-36).
+
+### 11.2 Institution SSO (Later)
 
 - Trigger: the first university that requires SAML or SCIM.
 - Path: connect the institution through an identity broker (WorkOS for SSO only, or Keycloak). The `IdentityService` seam and the stable user UUID keep this a configuration and adapter change.

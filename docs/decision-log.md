@@ -586,8 +586,9 @@ date: 2026-10-29
 ### D-79: Throttling covers the credential routes and the enqueueing writes
 
 - Date: 2026-11-09
-- Decision: `@nestjs/throttler@6.7.1` limits `POST /v1/auth/register`, `sign-in`, `forgot-password`, `reset-password` and the writes that enqueue email or append ledger rows, keyed by IP and, where known, by account; `/healthz` and `/readyz` stay unthrottled. A refusal is `429 RATE_LIMITED` with a numeric `Retry-After`, and the identity library's own `429` is translated to the same shape.
+- Decision: `@nestjs/throttler@6.7.1` limits `POST /v1/auth/register`, `sign-in`, `forgot-password`, `reset-password` and the writes that enqueue email or append ledger rows, keyed by the client IP only; `/healthz` and `/readyz` stay unthrottled. A refusal is `429 RATE_LIMITED` with a numeric `Retry-After`, and the identity library's own `429` is translated to the same shape.
 - Reason: DEBT-02 records unthrottled credential stuffing and signup-block flooding, DEBT-12 records the library's 429 surfacing as a 500, and these are the routes whose abuse costs the most. Throttling every route would throttle ordinary browsing.
+- Correction (2026-11-10, `trust-surfaces`): this row previously claimed the limit was "keyed by IP and, where known, by account". The shipped `ThrottlerModule` configuration keys on the client IP only, and `SEC-ABUSE-1`'s per-account bucket is not implemented; that gap is DEBT-27. The decision text is corrected rather than superseded because the code has never done otherwise.
 - Status: Decided
 - Affects: `openspec/changes/request-validation-and-rate-limits`, `docs/api-contracts.md` §9 and §10, `docs/security-requirements.md`, `docs/known-debt.md` (DEBT-02, DEBT-12)
 
@@ -606,3 +607,19 @@ date: 2026-10-29
 - Reason: A throttle with no numbers does not ship; inventing a calibrated value would be a ranking nobody measured. Labelling them placeholders matches D-67's pattern for the reputation multipliers.
 - Status: Decided
 - Affects: `openspec/changes/request-validation-and-rate-limits`, `packages/config/src/index.ts`, `docs/api-contracts.md` §9, `docs/security-requirements.md`
+
+### D-82: Registration requires an explicit consent acceptance, and the documents ship as versioned pages
+
+- Date: 2026-11-10
+- Decision: `POST /v1/auth/register` refuses a request unless the body carries `consent_accepted: true`, with `422 VALIDATION_FAILED` naming the field and no user, session, or consent row written. The terms of service and the privacy notice are published as session-free pages at `/terms` and `/privacy`, each rendering `CONSENT_DOCUMENT_VERSION` from `@connect/config`, which is also the `document_version` stored on the two `GRANTED` consent rows written in the registration transaction. Registration still writes exactly two rows (`TERMS`, `PRIVACY_NOTICE`).
+- Reason: a consent record for a document the user was never shown is a false record, and FR-CONS-01 is Must. The API is the trust boundary; the checkbox in the browser is a convenience.
+- Status: Decided
+- Affects: `trust/consent-and-audit-records`, `docs/api-contracts.md` §4.1, `docs/auth-and-access-control.md`, `packages/config/src/index.ts`, `services/api/src/identity/auth.controller.ts`
+
+### D-83: One disclaimer string is rendered beside every badge and impact summary
+
+- Date: 2026-11-10
+- Decision: `strings.disclaimer.verified` states that a verified badge means the affiliation was checked and that a counted outcome was confirmed by the mentor, and that outcomes are not independently audited by connect. It is rendered on every mentor-directory card and beside the profile impact summary, and no surface states or implies a platform audit. FR-VER-05 is Must.
+- Reason: credibility depends on not overstating a check; one sentence in the catalog is the only place the wording can drift.
+- Status: Decided
+- Affects: `trust/verified-badge-disclaimer`, `docs/functional-requirements.md` FR-VER-05, `apps/web/lib/strings.ts`

@@ -70,6 +70,7 @@ Content type `application/problem+json`. Every error has the same shape:
 ```
 
 - `errors` is reserved for field-level validation details. The current authentication and profile endpoints do not emit it; they carry `detail` and `code`. Field errors arrive with the SEC-API-1 strict-validation work (owner: Sprint 7).
+- An explicit consent acceptance is required where a document is presented: `POST /v1/auth/register` refuses a body without `consent_accepted: true` with `422 VALIDATION_FAILED` whose `detail` names the field, and writes no user and no consent record (D-82). The version stored on the two consent rows is `2026-11`, the same value `/terms` and `/privacy` render.
 - `code` is a stable machine-readable value from the error catalog (section 10). Clients branch on `code`, never on `title` or `detail`.
 - Errors never contain stack traces, SQL, internal paths, or personal data of other users (security requirement SEC-API-6).
 - The `type` URL is a placeholder until a public domain exists (**Open decision**).
@@ -103,7 +104,7 @@ Identity is implemented with better-auth behind `IdentityService` (ADR-003) and 
 
 | Method and path | Auth | Purpose | Success | Errors |
 |---|---|---|---|---|
-| `POST /v1/auth/register` | none | Create an account. A date of birth is accepted **only** to check the 18+ gate and is **not stored**. The response does not reveal whether the address already exists, and no session is returned. An email with a live `signup_blocks` entry is refused before the age gate is evaluated | `200` `{ "status": "verification_sent" }` | `422 VALIDATION_FAILED`, `422 UNDER_MINIMUM_AGE` |
+| `POST /v1/auth/register` | none | Create an account. A date of birth is accepted **only** to check the 18+ gate and is **not stored**. The response does not reveal whether the address already exists, and no session is returned. An email with a live `signup_blocks` entry is refused before the age gate is evaluated. The body requires `consent_accepted: true` (D-82): absent or `false` is `422 VALIDATION_FAILED` naming the field, creates no user and no consent row, and the accepted document version (`2026-11`) is the one `/terms` and `/privacy` render | `200` `{ "status": "verification_sent" }` | `422 VALIDATION_FAILED`, `422 UNDER_MINIMUM_AGE` |
 | `GET /v1/auth/verify?token=` | none | Confirm the email token (24-hour lifetime) and move the account from `pending` to `active`. Opening the link twice succeeds, sends no second email, and records no second activation | `200` `{ "status": "verified" }` | `400 INVALID_VERIFICATION_LINK`, `422 VALIDATION_FAILED` |
 | `POST /v1/auth/sign-in` | none | Email and password. A wrong password and an unknown email return the same `401` body; the account status is evaluated only after the password is accepted. The response includes `account_status`, so the client never guesses it | `200` `{ "session_token", "account" }` | `401 UNAUTHENTICATED`, `403 EMAIL_NOT_VERIFIED`, `403 ACCOUNT_SUSPENDED`, `403 FORBIDDEN`, `422 VALIDATION_FAILED` |
 | `POST /v1/auth/sign-out` | bearer | Revoke the current session | `200` `{ "status": "signed_out" }` | `401 UNAUTHENTICATED` |
