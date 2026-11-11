@@ -1278,6 +1278,128 @@ paths:
           $ref: "#/components/responses/Problem"
         "429":
           $ref: "#/components/responses/Problem"
+  /v1/institution/affiliations:
+    get:
+      operationId: listInstitutionClaims
+      summary: The pending affiliation claims of the caller's institutions
+      description: >-
+        Institution-admin read with an enrolled second factor (D-98). Returns only
+        `PENDING` claims whose institution the caller actively administers, ordered
+        by claim id; a claim with no institution never appears, and a claim outside
+        the scope answers `404` on the decision route rather than `403`. An entry
+        carries the claim id, the applicant's display name, the applicant's email
+        domain only, the claim kind, department, program, batch year and the claim
+        timestamp — never the local part, a biography, a goal, availability or a
+        capacity number (D-101).
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The caller's pending claims
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InstitutionClaimQueue"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+  /v1/institution/affiliations/{id}/decide:
+    post:
+      operationId: decideInstitutionClaim
+      summary: Verify or reject one pending affiliation claim
+      description: >-
+        Institution-admin write with an enrolled second factor and a required
+        reason of at most 1000 characters (D-100, D-102). Verification sets
+        `status` verified, `level` Level 1, `method` admin attestation, the deciding
+        account, the reason and a verification timestamp, revokes any other verified
+        affiliation of the same account in the same transaction, appends one audit
+        entry, queues one notice email and re-runs the mentor activation sync.
+        Rejection sets `status` rejected and grants no level. A claim created by the
+        acting account answers `403 FORBIDDEN`, a claim already decided answers
+        `409 CLAIM_ALREADY_DECIDED` and changes nothing.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The claim id (uuid).
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InstitutionClaimDecision"
+      responses:
+        "200":
+          description: The decided claim
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DecidedInstitutionClaim"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+        "413":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        "429":
+          $ref: "#/components/responses/Problem"
+  /v1/admin/institutions/{id}/admins:
+    post:
+      operationId: grantInstitutionAdmin
+      summary: Grant institution-admin for one institution
+      description: >-
+        Platform-admin write with an enrolled second factor (D-97, D-100). Writes
+        one `role_assignments` row carrying the institution and one `ROLE_GRANTED`
+        audit entry; a repeated grant changes nothing and writes no second entry.
+        An unknown institution answers `404` and an email with no account answers
+        `422`. No route grants `PLATFORM_ADMIN`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The institution id (uuid).
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InstitutionAdminGrant"
+      responses:
+        "200":
+          description: The account's roles after the grant
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleList"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "413":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        "429":
+          $ref: "#/components/responses/Problem"
   /v1/mentorships:
     get:
       operationId: listMentorships
@@ -2098,6 +2220,87 @@ components:
           type: string
         suspended_until:
           type: [string, "null"]
+    InstitutionClaim:
+      type: object
+      additionalProperties: false
+      required: [id, display_name, email_domain, kind, department, program, batch_year, claimed_at]
+      properties:
+        id:
+          type: string
+        display_name:
+          type: string
+        email_domain:
+          type: [string, "null"]
+          description: The domain only; the local part never leaves the database.
+        kind:
+          type: string
+          enum: [alumnus, student, faculty_staff, employee]
+        department:
+          type: [string, "null"]
+        program:
+          type: [string, "null"]
+        batch_year:
+          type: [integer, "null"]
+        claimed_at:
+          type: string
+          format: date-time
+    InstitutionClaimQueue:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/InstitutionClaim"
+    InstitutionClaimDecision:
+      type: object
+      additionalProperties: false
+      required: [decision, reason]
+      properties:
+        decision:
+          type: string
+          enum: [verify, reject]
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 1000
+          description: Required on both decisions; at most 1000 characters.
+    DecidedInstitutionClaim:
+      type: object
+      additionalProperties: false
+      required: [id, status, level, method, verified_at]
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum: [verified, rejected]
+        level:
+          type: string
+        method:
+          type: string
+        verified_at:
+          type: [string, "null"]
+          format: date-time
+    InstitutionAdminGrant:
+      type: object
+      additionalProperties: false
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+          description: An account that exists; an unknown address is `422`.
+    RoleList:
+      type: object
+      additionalProperties: false
+      required: [roles]
+      properties:
+        roles:
+          type: array
+          items:
+            type: string
     DeleteAccountRequest:
       type: object
       additionalProperties: false

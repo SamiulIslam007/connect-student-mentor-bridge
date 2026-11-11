@@ -39,6 +39,15 @@ export function navLinks(signedIn: boolean, roles: readonly string[] = []): NavM
                 },
               ]
             : []),
+          ...(roles.includes("INSTITUTION_ADMIN")
+            ? [
+                {
+                  kind: "link" as const,
+                  href: "/institution/attestations",
+                  label: strings.nav.institution,
+                },
+              ]
+            : []),
           { kind: "sign-out", label: strings.nav.signOut },
         ]
       : [

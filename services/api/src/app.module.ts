@@ -15,6 +15,8 @@ import { ProblemDetailsFilter } from "./http/problem-details.filter.js";
 import { BodyAllowlistInterceptor } from "./http/body-allowlist.interceptor.js";
 import { AuthController } from "./identity/auth.controller.js";
 import { IdentityModule } from "./identity/identity.module.js";
+import { AttestationController } from "./institutions/attestation.controller.js";
+import { InstitutionsModule } from "./institutions/institutions.module.js";
 import { MeController } from "./me/me.controller.js";
 import { MentorshipsController, SessionsController } from "./mentorships/mentorships.controller.js";
 import { MentorshipsModule } from "./mentorships/mentorships.module.js";
@@ -59,6 +61,7 @@ import { RequestsModule } from "./requests/requests.module.js";
     PrivacyModule,
     ReportsModule,
     MatchingModule,
+    InstitutionsModule,
   ],
   controllers: [HealthController],
   providers: [
@@ -90,6 +93,7 @@ export class AppModule implements NestModule {
         ReportsController,
         ReportsAdminController,
         MatchingController,
+        AttestationController,
       );
   }
 }

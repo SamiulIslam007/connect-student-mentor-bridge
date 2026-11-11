@@ -12,6 +12,9 @@ import { DrizzleAvailabilityService } from "../src/availability/drizzle-availabi
 import { AuthController } from "../src/identity/auth.controller.js";
 import { MeController } from "../src/me/me.controller.js";
 import { MeRolesController } from "../src/me/roles.controller.js";
+import { AttestationController } from "../src/institutions/attestation.controller.js";
+import { ATTESTATIONS_SERVICE } from "../src/institutions/attestation.tokens.js";
+import { DrizzleAttestationsService } from "../src/institutions/drizzle-attestation.service.js";
 import { DrizzleMatchingService } from "../src/matching/drizzle-matching.service.js";
 import { MatchingController } from "../src/matching/matching.controller.js";
 import { MATCHING_SERVICE } from "../src/matching/matching.tokens.js";
@@ -151,6 +154,21 @@ const MATRIX: Requirement[] = [
   { route: /^GET \/v1\/reports$/, access: "PLATFORM_ADMIN" },
   { route: /^POST \/v1\/reports\/:id\/resolve$/, access: "PLATFORM_ADMIN", mutating: true },
   { route: /^POST \/v1\/admin\/accounts\/:id\/suspend$/, access: "PLATFORM_ADMIN", mutating: true },
+  // Institution attestation: the queue and the decision need an institution
+  // scope and an enrolled second factor; the grant is platform-admin only.
+  { route: /^GET \/v1\/institution\/affiliations$/, access: "INSTITUTION_ADMIN" },
+  {
+    route: /^POST \/v1\/institution\/affiliations\/:id\/decide$/,
+    access: "INSTITUTION_ADMIN",
+    mutating: true,
+    body: { decision: "verify", reason: "checked against the registrar" },
+  },
+  {
+    route: /^POST \/v1\/admin\/institutions\/:id\/admins$/,
+    access: "PLATFORM_ADMIN",
+    mutating: true,
+    body: { email: "target@example.com" },
+  },
   // Matching: the controller requires the student role, and every registered
   // account holds it, so the matrix can only assert "signed-in" here; the
   // ROLE_REQUIRED refusal is driven by the integration test, which revokes it.
@@ -182,6 +200,7 @@ before(async () => {
       ReportsController,
       ReportsAdminController,
       MatchingController,
+      AttestationController,
     ],
     requestIdRoutes: [
       AuthController,
@@ -200,6 +219,7 @@ before(async () => {
       ReportsController,
       ReportsAdminController,
       MatchingController,
+      AttestationController,
     ],
     providers: (database) => [
       { provide: PROFILES_SERVICE, useValue: new DrizzleProfilesService(database) },
@@ -218,6 +238,7 @@ before(async () => {
         provide: MATCHING_SERVICE,
         useValue: new DrizzleMatchingService(new DrizzleProfilesService(database)),
       },
+      { provide: ATTESTATIONS_SERVICE, useValue: new DrizzleAttestationsService(database) },
     ],
   });
   if (started.skipped) {

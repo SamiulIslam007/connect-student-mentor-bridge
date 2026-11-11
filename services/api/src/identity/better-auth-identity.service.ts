@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, gt, isNotNull, isNull } from "drizzle-orm";
 import { hashPassword } from "better-auth/crypto";
 
 import {
@@ -602,6 +602,7 @@ export class BetterAuthIdentityService implements IdentityService {
       .values({
         userId: input.userId,
         role: input.role,
+        institutionId: input.institutionId ?? null,
         grantedByUserId: input.actorUserId ?? null,
       })
       .onConflictDoNothing()
@@ -627,6 +628,28 @@ export class BetterAuthIdentityService implements IdentityService {
     }
 
     return this.listRoles(input.userId);
+  }
+
+  /**
+   * The institution ids the account actively administers, ordered for a stable
+   * wire shape. Role scope stays inside the identity module (D-98).
+   */
+  async listInstitutionAdminScopes(userId: string): Promise<string[]> {
+    const rows = await this.database
+      .select({ institutionId: roleAssignments.institutionId })
+      .from(roleAssignments)
+      .where(
+        and(
+          eq(roleAssignments.userId, userId),
+          eq(roleAssignments.role, "INSTITUTION_ADMIN"),
+          isNull(roleAssignments.revokedAt),
+          isNotNull(roleAssignments.institutionId),
+        ),
+      )
+      .orderBy(asc(roleAssignments.institutionId));
+    return rows
+      .map((row) => row.institutionId)
+      .filter((id): id is string => typeof id === "string");
   }
 
   async activateAccount(input: ActivateAccountInput): Promise<AccountSummary> {

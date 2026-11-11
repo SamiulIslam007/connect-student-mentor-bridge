@@ -11,6 +11,7 @@ export const strings = {
     sessions: "Sessions",
     admin: "Admin",
     adminReports: "Reports",
+    institution: "Claims",
     signOut: "Sign out",
   },
   home: {
@@ -312,6 +313,24 @@ export const strings = {
     reasonImpersonation: "Impersonation",
     reasonMisrepresentation: "Misrepresentation",
     reasonOther: "Something else",
+  },
+  attestations: {
+    title: "Affiliation claims",
+    intro:
+      "Pending claims from your institution. A decision needs a written reason and cannot be changed afterwards.",
+    loading: "Loading claims…",
+    empty: "No pending claims right now.",
+    error: "The claims could not be loaded.",
+    signedOut: "Sign in with an institution admin account to review claims.",
+    mfaRequired:
+      "Reviewing claims requires an enrolled second factor. Set it up under Account → Second factor.",
+    reason: "Reason (required, 1 to 1000 characters)",
+    verify: "Verify",
+    reject: "Reject",
+    verified: "The claim is verified and the applicant is notified.",
+    rejected: "The claim is rejected and the applicant is notified.",
+    decideError: "The decision could not be saved.",
+    backToAccount: "Back to your account",
   },
   adminReports: {
     title: "Reports",

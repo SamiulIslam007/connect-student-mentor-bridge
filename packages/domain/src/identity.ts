@@ -227,7 +227,9 @@ export type IdentityErrorCode =
   | "OUTCOME_INVALID_STATE"
   | "REPORT_ALREADY_RESOLVED"
   /** A signed-in student asked for a student-only read without a profile. */
-  | "STUDENT_PROFILE_REQUIRED";
+  | "STUDENT_PROFILE_REQUIRED"
+  /** A claim was already decided by another reviewer (or by itself). */
+  | "CLAIM_ALREADY_DECIDED";
 
 /** A failure a feature module may map to a response, with no library detail. */
 export class IdentityError extends Error {
@@ -244,6 +246,8 @@ export interface GrantRoleInput {
   /** The caller's own account id; a body can never name another account. */
   userId: string;
   role: Role;
+  /** Required by `role_assignments_institution_required` for INSTITUTION_ADMIN. */
+  institutionId?: string;
   actorUserId?: string;
   requestId: string;
 }
@@ -271,6 +275,8 @@ export interface IdentityService {
   listRoles(userId: string): Promise<Role[]>;
   /** Idempotent; one `ROLE_GRANTED` audit entry on an actual grant only. */
   grantRole(input: GrantRoleInput): Promise<Role[]>;
+  /** The institution ids of the account's active INSTITUTION_ADMIN rows. */
+  listInstitutionAdminScopes(userId: string): Promise<string[]>;
   startProviderSignIn(input: ProviderSignInStartInput): Promise<ProviderSignInStart>;
   completeProviderSignIn(input: ProviderSignInCallbackInput): Promise<SignInResult>;
 }

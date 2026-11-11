@@ -4,6 +4,7 @@ import {
   AFFILIATION_ATTESTATIONS,
   seedAffiliationAttestations,
 } from "./affiliations.js";
+import { adminSeedRefusal, seedAdmins } from "./admins.js";
 import { INSTITUTION_SEED, seedInstitutions } from "./institutions.js";
 
 async function main(): Promise<void> {
@@ -30,6 +31,27 @@ async function main(): Promise<void> {
         granted: attestations.granted,
         skipped: attestations.skipped,
       }),
+    );
+
+    const refusal = adminSeedRefusal(process.env);
+    if (refusal) {
+      console.log(JSON.stringify({ event: "seed.admins_skipped", reason: refusal }));
+      return;
+    }
+    const admins = await seedAdmins(connection.db);
+    // The password is printed exactly once, on creation, and never stored.
+    for (const admin of admins.created) {
+      console.log(
+        JSON.stringify({
+          event: "seed.admin_created",
+          email: admin.email,
+          role: admin.role,
+          password: admin.password,
+        }),
+      );
+    }
+    console.log(
+      JSON.stringify({ event: "seed.admins", created: admins.created.length, skipped: admins.skipped }),
     );
   } finally {
     await connection.pool.end();

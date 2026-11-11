@@ -29,6 +29,8 @@ export const ROUTE_BODY_KEYS: Readonly<Record<string, readonly string[]>> = {
   "POST /v1/reports": ["target_kind", "target_id", "reason", "details"],
   "POST /v1/reports/:id/resolve": ["decision", "reason"],
   "POST /v1/admin/accounts/:id/suspend": ["reason", "end_date"],
+  "POST /v1/institution/affiliations/:id/decide": ["decision", "reason"],
+  "POST /v1/admin/institutions/:id/admins": ["email"],
   "POST /v1/me/deactivate": [],
   "POST /v1/me/roles/mentor": [],
   "PUT /v1/me/student-profile": [
