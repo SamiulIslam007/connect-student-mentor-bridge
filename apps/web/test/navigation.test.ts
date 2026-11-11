@@ -43,3 +43,15 @@ test("a failed or slow probe yields the signed-out set", () => {
   }
   assert.equal(isSignedIn(200), true);
 });
+
+test("the claims entry appears for an institution admin only", () => {
+  const admin = navLinks(true, ["STUDENT", "INSTITUTION_ADMIN"]);
+  const hrefs = admin.items.flatMap((item) => (item.kind === "link" ? [item.href] : []));
+  assert.ok(hrefs.includes("/institution/attestations"), "the role gets the queue");
+
+  const mentor = navLinks(true, ["STUDENT", "MENTOR"]);
+  const mentorHrefs = mentor.items.flatMap((item) => (item.kind === "link" ? [item.href] : []));
+  assert.ok(!mentorHrefs.includes("/institution/attestations"), "a mentor does not");
+
+  assert.deepEqual(navLinks(false, ["INSTITUTION_ADMIN"]), navLinks(false), "signed out is unchanged");
+});
