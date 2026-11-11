@@ -15,6 +15,7 @@ export * from "./account-status.js";
 export * from "./availability.js";
 export * from "./fields.js";
 export * from "./identity.js";
+export * from "./match.js";
 export * from "./mentor-onboarding.js";
 export * from "./mentorship.js";
 export * from "./outcome.js";

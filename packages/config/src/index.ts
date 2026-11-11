@@ -54,6 +54,28 @@ export const REPUTATION_CONTRIBUTION_MULTIPLIERS = {
 } as const;
 
 /**
+ * Matching weights (`docs/matching-algorithm-spec.md` §6, D-91): three of the
+ * four documented factors. GoalAlignment ships at 25 but is permanently
+ * missing, because neither side stores a structured goal type; the
+ * missing-factor rule renormalizes the rest (§6.3). Changing a weight is a
+ * one-line edit, no migration.
+ */
+export const MATCH_FACTOR_WEIGHTS = {
+  alumni: 30,
+  field: 30,
+  goal: 25,
+  availability: 15,
+} as const;
+
+/**
+ * MATH-FLAG (D-95): the spec says the alumni batch band is a config value but
+ * never states it. 0 means "the same batch year counts as close", the most
+ * conservative reading. The owner confirms the number; raising it changes this
+ * constant and one test expectation.
+ */
+export const MATCH_ALUMNI_BATCH_DISTANCE = 0;
+
+/**
  * Rate-limit starting values, **placeholders pending pilot traffic**
  * (`docs/api-contracts.md` §9 keeps the concrete values Open as SEC-O2). They
  * are configuration, so tuning needs no code change. `ttl` is milliseconds,
