@@ -727,3 +727,59 @@ date: 2026-10-29
 - Reason: it is a new append-only table with its grant, its probe row and a write path on a read endpoint, and no consumer exists before the weights are tuned.
 - Status: Decided
 - Affects: `docs/known-debt.md` (DEBT-42), `docs/matching-algorithm-spec.md` §12.1, `docs/functional-requirements.md` (FR-DISC-04 stays unbuilt)
+
+### D-97: A checked-in seed and a platform-admin grant route break the first-admin loop
+
+- Date: 2026-11-11
+- Decision: The dev seed creates one `PLATFORM_ADMIN` and one `INSTITUTION_ADMIN` on the reserved `example.com` domain, each with a generated password printed once and an `accounts` row hashed by the library's own `hashPassword`, and it refuses to run when `NODE_ENV=production`. Separately, `POST /v1/admin/institutions/{id}/admins` lets a platform admin with an enrolled second factor grant `INSTITUTION_ADMIN` for one named institution to an account named by email. Both paths are idempotent.
+- Reason: a grant needs a first actor and a redeploy per grant is what DEBT-19 recorded; the seed breaks the loop once and the route removes the redeploy.
+- Status: Decided
+- Affects: `institutions/affiliation-verification`, `docs/local-setup.md`, `AGENTS.md` rule 12 (D-103), `docs/known-debt.md` (DEBT-19 and DEBT-35 closed, DEBT-46 opened)
+
+### D-98: Institution routes share one scoped helper
+
+- Date: 2026-11-11
+- Decision: `requireInstitutionAdmin(identity, request)` returns the account, its roles and the institution ids it administers, refuses `403 ROLE_REQUIRED` when the account holds no active `INSTITUTION_ADMIN` row for any institution, and refuses `403 MFA_REQUIRED` without an enrolled second factor. `IdentityService` gains `listInstitutionAdminScopes(userId)` so role data stays inside the identity module.
+- Reason: one place decides the scope rule, and the role is read from the database on every request as every other route does.
+- Status: Decided
+- Affects: `services/api/src/authorization/authorize.ts`, `packages/domain/src/identity.ts`, `docs/auth-and-access-control.md`
+
+### D-99: Verification writes the full attestation and revokes the earlier verified row
+
+- Date: 2026-11-11
+- Decision: Verification sets `status` verified, `level` level 1, `method` admin attestation, `decided_by_user_id`, `decision_reason` and `verified_at`, revokes any other `VERIFIED` affiliation of the same account inside the same transaction, appends one audit entry, queues one `affiliation-decided` notice naming the institution and the decision only, and re-runs `syncMentorActivation`. Rejection sets `status` rejected with the reason and grants no level.
+- Reason: `affiliations_one_verified_unique` makes the revocation mandatory rather than optional, and a mentor must not stay pending after being verified.
+- Status: Decided
+- Affects: `institutions/affiliation-verification`, `docs/data-model.md`, `docs/api-contracts.md` §5.2
+
+### D-100: Three routes, and only one under `/v1/admin`
+
+- Date: 2026-11-11
+- Decision: `GET /v1/institution/affiliations`, `POST /v1/institution/affiliations/{id}/decide` with `decision` and a required `reason`, and `POST /v1/admin/institutions/{id}/admins` whose body names the target by `email`.
+- Reason: the actor owns the path name, and an admin can discover an email but not an account id.
+- Status: Decided
+- Affects: `packages/contracts/openapi.yaml`, `packages/contracts/src/body-keys.ts`, `docs/api-contracts.md` §5.2
+
+### D-101: The reviewer sees the claim, not the profile
+
+- Date: 2026-11-11
+- Decision: A queue entry carries the claim id, the applicant's display name, the email **domain only** (`split_part(email, '@', 2)` in SQL), the claim kind, department, program, batch year and the claim timestamp. No biography, goal, availability, capacity, account id or email local part is exposed.
+- Reason: FR-PROF-04 keeps a student's profile from an institution admin without consent, and an attestation does not need it.
+- Status: Decided
+- Affects: `institutions/affiliation-verification`, `docs/auth-and-access-control.md`
+
+### D-102: A decision is conditional, single, and never on one's own claim
+
+- Date: 2026-11-11
+- Decision: The update is `WHERE id = ... AND status = 'PENDING'`; a zero-row match answers `409 CLAIM_ALREADY_DECIDED` and rolls the whole transaction back, so no revoke, audit row or email remains. A claim created by the acting account is refused `403 FORBIDDEN` before any write, and a claim outside the caller's scope answers `404`.
+- Reason: the conditional update removes the two-reviewer race, and self-decision has no legitimate reading.
+- Status: Decided
+- Affects: `institutions/affiliation-verification`, `docs/api-contracts.md` §5.2
+
+### D-103: `AGENTS.md` rule 12 is narrowed, not broken
+
+- Date: 2026-11-11
+- Decision: Rule 12 now reads: no route grants `PLATFORM_ADMIN`; the hand-run `INSERT` in `docs/local-setup.md` stays the pilot path; the checked-in dev seed is the only script allowed to create a `PLATFORM_ADMIN` or an `INSTITUTION_ADMIN`, only on the reserved `example.com` demo accounts, with a once-printed generated password, and it refuses to run when `NODE_ENV=production`. Every admin route still requires an enrolled second factor.
+- Reason: the rule and the new seed would otherwise contradict each other in the same commit, and a rule that is quietly broken is worse than a rule that is explicitly narrowed.
+- Status: Decided
+- Affects: `AGENTS.md`, `docs/local-setup.md`, `services/api/src/db/seed/admins.ts`, `docs/known-debt.md` (DEBT-46)

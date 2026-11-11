@@ -162,8 +162,8 @@ Authentication internals are **library-native** better-auth tables in the same s
 | `institution_status` | `ONBOARDING`, `ACTIVE`, `SUSPENDED` |
 | `affiliation_kind` | `ALUMNUS`, `STUDENT`, `FACULTY_STAFF`, `EMPLOYEE`. **Built** by `affiliation-and-mentor-onboarding` (#5) |
 | `affiliation_level` | `LEVEL_0` (no verified affiliation), `LEVEL_1` (institutional email or admin attestation), `LEVEL_2` (employer-email check). **Built** by #5 (`LEVEL_2` written by nothing yet) |
-| `affiliation_method` | `INSTITUTIONAL_EMAIL`, `ADMIN_ATTESTATION`, `EMPLOYER_EMAIL`, `PROFESSIONAL_LINK`. **Built** by #5 |
-| `affiliation_status` | `PENDING`, `VERIFIED`, `REJECTED`, `REVOKED`, `EXPIRED`. **Built** by #5 (`REJECTED` and `EXPIRED` written by nothing yet) |
+| `affiliation_method` | `INSTITUTIONAL_EMAIL`, `ADMIN_ATTESTATION`, `EMPLOYER_EMAIL`, `PROFESSIONAL_LINK`. **Built** by #5; `ADMIN_ATTESTATION` is written by the seed attestation and, since `institution-admin-attestation` (2026-11-11), by an institution-admin verification that also stores `decided_by_user_id`, `decision_reason` and `verified_at` |
+| `affiliation_status` | `PENDING`, `VERIFIED`, `REJECTED`, `REVOKED`, `EXPIRED`. **Built** by #5; `REJECTED` is now written by the institution-admin decision (`institution-admin-attestation`, 2026-11-11), and `EXPIRED` is still written by nothing |
 | `mentor_onboarding_status` | `APPLIED`, `EMAIL_VERIFIED`, `AFFILIATION_VERIFIED`, `EMPLOYER_CHECKED` (verification progress only). **Built** by #5 (`EMPLOYER_CHECKED` written by nothing yet) |
 | `field_status` | `ACTIVE`, `RETIRED`. Field taxonomy only. Nothing writes `RETIRED` yet: field merge, rename, and retirement are Phase 1b (D-23), and retiring never deletes a field or its historical references |
 | `availability_context` | `STUDENT`, `MENTOR`. **Built** by `profile-availability-and-access-mode` (4b) together with `availability_windows` |

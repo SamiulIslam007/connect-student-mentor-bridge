@@ -85,9 +85,20 @@ SEED_DEMO_MENTORS=1 pnpm --filter api db:seed:demo   # dev only: two fake mentor
 
 The seed adds two illustrative institutions and, for the automatic Level 1 path, registers `example.edu.bd` on **Illustrative University**. That domain is a documentation placeholder (D-57), not a partnership: replace it when the pilot partner is known. `services/api/src/db/seed/affiliations.ts` also holds the checked-in pilot attestations (D-56); each entry writes one `VERIFIED`/`ADMIN_ATTESTATION` affiliation with its reason and one audit row, and an entry whose account does not exist is reported as skipped rather than failing the run. Run the seed again after the pilot accounts exist; a rerun inserts nothing new.
 
-### Granting the pilot's Platform Admin role
+### The dev admin accounts the seed creates
 
-The pilot has one reviewer (the owner). There is no script and no route (D-73): grant the role with one hand-run statement, then enroll a second factor through `/account/security` — the review routes require MFA (`403 MFA_REQUIRED` without one).
+`pnpm --filter api db:seed` also creates two demo admin accounts on the reserved `example.com` domain, so both admin surfaces are reachable locally without hand-written SQL (D-97, D-103):
+
+| Email | Role | Scope |
+|---|---|---|
+| `platform.admin@example.com` | `PLATFORM_ADMIN` | none |
+| `institution.admin@example.com` | `INSTITUTION_ADMIN` | the seeded **Illustrative University** |
+
+Each account is created once, with a **generated password printed exactly once** to the seed's stdout as `{"event":"seed.admin_created","email":...,"password":...}`. The password is not stored anywhere: copy it from that line or reset it through `/forgot-password`. A second run prints no password and inserts nothing. The seed **refuses** to create these accounts when `NODE_ENV=production`, so nothing privileged is ever seeded into a real environment; the review and attestation routes still require an enrolled second factor (`403 MFA_REQUIRED`), which you enroll through `/account/security`.
+
+### Granting the pilot's Platform Admin role in production
+
+The pilot has one reviewer (the owner). No route grants `PLATFORM_ADMIN`, and the dev seed never runs in production (D-103): grant the role with one hand-run statement, then enroll a second factor through `/account/security` — the admin routes require MFA (`403 MFA_REQUIRED` without one). Bootstrapping this first account is DEBT-46.
 
 ```sql
 INSERT INTO role_assignments (user_id, role)
@@ -95,7 +106,7 @@ SELECT id, 'PLATFORM_ADMIN' FROM users WHERE email = '<owner email>'
 ON CONFLICT DO NOTHING;
 ```
 
-Run it against the development database, for example `docker compose exec -T postgres psql -U connect -d connect -c "<statement>"`. The queue is at `/admin/reviews`; the header shows `Admin` only when the session holds `PLATFORM_ADMIN`.
+Run it against the database, for example `docker compose exec -T postgres psql -U connect -d connect -c "<statement>"`. The review queue is at `/admin/reviews` and the affiliation queue at `/institution/attestations`; the header shows `Admin` only when the session holds `PLATFORM_ADMIN`, and `Claims` only when it holds `INSTITUTION_ADMIN` with an institution scope.
 
 ### Demo mentors
 
