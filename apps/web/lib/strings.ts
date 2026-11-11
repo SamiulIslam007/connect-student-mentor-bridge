@@ -288,6 +288,14 @@ export const strings = {
     fullReason: "This mentor is at weekly capacity. Try again in a few days.",
     loadMore: "Load more",
     backToRequests: "Back to your requests",
+    suggestedTitle: "Suggested for you",
+    suggestedIntro:
+      "Chosen from your fields, your institution and your weekly availability. The order changes only with your own profile.",
+    suggestedEmpty:
+      "No suggestions yet. Save a student profile with your fields, or browse every mentor below.",
+    suggestedLoading: "Loading your suggestions…",
+    suggestedError: "Your suggestions could not be loaded. The full list is below.",
+    suggestedLimited: "Some profile details are missing, so this shortlist uses fewer signals.",
   },
   report: {
     control: "Report",
