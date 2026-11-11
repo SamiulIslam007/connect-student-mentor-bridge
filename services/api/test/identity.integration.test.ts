@@ -1248,3 +1248,81 @@ test("an unrecordable sign-in is refused and leaves no live session", async (con
   );
   assert.equal(succeeded.rowCount, 0, "no success entry is written");
 });
+
+test("grantRole carries an institution, stays idempotent, and the scope read returns it", async (context) => {
+  const current = requireStack(context);
+  if (!current || !identity) {
+    return;
+  }
+  await registerAndVerify("scope-admin@example.com");
+  await registerAndVerify("scope-outsider@example.com");
+  const user = await current.client.query<{ id: string }>(
+    "SELECT id FROM users WHERE email = $1",
+    ["scope-admin@example.com"],
+  );
+  const outsider = await current.client.query<{ id: string }>(
+    "SELECT id FROM users WHERE email = $1",
+    ["scope-outsider@example.com"],
+  );
+  const userId = user.rows[0]?.id;
+  const outsiderId = outsider.rows[0]?.id;
+  assert.ok(userId && outsiderId);
+
+  const institution = await current.client.query<{ id: string }>(
+    "INSERT INTO institutions (name, kind, country_code, status) VALUES ('Scope University', 'UNIVERSITY', 'BD', 'ACTIVE') RETURNING id",
+  );
+  const institutionId = institution.rows[0]?.id;
+  assert.ok(institutionId);
+
+  const grant = {
+    userId,
+    role: "INSTITUTION_ADMIN" as const,
+    institutionId,
+    actorUserId: userId,
+    requestId: "test-scope-grant",
+  };
+  const roles = await identity.grantRole(grant);
+  assert.ok(roles.includes("INSTITUTION_ADMIN"));
+
+  const rows = await current.client.query<{ institution_id: string }>(
+    "SELECT institution_id FROM role_assignments WHERE user_id = $1 AND role = 'INSTITUTION_ADMIN' AND revoked_at IS NULL",
+    [userId],
+  );
+  assert.equal(rows.rows.length, 1);
+  assert.equal(rows.rows[0]?.institution_id, institutionId);
+
+  await identity.grantRole({ ...grant, requestId: "test-scope-grant-repeat" });
+  const afterRepeat = await current.client.query<{ count: string }>(
+    "SELECT count(*) FROM role_assignments WHERE user_id = $1 AND role = 'INSTITUTION_ADMIN'",
+    [userId],
+  );
+  assert.equal(afterRepeat.rows[0]?.count, "1", "a repeat writes no second row");
+  const audits = await current.client.query<{ count: string }>(
+    "SELECT count(*) FROM audit_logs WHERE action = 'ROLE_GRANTED' AND object_id::text IN (SELECT id::text FROM role_assignments WHERE user_id = $1)",
+    [userId],
+  );
+  assert.equal(audits.rows[0]?.count, "1", "a repeat writes no second audit entry");
+
+  assert.deepEqual(await identity.listInstitutionAdminScopes(userId), [institutionId]);
+
+  const secondInstitution = await current.client.query<{ id: string }>(
+    "INSERT INTO institutions (name, kind, country_code, status) VALUES ('Second Scope University', 'UNIVERSITY', 'BD', 'ACTIVE') RETURNING id",
+  );
+  const secondId = secondInstitution.rows[0]?.id;
+  assert.ok(secondId);
+  await identity.grantRole({ ...grant, institutionId: secondId, requestId: "test-scope-grant-second" });
+  const scopes = await identity.listInstitutionAdminScopes(userId);
+  assert.equal(scopes.length, 2);
+  assert.deepEqual([...scopes].sort(), [institutionId, secondId].sort());
+
+  assert.deepEqual(await identity.listInstitutionAdminScopes(outsiderId), []);
+
+  // The database constraint, not the service, refuses a scopeless admin role.
+  await assert.rejects(
+    identity.grantRole({
+      userId: outsiderId,
+      role: "INSTITUTION_ADMIN",
+      requestId: "test-scope-grant-missing",
+    }),
+  );
+});
