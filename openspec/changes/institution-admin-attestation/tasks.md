@@ -57,7 +57,7 @@
 
 ## 9. Full checks, review and handoff
 
-- [x] 9.1 Run from the repo root with Docker up: `pnpm lint`, `pnpm typecheck`, then `CI=true pnpm test`, then `pnpm build`. Record each exit code and the per-package totals. `CI=true` is what makes the integration files run; a run with many skipped files and zero failures is UNVERIFIED, not a pass. The api suite replays the migrations for every integration file and takes ten minutes or more, so run the four gates as one background job writing to a log file and read it back.
+- [x] 9.1 (done 2026-11-11: lint 0, typecheck 0, `CI=true pnpm test` 0 with domain 113 / web 153 / contracts 19 / api 231, 0 skipped; build 0) Run from the repo root with Docker up: `pnpm lint`, `pnpm typecheck`, then `CI=true pnpm test`, then `pnpm build`. Record each exit code and the per-package totals. `CI=true` is what makes the integration files run; a run with many skipped files and zero failures is UNVERIFIED, not a pass. The api suite replays the migrations for every integration file and takes ten minutes or more, so run the four gates as one background job writing to a log file and read it back.
 - [x] 9.2 Run the review gate from `AGENTS.local.md` section 2: `verify-before-done`, `/ce-code-review`, the silent-failure hunt, the trust-rule check, `/ponytail-debt`, and `review-diff`. This change touches authorization and verification, which section 2 lists as high-risk, so run `/ponytail-audit` as well.
 - [x] 9.3 Confirm the diff contains only the tasks above, then write the handoff naming the PR, the merge commit, the per-package gate totals, the `AGENTS.md` rule-12 amendment, the seeded account emails, and anything left as debt.
 
