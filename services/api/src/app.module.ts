@@ -25,6 +25,8 @@ import { ReputationController } from "./reputation/reputation.controller.js";
 import { ReputationModule } from "./reputation/reputation.module.js";
 import { MeModule } from "./me/me.module.js";
 import { MeRolesController } from "./me/roles.controller.js";
+import { MatchingController } from "./matching/matching.controller.js";
+import { MatchingModule } from "./matching/matching.module.js";
 import { PrivacyController } from "./privacy/privacy.controller.js";
 import { ReportsAdminController } from "./reports/admin.controller.js";
 import { ReportsController } from "./reports/reports.controller.js";
@@ -56,6 +58,7 @@ import { RequestsModule } from "./requests/requests.module.js";
     ReputationModule,
     PrivacyModule,
     ReportsModule,
+    MatchingModule,
   ],
   controllers: [HealthController],
   providers: [
@@ -86,6 +89,7 @@ export class AppModule implements NestModule {
         PrivacyController,
         ReportsController,
         ReportsAdminController,
+        MatchingController,
       );
   }
 }
