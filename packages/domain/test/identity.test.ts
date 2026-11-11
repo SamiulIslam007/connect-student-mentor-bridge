@@ -79,6 +79,10 @@ class FakeIdentityService implements IdentityService {
     return ["STUDENT"];
   }
 
+  async listInstitutionAdminScopes(): Promise<string[]> {
+    return [];
+  }
+
   async grantRole(): Promise<Role[]> {
     return ["STUDENT", "MENTOR"];
   }

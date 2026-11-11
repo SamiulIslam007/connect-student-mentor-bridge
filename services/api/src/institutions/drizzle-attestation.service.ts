@@ -23,8 +23,6 @@ import {
   type PendingClaimRecord,
 } from "./attestations.service.js";
 
-type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
-
 function validatedDecision(value: unknown): ClaimDecision {
   if (typeof value === "string" && (CLAIM_DECISIONS as readonly string[]).includes(value)) {
     return value as ClaimDecision;

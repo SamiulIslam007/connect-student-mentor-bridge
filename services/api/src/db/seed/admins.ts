@@ -1,10 +1,10 @@
 import { randomBytes, randomUUID } from "node:crypto";
 
-import { hashPassword } from "better-auth/crypto";
 import { eq } from "drizzle-orm";
 
 import type { Database } from "../database.js";
 import { accounts, institutions, roleAssignments, users } from "../schema/index.js";
+import { hashAccountPassword } from "../../identity/password-hash.js";
 
 /**
  * The two privileged demo accounts (D-97, D-103). The reserved `example.com`
@@ -99,7 +99,7 @@ export async function seedAdmins(db: Database): Promise<AdminSeedResult> {
         accountId: userId,
         providerId: "credential",
         userId,
-        password: await hashPassword(password),
+        password: await hashAccountPassword(password),
       });
       await tx
         .insert(roleAssignments)
