@@ -151,8 +151,10 @@ const MATRIX: Requirement[] = [
   { route: /^GET \/v1\/reports$/, access: "PLATFORM_ADMIN" },
   { route: /^POST \/v1\/reports\/:id\/resolve$/, access: "PLATFORM_ADMIN", mutating: true },
   { route: /^POST \/v1\/admin\/accounts\/:id\/suspend$/, access: "PLATFORM_ADMIN", mutating: true },
-  // Matching: the shortlist is a student read; a mentor or admin is refused.
-  { route: /^GET \/v1\/suggestions$/, access: "STUDENT" },
+  // Matching: the controller requires the student role, and every registered
+  // account holds it, so the matrix can only assert "signed-in" here; the
+  // ROLE_REQUIRED refusal is driven by the integration test, which revokes it.
+  { route: /^GET \/v1\/suggestions$/, access: "signed-in" },
 ];
 
 const PRINCIPAL_ROLES: Role[] = ["STUDENT", "MENTOR", "INSTITUTION_ADMIN", "PLATFORM_ADMIN"];
