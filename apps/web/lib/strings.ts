@@ -269,6 +269,7 @@ export const strings = {
     error: "The request could not be sent.",
     applicationOnlyTitle: "A note is required",
     backToRequests: "Back to your requests",
+    restoredDraft: "Your previous draft for this mentor was restored.",
   },
   mentors: {
     title: "Find a mentor",
