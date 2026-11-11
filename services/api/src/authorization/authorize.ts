@@ -24,6 +24,31 @@ export async function actingAccountWithRoles(
   return { account, roles: await identity.listRoles(account.id) };
 }
 
+/** A caller that administers at least one institution, with that scope. */
+export interface ActingInstitutionAdmin extends ActingAccount {
+  /** The institution ids the account actively administers. */
+  institutionIds: string[];
+}
+
+/**
+ * The one scope rule for every institution route (D-98): the role is read from
+ * the database on each request, an empty scope is a refusal, and the role
+ * always needs an enrolled second factor.
+ */
+export async function requireInstitutionAdmin(
+  identity: IdentityService,
+  request: RequestWithId,
+): Promise<ActingInstitutionAdmin> {
+  const acting = await requireRole(identity, request, "INSTITUTION_ADMIN", { requiresMfa: true });
+  const institutionIds = (await identity.listInstitutionAdminScopes(acting.account.id)).filter(
+    (id): id is string => typeof id === "string",
+  );
+  if (institutionIds.length === 0) {
+    throw new IdentityError("ROLE_REQUIRED", "this action requires an institution scope");
+  }
+  return { ...acting, institutionIds };
+}
+
 export interface RequireRoleOptions {
   /** Refuse with `MFA_REQUIRED` when the account has no active second factor. */
   requiresMfa?: boolean;

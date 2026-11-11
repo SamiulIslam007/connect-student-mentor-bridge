@@ -15,7 +15,8 @@ export type EmailTemplate =
   | "outcome-reviewed"
   | "outcome-reversed"
   | "account-suspended"
-  | "report-resolved";
+  | "report-resolved"
+  | "affiliation-decided";
 
 export interface EmailMessage {
   to: string;
