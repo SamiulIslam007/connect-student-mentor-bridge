@@ -343,6 +343,16 @@ matching_config:
 | Fit label and thresholds | **Open decision** |
 | Maximum redirect depth | **Open decision** |
 
+### 12.1 Implemented in this release (2026-11-11)
+
+`mentor-suggestions-and-reasons` ships the first implementation. Deltas from the text above, each decided and recorded:
+
+- **Three of the four factors are live** (D-91): FieldOverlap (30), AlumniConnection (30), AvailabilityMatch (15). **GoalAlignment is permanently missing** because neither `student_profiles` nor `mentor_profiles` stores a structured goal type, so §6.3's missing-factor rule applies and `limited_information` is true whenever a factor is excluded.
+- **AlumniConnection** is 1.0 for the same institution, the same department (both recorded, case-insensitive) and a batch year inside the configured distance; 0.5 for the same institution and department with a batch year outside it or unrecorded; 0 otherwise — a different institution and an unrecorded department both score zero and stay active.
+- **AvailabilityMatch** measures overlapping minutes over the smaller side's total minutes, capped at 1.0, rather than counting coarse blocks. A pair whose windows are declared in different time zones is **missing**, not converted (`shortcut:` in `packages/domain/src/match.ts`; DEBT-43 owns correct conversion).
+- **Configuration is code, not a versioned table** (D-95): `MATCH_FACTOR_WEIGHTS` and `MATCH_ALUMNI_BATCH_DISTANCE` in `@connect/config`. The batch distance ships as **0** (the same batch year counts as close) whereas the illustrative block above says 3; that number is a `MATH-FLAG` the owner confirms (DEBT-44). Changing it is one constant and one test expectation.
+- **Suggestion logging (§11) is not built** (D-96, DEBT-42), and the tie-break hash is a 32-bit FNV-1a over `${studentId}:${mentorProfileId}`.
+
 ---
 
 ## 13. Evaluation plan and future AI

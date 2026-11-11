@@ -679,3 +679,51 @@ date: 2026-10-29
 - Reason: FR-NOT-01 requires one queued email per state change with retry, and the two recipients must not receive each other's facts.
 - Status: Decided
 - Affects: `trust/abuse-reports-and-sanctions`, `docs/api-contracts.md` §5.9, `docs/functional-requirements.md` FR-NOT-01
+
+### D-91: Matching ships three of the four documented factors
+
+- Date: 2026-11-11
+- Decision: Field overlap (weight 30), alumni connection (weight 30) and availability match (weight 15) are live. GoalAlignment (weight 25) is permanently missing because neither side stores a structured goal type, so `docs/matching-algorithm-spec.md` §6.3's missing-factor exclusion and renormalization apply and `limited_information` is true whenever a factor is excluded. Alumni connection scores 1.0 only when the institution, the department (both recorded, case-insensitive) and a batch year inside the configured distance all match; 0.5 for the same institution and department with a batch year outside it or unrecorded; 0 otherwise, including an unrecorded department.
+- Reason: a fourth factor would need one migration, two verbatim `MODIFIED` requirement blocks, two form changes and two contract updates, and it would still ship an unvalidated factor.
+- Status: Decided
+- Affects: `matching/mentor-suggestions`, `docs/matching-algorithm-spec.md` §12.1, `docs/known-debt.md` (DEBT-41)
+
+### D-92: Suggestions are a new student-only route and a new capability
+
+- Date: 2026-11-11
+- Decision: Suggestions are `GET /v1/suggestions` in a new `services/api/src/matching/` module and a new `matching/mentor-suggestions` capability. `requireRole(identity, request, "STUDENT")` gates it, and an account without the student role answers `403 ROLE_REQUIRED`. Because registration grants `STUDENT` to every account, the only caller that can hold the mentor role alone is one whose student role was revoked, which is how the integration test builds it. The directory endpoint and its payload are untouched.
+- Reason: ranking the directory through a query flag would force a `MODIFIED` delta on `profiles/mentor-directory` and put two payload shapes behind one path.
+- Status: Decided
+- Affects: `matching/mentor-suggestions`, `docs/api-contracts.md` §5.3, `packages/contracts/openapi.yaml`
+
+### D-93: The availability filter lives in suggestions only
+
+- Date: 2026-11-11
+- Decision: The availability factor is applied by the ranked read. `DEBT-26` is re-pointed: its suggestions half closes with this change, its directory half stays open.
+- Reason: the suggested set is the ranked view; the directory keeps its keyset contract and its scan cap.
+- Status: Decided
+- Affects: `docs/known-debt.md` (DEBT-26)
+
+### D-94: Availability is compared in wall-clock minutes, and mixed zones make the factor missing
+
+- Date: 2026-11-11
+- Decision: `AvailabilityMatch` is overlapping minutes over the smaller side's total minutes, capped at 1.0. Windows declared in more than one time zone make the factor missing rather than converted. A `shortcut:` comment in `packages/domain/src/match.ts` records the limit.
+- Reason: the pilot population is single-country (P6), and correct conversion needs a reference week and offset-change handling for a gain no pilot user can observe.
+- Status: Decided
+- Affects: `docs/matching-algorithm-spec.md` §12.1, `docs/known-debt.md` (DEBT-43), `packages/domain/src/match.ts`
+
+### D-95: Match weights and the batch distance are constants in `@connect/config`
+
+- Date: 2026-11-11
+- Decision: `MATCH_FACTOR_WEIGHTS` (alumni 30, field 30, goal 25, availability 15) and `MATCH_ALUMNI_BATCH_DISTANCE` (**0**) live in `@connect/config`, not in a versioned configuration table. `packages/domain` gains a workspace dependency on `@connect/config` so the pure rule reads those constants instead of re-declaring them. The batch distance is a `MATH-FLAG`: `docs/matching-algorithm-spec.md` §12's illustrative config says 3, the owner confirmed 0 for this release, and DEBT-44 owns the confirmation.
+- Reason: `FR-ADM-07` versioned configuration is unbuilt (`DEBT-31`), and the reputation weights already ship as labelled constants.
+- Status: Decided
+- Affects: `packages/config/src/index.ts`, `packages/domain/package.json`, `docs/matching-algorithm-spec.md` §12.1, `docs/known-debt.md` (DEBT-44)
+
+### D-96: Suggestion event logging is deferred
+
+- Date: 2026-11-11
+- Decision: Nothing is written when a suggestion is shown, opened or chosen; the read stays read-only.
+- Reason: it is a new append-only table with its grant, its probe row and a write path on a read endpoint, and no consumer exists before the weights are tuned.
+- Status: Decided
+- Affects: `docs/known-debt.md` (DEBT-42), `docs/matching-algorithm-spec.md` §12.1, `docs/functional-requirements.md` (FR-DISC-04 stays unbuilt)
