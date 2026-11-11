@@ -783,3 +783,27 @@ date: 2026-10-29
 - Reason: the rule and the new seed would otherwise contradict each other in the same commit, and a rule that is quietly broken is worse than a rule that is explicitly narrowed.
 - Status: Decided
 - Affects: `AGENTS.md`, `docs/local-setup.md`, `services/api/src/db/seed/admins.ts`, `docs/known-debt.md` (DEBT-46)
+
+### D-104: The request draft lives in `localStorage`, one key per mentor
+
+- Date: 2026-11-11
+- Decision: `apps/web/lib/request-draft.ts` stores the six form values under `connect:request-draft:<mentorProfileId>`, never a token, a password or an email. Every storage call is wrapped, so an absent, throwing or full store reads as "no draft" and never blocks a send.
+- Reason: it survives a tab close, which is the failure this fixes, and it needs no new dependency; the identity spec's "no token in browser storage" rule stays true because no credential is written.
+- Status: Decided
+- Affects: `mentorship/request-lifecycle` (ADDED requirement), `apps/web/lib/request-draft.ts`, `docs/known-debt.md` (DEBT-49)
+
+### D-105: A draft expires twenty-four hours after its last write
+
+- Date: 2026-11-11
+- Decision: The stored entry carries `savedAt`; a read older than `DRAFT_TTL_MS` ignores the values and removes the entry. A malformed entry is removed rather than repaired.
+- Reason: a week-old half-written request would resurface against a mentor whose context has changed, and the loss it prevents is minutes of typing.
+- Status: Decided
+- Affects: `mentorship/request-lifecycle`, `apps/web/lib/request-draft.ts`
+
+### D-106: Every draft is cleared at both sign-out call sites
+
+- Date: 2026-11-11
+- Decision: `clearAllDrafts()` runs in `apps/web/app/session-nav.tsx` after the header sign-out and in `apps/web/app/account/sessions/page.tsx` after sign-out-everywhere, before the redirect in both cases.
+- Reason: personal text on a shared device must not survive a deliberate sign-out, and the second call site would otherwise be missed by a rule that only names "the sign-out path".
+- Status: Decided
+- Affects: `apps/web/app/session-nav.tsx`, `apps/web/app/account/sessions/page.tsx`, `mentorship/request-lifecycle`
