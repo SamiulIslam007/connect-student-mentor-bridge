@@ -1,4 +1,6 @@
 import type {
+  AvailabilityWindow,
+  MatchAffiliation,
   MentorAccessMode,
   MentorAccessModeChoice,
   MentorOnboardingStatus,
@@ -165,6 +167,45 @@ export function mentorDirectoryPayload(card: MentorDirectoryCard): Record<string
 }
 
 /**
+ * The pool the suggestion read scores (design R2). It reuses the directory's
+ * conditions, capacity aggregate and field join, and adds only what the score
+ * needs, so a second capacity rule can never appear.
+ */
+export interface SuggestionPoolStudent {
+  id: string;
+  userId: string;
+  primaryFieldId: string;
+  interestFieldIds: string[];
+  /** The one `VERIFIED` affiliation, or null when none is verified. */
+  affiliation: MatchAffiliation | null;
+  availability: AvailabilityWindow[];
+}
+
+export interface SuggestionPoolCandidate extends MentorDirectoryCard {
+  /** The primary field id followed by the additional ones. */
+  fieldIds: string[];
+  affiliation: MatchAffiliation | null;
+  availability: AvailabilityWindow[];
+  weeklyCapacity: number;
+  slotsInUse: number;
+  /** Requests received inside the rolling capacity window. */
+  requestsInWindow: number;
+}
+
+export interface SuggestionPool {
+  /** Null when the account has no student profile; the controller refuses. */
+  student: SuggestionPoolStudent | null;
+  candidates: SuggestionPoolCandidate[];
+}
+
+/**
+ * The bounded candidate scan. shortcut: one ordered scan of 200 rows, so a
+ * prefix crowded with ineligible mentors could yield fewer than five
+ * suggestions; upgrade to a SQL prefilter when the pilot outgrows it.
+ */
+export const SUGGESTION_POOL_LIMIT = 200;
+
+/**
  * The profile seam. Every method takes the acting user id, which the controller
  * derives from the session only, so no caller can address another user's profile.
  */
@@ -179,4 +220,6 @@ export interface ProfilesService {
   readMentorContext(mentorProfileId: string): Promise<MentorContext | null>;
   /** The public directory read: ACTIVE, not PAUSED, keyset by profile id (design D4). */
   listMentors(input: ListMentorsInput): Promise<MentorDirectoryPage>;
+  /** The suggestion read: one bounded scan with the directory's own rules (R2). */
+  readSuggestionPool(input: { userId: string }): Promise<SuggestionPool>;
 }

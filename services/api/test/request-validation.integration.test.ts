@@ -19,6 +19,9 @@ import { DrizzleOutcomeService } from "../src/outcomes/drizzle-outcome.service.j
 import { OutcomesController } from "../src/outcomes/outcomes.controller.js";
 import { OUTCOME_SERVICE } from "../src/outcomes/outcomes.tokens.js";
 import { DrizzlePrivacyService } from "../src/privacy/drizzle-privacy.service.js";
+import { DrizzleMatchingService } from "../src/matching/drizzle-matching.service.js";
+import { MatchingController } from "../src/matching/matching.controller.js";
+import { MATCHING_SERVICE } from "../src/matching/matching.tokens.js";
 import { ReportsAdminController } from "../src/reports/admin.controller.js";
 import { DrizzleReportsService } from "../src/reports/drizzle-reports.service.js";
 import { ReportsController } from "../src/reports/reports.controller.js";
@@ -54,6 +57,7 @@ const CONTROLLERS = [
   PrivacyController,
   ReportsController,
   ReportsAdminController,
+  MatchingController,
 ];
 
 let stack: TestApiStack | undefined;
@@ -75,6 +79,10 @@ before(async () => {
       { provide: REQUESTS_SERVICE, useValue: new DrizzleRequestsService(database) },
       { provide: MENTORSHIP_SERVICE, useValue: new DrizzleMentorshipService(database) },
       { provide: OUTCOME_SERVICE, useValue: new DrizzleOutcomeService(database) },
+      {
+        provide: MATCHING_SERVICE,
+        useValue: new DrizzleMatchingService(new DrizzleProfilesService(database)),
+      },
     ],
   });
   if (started.skipped) {

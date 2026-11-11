@@ -12,6 +12,9 @@ import { DrizzleAvailabilityService } from "../src/availability/drizzle-availabi
 import { AuthController } from "../src/identity/auth.controller.js";
 import { MeController } from "../src/me/me.controller.js";
 import { MeRolesController } from "../src/me/roles.controller.js";
+import { DrizzleMatchingService } from "../src/matching/drizzle-matching.service.js";
+import { MatchingController } from "../src/matching/matching.controller.js";
+import { MATCHING_SERVICE } from "../src/matching/matching.tokens.js";
 import { DrizzleMentorshipService } from "../src/mentorships/drizzle-mentorship.service.js";
 import { MentorshipsController, SessionsController } from "../src/mentorships/mentorships.controller.js";
 import { MENTORSHIP_SERVICE } from "../src/mentorships/mentorships.tokens.js";
@@ -148,6 +151,10 @@ const MATRIX: Requirement[] = [
   { route: /^GET \/v1\/reports$/, access: "PLATFORM_ADMIN" },
   { route: /^POST \/v1\/reports\/:id\/resolve$/, access: "PLATFORM_ADMIN", mutating: true },
   { route: /^POST \/v1\/admin\/accounts\/:id\/suspend$/, access: "PLATFORM_ADMIN", mutating: true },
+  // Matching: the controller requires the student role, and every registered
+  // account holds it, so the matrix can only assert "signed-in" here; the
+  // ROLE_REQUIRED refusal is driven by the integration test, which revokes it.
+  { route: /^GET \/v1\/suggestions$/, access: "signed-in" },
 ];
 
 const PRINCIPAL_ROLES: Role[] = ["STUDENT", "MENTOR", "INSTITUTION_ADMIN", "PLATFORM_ADMIN"];
@@ -174,6 +181,7 @@ before(async () => {
       PrivacyController,
       ReportsController,
       ReportsAdminController,
+      MatchingController,
     ],
     requestIdRoutes: [
       AuthController,
@@ -191,6 +199,7 @@ before(async () => {
       PrivacyController,
       ReportsController,
       ReportsAdminController,
+      MatchingController,
     ],
     providers: (database) => [
       { provide: PROFILES_SERVICE, useValue: new DrizzleProfilesService(database) },
@@ -205,6 +214,10 @@ before(async () => {
         useValue: new DrizzlePrivacyService({ database, secret: "x".repeat(32) }),
       },
       { provide: REPORTS_SERVICE, useValue: new DrizzleReportsService(database) },
+      {
+        provide: MATCHING_SERVICE,
+        useValue: new DrizzleMatchingService(new DrizzleProfilesService(database)),
+      },
     ],
   });
   if (started.skipped) {

@@ -225,7 +225,9 @@ export type IdentityErrorCode =
   | "MENTORSHIP_INVALID_STATE"
   | "CAPACITY_BELOW_ACTIVE"
   | "OUTCOME_INVALID_STATE"
-  | "REPORT_ALREADY_RESOLVED";
+  | "REPORT_ALREADY_RESOLVED"
+  /** A signed-in student asked for a student-only read without a profile. */
+  | "STUDENT_PROFILE_REQUIRED";
 
 /** A failure a feature module may map to a response, with no library detail. */
 export class IdentityError extends Error {

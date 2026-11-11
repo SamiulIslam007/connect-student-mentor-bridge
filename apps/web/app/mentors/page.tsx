@@ -10,6 +10,7 @@ import {
   type MentorCard,
   type MentorDirectoryPayload,
 } from "../../lib/mentor-directory";
+import { readSuggestions, reasonLabels, type Suggestion } from "../../lib/suggestions";
 import { strings } from "../../lib/strings";
 
 interface FieldSummary {
@@ -29,6 +30,8 @@ export default function MentorsPage() {
   const [moreError, setMoreError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [suggestedState, setSuggestedState] = useState<PageState>("loading");
 
   useEffect(() => {
     let active = true;
@@ -61,6 +64,43 @@ export default function MentorsPage() {
       active = false;
     };
   }, [field, accessState, reloadKey]);
+
+  // The shortlist is a student-only read: a signed-out visitor or a mentor gets
+  // a refusal, which reads as the empty state rather than an error.
+  useEffect(() => {
+    let active = true;
+
+    async function load(): Promise<void> {
+      setSuggestedState("loading");
+      try {
+        const response = await fetch("/api/suggestions");
+        if (!active) {
+          return;
+        }
+        if (response.status >= 500) {
+          setSuggestedState("error");
+          return;
+        }
+        if (!response.ok) {
+          setSuggestions([]);
+          setSuggestedState("ready");
+          return;
+        }
+        const payload = (await response.json()) as { data?: unknown };
+        setSuggestions(readSuggestions(payload));
+        setSuggestedState("ready");
+      } catch {
+        if (active) {
+          setSuggestedState("error");
+        }
+      }
+    }
+
+    void load();
+    return () => {
+      active = false;
+    };
+  }, [reloadKey]);
 
   // The field taxonomy read needs a session; an anonymous visitor still gets
   // the directory and the access-state filter.
@@ -107,6 +147,47 @@ export default function MentorsPage() {
     <main>
       <h1>{strings.mentors.title}</h1>
       <p>{strings.mentors.intro}</p>
+
+      <section>
+        <h2>{strings.mentors.suggestedTitle}</h2>
+        <p>{strings.mentors.suggestedIntro}</p>
+        <p role="status">
+          {suggestedState === "loading"
+            ? strings.mentors.suggestedLoading
+            : suggestedState === "error"
+              ? strings.mentors.suggestedError
+              : null}
+        </p>
+        {suggestedState === "ready" && suggestions.length === 0 ? (
+          <p>{strings.mentors.suggestedEmpty}</p>
+        ) : null}
+        {suggestions.length > 0 ? (
+          <ul>
+            {suggestions.map((entry) => (
+              <li key={entry.id}>
+                <p>
+                  <strong>{entry.display_name}</strong> · {entry.headline}
+                </p>
+                <p>
+                  {entry.primary_field.name} · {entry.languages.join(", ")}
+                </p>
+                <ul>
+                  {reasonLabels(entry).map((reason) => (
+                    <li key={reason}>{reason}</li>
+                  ))}
+                </ul>
+                {entry.limited_information ? <p>{strings.mentors.suggestedLimited}</p> : null}
+                <p>{strings.disclaimer.verified}</p>
+                <p>
+                  <a href={`/request/new?mentor=${encodeURIComponent(entry.id)}`}>
+                    {strings.mentors.request}
+                  </a>
+                </p>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </section>
 
       <p>
         {fields.length > 0 ? (

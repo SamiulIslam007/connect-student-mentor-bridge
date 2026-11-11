@@ -169,8 +169,9 @@ export async function startApiStack(
     }
   }
 
+  // Errors only: a dependency-resolution failure must never be silent here.
   const app: NestExpressApplication = await NestFactory.create<NestExpressApplication>(StackModule, {
-    logger: false,
+    logger: ["error"],
     bodyParser: false,
   });
   app.useBodyParser("json", { limit: API_MAX_BODY_BYTES, strict: false });

@@ -9,12 +9,16 @@ import {
   slotsInUse,
   validateMentorProfileInput,
   validateStudentProfileInput,
+  type AvailabilityWindow,
+  type MatchAffiliation,
 } from "@connect/domain";
 
 import { DATABASE } from "../db/database.module.js";
 import { liveMentorshipCount } from "../mentorships/drizzle-mentorship.service.js";
 import type { Database } from "../db/database.js";
 import {
+  affiliations,
+  availabilityWindows,
   fields,
   mentorFields,
   mentorProfiles,
@@ -39,7 +43,10 @@ import type {
   SetMentorAccessModeInput,
   SaveStudentProfileInput,
   StudentProfileRecord,
+  SuggestionPool,
+  SuggestionPoolCandidate,
 } from "./profiles.service.js";
+import { SUGGESTION_POOL_LIMIT } from "./profiles.service.js";
 
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
@@ -427,6 +434,206 @@ export class DrizzleProfilesService implements ProfilesService {
 
     const page = collected.slice(0, limit);
     return { cards: page, nextCursor: hasMore ? page[page.length - 1]?.id ?? null : null };
+  }
+
+  /**
+   * The suggestion pool (design R2): one bounded scan under the directory's own
+   * conditions, the same capacity aggregate, plus the affiliation, availability
+   * and request counts the score reads. The caller's own mentor profile is
+   * excluded in the query so a dual-role account can never suggest itself.
+   */
+  async readSuggestionPool({ userId }: { userId: string }): Promise<SuggestionPool> {
+    const [student] = await this.db
+      .select({ id: studentProfiles.id, primaryFieldId: studentProfiles.primaryFieldId })
+      .from(studentProfiles)
+      .where(eq(studentProfiles.userId, userId))
+      .limit(1);
+    if (!student) {
+      return { student: null, candidates: [] };
+    }
+
+    const [interests, studentAffiliation, studentAvailability] = await Promise.all([
+      this.readJoinFields(this.db, "student", student.id),
+      this.readVerifiedAffiliation(userId),
+      this.readAvailability([userId], "STUDENT"),
+    ]);
+
+    const rows = await this.db
+      .select({
+        id: mentorProfiles.id,
+        userId: mentorProfiles.userId,
+        displayName: users.name,
+        headline: mentorProfiles.headline,
+        accessMode: mentorProfiles.accessMode,
+        languages: mentorProfiles.languages,
+        weeklyCapacity: mentorProfiles.weeklyCapacity,
+        primaryFieldId: mentorProfiles.primaryFieldId,
+        primaryFieldName: fields.name,
+      })
+      .from(mentorProfiles)
+      .innerJoin(users, eq(users.id, mentorProfiles.userId))
+      .innerJoin(fields, eq(fields.id, mentorProfiles.primaryFieldId))
+      .where(
+        and(
+          eq(mentorProfiles.status, "ACTIVE"),
+          ne(mentorProfiles.accessMode, "PAUSED"),
+          ne(mentorProfiles.userId, userId),
+        ),
+      )
+      .orderBy(asc(mentorProfiles.id))
+      .limit(SUGGESTION_POOL_LIMIT);
+
+    const ids = rows.map((row) => row.id);
+    const mentorUserIds = rows.map((row) => row.userId);
+    const [slots, additional, mentorAffiliations, mentorAvailability, requests] =
+      await Promise.all([
+        this.readSlotsInUse(ids),
+        this.readMentorFields(ids),
+        this.readVerifiedAffiliations(mentorUserIds),
+        this.readAvailability(mentorUserIds, "MENTOR"),
+        this.readRequestsInWindow(ids),
+      ]);
+
+    const candidates: SuggestionPoolCandidate[] = rows.map((row) => {
+      const counts = slots.get(row.id) ?? { pending: 0, acceptedInWindow: 0 };
+      const used = slotsInUse(counts);
+      const extra = additional.get(row.id) ?? [];
+      return {
+        id: row.id,
+        displayName: row.displayName,
+        headline: row.headline,
+        accessState: deriveAccessState(used, row.weeklyCapacity, row.accessMode),
+        accessMode: row.accessMode,
+        primaryField: fieldSummary(row.primaryFieldId, row.primaryFieldName),
+        fields: extra,
+        languages: row.languages,
+        fieldIds: [row.primaryFieldId, ...extra.map((field) => field.id)],
+        affiliation: mentorAffiliations.get(row.userId) ?? null,
+        availability: mentorAvailability.get(row.userId) ?? [],
+        weeklyCapacity: row.weeklyCapacity,
+        slotsInUse: used,
+        requestsInWindow: requests.get(row.id) ?? 0,
+      };
+    });
+
+    return {
+      student: {
+        id: student.id,
+        userId,
+        primaryFieldId: student.primaryFieldId,
+        interestFieldIds: interests.map((field) => field.id),
+        affiliation: studentAffiliation,
+        availability: studentAvailability.get(userId) ?? [],
+      },
+      candidates,
+    };
+  }
+
+  /** The single `VERIFIED` affiliation, which the alumni factor reads. */
+  private async readVerifiedAffiliation(userId: string): Promise<MatchAffiliation | null> {
+    const [row] = await this.db
+      .select({
+        institutionId: affiliations.institutionId,
+        department: affiliations.department,
+        batchYear: affiliations.batchYear,
+      })
+      .from(affiliations)
+      .where(and(eq(affiliations.userId, userId), eq(affiliations.status, "VERIFIED")))
+      .limit(1);
+    if (!row?.institutionId) {
+      return null;
+    }
+    return {
+      institutionId: row.institutionId,
+      department: row.department,
+      batchYear: row.batchYear,
+    };
+  }
+
+  /** One query for the page's verified affiliations, grouped in memory. */
+  private async readVerifiedAffiliations(userIds: string[]): Promise<Map<string, MatchAffiliation>> {
+    const grouped = new Map<string, MatchAffiliation>();
+    if (userIds.length === 0) {
+      return grouped;
+    }
+    const rows = await this.db
+      .select({
+        userId: affiliations.userId,
+        institutionId: affiliations.institutionId,
+        department: affiliations.department,
+        batchYear: affiliations.batchYear,
+      })
+      .from(affiliations)
+      .where(and(inArray(affiliations.userId, userIds), eq(affiliations.status, "VERIFIED")));
+
+    for (const row of rows) {
+      if (row.institutionId) {
+        grouped.set(row.userId, {
+          institutionId: row.institutionId,
+          department: row.department,
+          batchYear: row.batchYear,
+        });
+      }
+    }
+    return grouped;
+  }
+
+  /** One query for a set of accounts' weekly windows, grouped in memory. */
+  private async readAvailability(
+    userIds: string[],
+    context: "STUDENT" | "MENTOR",
+  ): Promise<Map<string, AvailabilityWindow[]>> {
+    const grouped = new Map<string, AvailabilityWindow[]>();
+    if (userIds.length === 0) {
+      return grouped;
+    }
+    const rows = await this.db
+      .select({
+        userId: availabilityWindows.userId,
+        weekday: availabilityWindows.weekday,
+        startMinute: availabilityWindows.startMinute,
+        endMinute: availabilityWindows.endMinute,
+        timezone: availabilityWindows.timezone,
+      })
+      .from(availabilityWindows)
+      .where(
+        and(
+          inArray(availabilityWindows.userId, userIds),
+          eq(availabilityWindows.context, context),
+        ),
+      )
+      .orderBy(asc(availabilityWindows.weekday), asc(availabilityWindows.startMinute));
+
+    for (const row of rows) {
+      const list = grouped.get(row.userId) ?? [];
+      list.push({
+        weekday: row.weekday,
+        startMinute: row.startMinute,
+        endMinute: row.endMinute,
+        timezone: row.timezone,
+      });
+      grouped.set(row.userId, list);
+    }
+    return grouped;
+  }
+
+  /** Requests received inside the rolling capacity window, per mentor profile. */
+  private async readRequestsInWindow(ids: string[]): Promise<Map<string, number>> {
+    if (ids.length === 0) {
+      return new Map();
+    }
+    const rows = await this.db
+      .select({
+        mentorProfileId: mentorshipRequests.mentorProfileId,
+        received: sql<number>`(count(*) FILTER (
+          WHERE ${mentorshipRequests.createdAt} > now() - interval '7 days'
+        ))::int`,
+      })
+      .from(mentorshipRequests)
+      .where(inArray(mentorshipRequests.mentorProfileId, ids))
+      .groupBy(mentorshipRequests.mentorProfileId);
+
+    return new Map(rows.map((row) => [row.mentorProfileId, Number(row.received)]));
   }
 
   /** One aggregate for the whole page: pending plus accepted inside seven days. */
