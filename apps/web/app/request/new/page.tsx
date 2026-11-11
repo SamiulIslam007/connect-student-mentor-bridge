@@ -1,7 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
+import {
+  DRAFT_DEBOUNCE_MS,
+  clearDraft,
+  readDraft,
+  writeDraft,
+  type RequestDraftValues,
+} from "../../../lib/request-draft";
 import { strings } from "../../../lib/strings";
 
 interface MentorContext {
@@ -28,14 +35,19 @@ export default function NewRequestPage() {
   const [applicationNote, setApplicationNote] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [mentorId, setMentorId] = useState<string | null>(null);
+  const [restoredDraft, setRestoredDraft] = useState(false);
+  const latestValues = useRef<RequestDraftValues | null>(null);
 
   useEffect(() => {
     let active = true;
-    const mentorId = new URLSearchParams(window.location.search).get("mentor");
-    if (!mentorId) {
+    const requestedMentorId = new URLSearchParams(window.location.search).get("mentor");
+    if (!requestedMentorId) {
       setMentorError(strings.requestNew.mentorMissing);
       return;
     }
+    setMentorId(requestedMentorId);
+    const mentorId = requestedMentorId;
     void (async () => {
       try {
         const response = await fetch(`/api/mentors/${encodeURIComponent(mentorId)}`);
@@ -63,6 +75,71 @@ export default function NewRequestPage() {
       active = false;
     };
   }, []);
+
+  // The draft is read once per mentor and applied as one update, so a reload
+  // restores it without the initial state overwriting it (design R1, 2.1).
+  useEffect(() => {
+    if (!mentorId) {
+      return;
+    }
+    const draft = readDraft(mentorId);
+    if (!draft) {
+      return;
+    }
+    setQuestion(draft.question);
+    setContextSummary(draft.contextSummary);
+    setTargetOutcome(draft.targetOutcome);
+    setTimeframe(draft.timeframe);
+    setInteraction(draft.interaction);
+    setApplicationNote(draft.applicationNote);
+    setRestoredDraft(
+      Boolean(
+        draft.question ||
+          draft.contextSummary ||
+          draft.targetOutcome ||
+          draft.applicationNote,
+      ),
+    );
+  }, [mentorId]);
+
+  latestValues.current = {
+    question,
+    contextSummary,
+    targetOutcome,
+    timeframe,
+    interaction,
+    applicationNote,
+  };
+
+  // One write per typing pause; the timer is cancelled on the next keystroke and
+  // the unmount effect below flushes whatever is pending (design R3).
+  useEffect(() => {
+    if (!mentorId) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      const values = latestValues.current;
+      if (values) {
+        writeDraft(mentorId, values);
+      }
+    }, DRAFT_DEBOUNCE_MS);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [mentorId, question, contextSummary, targetOutcome, timeframe, interaction, applicationNote]);
+
+  useEffect(() => {
+    if (!mentorId) {
+      return;
+    }
+    const key = mentorId;
+    return () => {
+      const values = latestValues.current;
+      if (values) {
+        writeDraft(key, values);
+      }
+    };
+  }, [mentorId]);
 
   const applicationOnly = mentor?.access_mode === "APPLICATION_ONLY";
   const paused = mentor?.access_mode === "PAUSED";
@@ -95,6 +172,8 @@ export default function NewRequestPage() {
         );
         return;
       }
+      // The request exists; the draft must not resurface (spec: successful send).
+      clearDraft(mentor.id);
       window.location.href = "/requests";
     } catch (error) {
       console.error(
@@ -119,6 +198,7 @@ export default function NewRequestPage() {
           <strong>{mentor.display_name}</strong> · {mentor.headline}
         </p>
       ) : null}
+      {restoredDraft ? <p role="status">{strings.requestNew.restoredDraft}</p> : null}
       {mentorError ? <p role="alert">{mentorError}</p> : null}
       {paused ? <p role="alert">{strings.requestNew.mentorUnavailable}</p> : null}
 

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { isSignedIn, navLinks } from "../lib/navigation";
+import { clearAllDrafts } from "../lib/request-draft";
 
 /**
  * The app header (design D1). One probe of `GET /api/me` per full page load;
@@ -47,6 +48,8 @@ export function SessionNav() {
     // The BFF clears the cookie on both success and `401`; either way the
     // visitor ends up on the signed-out home page.
     await fetch("/api/auth/sign-out", { method: "POST" }).catch(() => undefined);
+    // Personal text must not survive a deliberate sign-out (D-106).
+    clearAllDrafts();
     window.location.assign("/");
   }
 

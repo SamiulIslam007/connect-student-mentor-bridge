@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { clearAllDrafts } from "../../../lib/request-draft";
 import { strings } from "../../../lib/strings";
 
 interface Session {
@@ -45,6 +46,8 @@ export default function SessionsPage() {
     const response = await fetch("/api/auth/sign-out-everywhere", { method: "POST" });
     // `401` means the session is already gone; the BFF clears the cookie either way.
     if (response.ok || response.status === 401) {
+      // Every draft goes with the session, on both success and an already-dead one.
+      clearAllDrafts();
       window.location.assign("/");
       return;
     }
