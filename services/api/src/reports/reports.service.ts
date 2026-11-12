@@ -52,6 +52,8 @@ export interface ReportRecord {
   resolvedByUserId: string | null;
   resolvedAt: Date | null;
   createdAt: Date;
+  /** The mentorship a reported message belongs to; null for every other target (R1). */
+  mentorshipId: string | null;
 }
 
 export interface ReportPage {

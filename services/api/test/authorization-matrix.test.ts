@@ -22,6 +22,7 @@ import { DrizzleMatchingService } from "../src/matching/drizzle-matching.service
 import { MatchingController } from "../src/matching/matching.controller.js";
 import { MATCHING_SERVICE } from "../src/matching/matching.tokens.js";
 import { DrizzleMentorshipService } from "../src/mentorships/drizzle-mentorship.service.js";
+import { AdminThreadController } from "../src/mentorships/admin-thread.controller.js";
 import { MentorshipsController, SessionsController } from "../src/mentorships/mentorships.controller.js";
 import { MENTORSHIP_SERVICE } from "../src/mentorships/mentorships.tokens.js";
 import { DrizzleOutcomeService } from "../src/outcomes/drizzle-outcome.service.js";
@@ -167,6 +168,14 @@ const MATRIX: Requirement[] = [
     body: { decision: "verify", reason: "checked against the registrar" },
   },
   {
+    // A break-glass read of a private thread: platform admin, second factor,
+    // and a stated reason (D-120, D-121).
+    route: /^POST \/v1\/admin\/mentorships\/:id\/break-glass-read$/,
+    access: "PLATFORM_ADMIN",
+    mutating: true,
+    body: { reason: "the reporter named this message" },
+  },
+  {
     route: /^POST \/v1\/admin\/institutions\/:id\/admins$/,
     access: "PLATFORM_ADMIN",
     mutating: true,
@@ -204,6 +213,7 @@ before(async () => {
       AffiliationsController,
       RequestsController,
       MentorshipsController,
+      AdminThreadController,
       SessionsController,
       OutcomesController,
       ReviewQueueController,
@@ -224,6 +234,7 @@ before(async () => {
       AffiliationsController,
       RequestsController,
       MentorshipsController,
+      AdminThreadController,
       SessionsController,
       OutcomesController,
       ReviewQueueController,

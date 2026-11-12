@@ -2,7 +2,13 @@
 
 import { useEffect, useState } from "react";
 
-import { targetKindLabel } from "../../../lib/reports";
+import {
+  canReadThread,
+  targetKindLabel,
+  threadSummary,
+  threadView,
+  type ThreadView,
+} from "../../../lib/reports";
 import { strings } from "../../../lib/strings";
 
 type PageState = "loading" | "ready" | "error" | "signed-out" | "mfa-required";
@@ -15,6 +21,7 @@ interface ReportRow {
   details: string | null;
   status: string;
   created_at: string;
+  mentorship_id: string | null;
 }
 
 export default function AdminReportsPage() {
@@ -27,6 +34,11 @@ export default function AdminReportsPage() {
   const [suspendId, setSuspendId] = useState("");
   const [suspendReason, setSuspendReason] = useState("");
   const [suspendEnd, setSuspendEnd] = useState("");
+  const [openThreadId, setOpenThreadId] = useState<string | null>(null);
+  const [threadReason, setThreadReason] = useState("");
+  const [thread, setThread] = useState<ThreadView | null>(null);
+  const [threadError, setThreadError] = useState<string | null>(null);
+  const [threadBusy, setThreadBusy] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -97,6 +109,40 @@ export default function AdminReportsPage() {
     } finally {
       setBusy(null);
     }
+  }
+
+  async function readThread(row: ReportRow): Promise<void> {
+    const reason = threadReason.trim();
+    if (!reason) {
+      setThreadError(strings.adminReports.readThreadReasonRequired);
+      return;
+    }
+    setThreadBusy(true);
+    setThreadError(null);
+    try {
+      const response = await fetch("/api/admin/mentorships/break-glass", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mentorship_id: row.mentorship_id, reason }),
+      });
+      if (!response.ok) {
+        setThreadError(strings.adminReports.readThreadError);
+        return;
+      }
+      setThread(threadView(await response.json().catch(() => ({}))));
+      setOpenThreadId(row.id);
+    } catch {
+      setThreadError(strings.adminReports.readThreadError);
+    } finally {
+      setThreadBusy(false);
+    }
+  }
+
+  function closeThread(): void {
+    setOpenThreadId(null);
+    setThread(null);
+    setThreadReason("");
+    setThreadError(null);
   }
 
   async function suspend(): Promise<void> {
@@ -192,6 +238,83 @@ export default function AdminReportsPage() {
               >
                 {strings.adminReports.resolve}
               </button>
+
+              {canReadThread(report.target_kind, report.mentorship_id) ? (
+                <section>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      closeThread();
+                      setOpenThreadId(openThreadId === report.id ? null : report.id);
+                    }}
+                  >
+                    {strings.adminReports.readThread}
+                  </button>
+                  <p>{strings.adminReports.readThreadHelp}</p>
+                  {openThreadId === report.id ? (
+                    <>
+                      <p>
+                        <label>
+                          {strings.adminReports.readThreadReasonLabel}
+                          <input
+                            value={threadReason}
+                            maxLength={1000}
+                            onChange={(event) => setThreadReason(event.target.value)}
+                          />
+                        </label>
+                      </p>
+                      <button
+                        type="button"
+                        disabled={threadBusy}
+                        onClick={() => void readThread(report)}
+                      >
+                        {threadBusy
+                          ? strings.adminReports.readThreadLoading
+                          : strings.adminReports.readThreadSubmit}
+                      </button>
+                      <button type="button" onClick={() => closeThread()}>
+                        {strings.adminReports.readThreadCancel}
+                      </button>
+                      {threadError ? <p role="alert">{threadError}</p> : null}
+                      {thread ? (
+                        <section>
+                          <h3>{strings.adminReports.threadHeading}</h3>
+                          <p>
+                            {strings.adminReports.threadMessages}:{" "}
+                            {threadSummary(thread).messageCount} ·{" "}
+                            {strings.adminReports.threadSessions}:{" "}
+                            {threadSummary(thread).sessionCount}
+                          </p>
+                          <p>
+                            {thread.agreement.cadence ?? strings.adminReports.threadNoAgreement}
+                            {thread.agreement.planned_weeks
+                              ? ` · ${thread.agreement.planned_weeks} weeks`
+                              : ""}
+                            {thread.agreement.goal ? ` · ${thread.agreement.goal}` : ""}
+                          </p>
+                          <ol>
+                            {thread.messages.map((message) => (
+                              <li key={message.id}>
+                                <strong>{message.sender_name}</strong> ·{" "}
+                                {message.created_at.slice(0, 16).replace("T", " ")}
+                                <p>{message.body}</p>
+                              </li>
+                            ))}
+                          </ol>
+                          <ul>
+                            {thread.sessions.map((session) => (
+                              <li key={session.id}>
+                                {session.scheduled_start.slice(0, 16).replace("T", " ")} ·{" "}
+                                {session.duration_minutes} min · {session.status}
+                              </li>
+                            ))}
+                          </ul>
+                        </section>
+                      ) : null}
+                    </>
+                  ) : null}
+                </section>
+              ) : null}
             </li>
           ))}
         </ul>

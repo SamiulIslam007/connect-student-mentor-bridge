@@ -59,7 +59,8 @@ The data model must tag every field with one of these classes (`docs/data-model.
 | Retaliation after a dispute | Private double-blind feedback, platform arbiter | Policy document |
 | Fake mentor identities | Affiliation levels, institution attestation | SEC-AUTH-1 |
 | Institution inflating outcomes | Institution cannot edit or arbitrate | SEC-AC-2 |
-| Bribery or off-platform payment for confirmations | Terms, reporting, anomaly signals | SEC-ABUSE-2 |
+| Bribery or off-platform payment for confirmations | Terms, reporting, anomaly signals | SEC-ADMIN-1 | Administrative access to private content is explicit, attributed and audited before the content is disclosed | Must | **Built** by `break-glass-thread-read` (2026-11-12): one route, `PLATFORM_ADMIN` plus an enrolled second factor, a required reason, one audit row written before the read, `Cache-Control: no-store`, the participant projection only, and eight distinct refusals each asserted to return no content and write no row. No shared admin account and no standing `INSTITUTION_ADMIN` access (D-121). Participants are not notified (D-123, DEBT-52) |
+| SEC-ABUSE-2 |
 | Sock-puppet accounts | Email-domain checks, rate limits, device and network signals as inputs to human review | SEC-ABUSE-1 |
 | Harassment | Reporting, moderation queue, suspension path | SEC-ABUSE-3 |
 
