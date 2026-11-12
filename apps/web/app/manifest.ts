@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 
 import { strings } from "../lib/strings";
 
-/** One source for the install colours: the manifest and the layout's themeColor both read it (D-107). */
+/** One source for the install colours: the manifest and the layout's themeColor both read it (D-125). */
 export const manifestColors = {
   background: "#ffffff",
   theme: "#0f172a",

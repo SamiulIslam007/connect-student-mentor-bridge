@@ -51,6 +51,8 @@ RUN apk upgrade --no-cache \
     /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
 COPY --from=build /app/apps/web/.next/standalone ./
 COPY --from=build /app/apps/web/.next/static ./apps/web/.next/static
+# Next standalone output does not bundle public/; without this the icons 404 in the image.
+COPY --from=build /app/apps/web/public ./apps/web/public
 COPY infra/docker/healthcheck.mjs ./healthcheck.mjs
 USER node
 EXPOSE 3000
