@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { asc, eq, inArray } from "drizzle-orm";
+import { asc, inArray } from "drizzle-orm";
 
 import { IdentityError } from "@connect/domain";
 
