@@ -55,7 +55,7 @@ test("the header offers the report queue to a platform admin only", () => {
   );
   assert.deepEqual(
     admin.map((item) => (item.kind === "link" ? item.href : "")),
-    ["/admin/reviews", "/admin/reports"],
+    ["/admin/reviews", "/admin/reports", "/admin/institutions"],
   );
   const student = navLinks(true, ["STUDENT"]).items.filter(
     (item) => item.kind === "link" && item.href.startsWith("/admin"),

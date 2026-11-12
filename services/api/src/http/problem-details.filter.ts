@@ -42,6 +42,7 @@ const PROBLEMS: Record<IdentityErrorCode, ProblemMapping> = {
   REPORT_ALREADY_RESOLVED: { status: 409, code: "REPORT_ALREADY_RESOLVED", title: "This report is already resolved" },
   STUDENT_PROFILE_REQUIRED: { status: 422, code: "STUDENT_PROFILE_REQUIRED", title: "Save a student profile before asking for suggestions" },
   CLAIM_ALREADY_DECIDED: { status: 409, code: "CLAIM_ALREADY_DECIDED", title: "This claim has already been decided" },
+  INSTITUTION_DOMAIN_TAKEN: { status: 409, code: "INSTITUTION_DOMAIN_TAKEN", title: "This domain already belongs to an institution" },
 };
 
 const PROBLEM_BASE = "https://docs.connect.example/problems/";

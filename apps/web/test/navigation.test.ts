@@ -44,6 +44,20 @@ test("a failed or slow probe yields the signed-out set", () => {
   assert.equal(isSignedIn(200), true);
 });
 
+test("the institutions entry appears for a platform admin only", () => {
+  const admin = navLinks(true, ["STUDENT", "PLATFORM_ADMIN"]);
+  const hrefs = admin.items.flatMap((item) => (item.kind === "link" ? [item.href] : []));
+  assert.ok(hrefs.includes("/admin/institutions"), "the platform admin gets the page");
+
+  for (const roles of [["STUDENT", "MENTOR"], ["STUDENT", "INSTITUTION_ADMIN"], ["STUDENT"]]) {
+    const other = navLinks(true, roles);
+    const otherHrefs = other.items.flatMap((item) => (item.kind === "link" ? [item.href] : []));
+    assert.ok(!otherHrefs.includes("/admin/institutions"), `${roles.join(", ")} does not`);
+  }
+
+  assert.deepEqual(navLinks(false, ["PLATFORM_ADMIN"]), navLinks(false), "signed out is unchanged");
+});
+
 test("the claims entry appears for an institution admin only", () => {
   const admin = navLinks(true, ["STUDENT", "INSTITUTION_ADMIN"]);
   const hrefs = admin.items.flatMap((item) => (item.kind === "link" ? [item.href] : []));

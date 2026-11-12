@@ -1400,6 +1400,66 @@ paths:
           $ref: "#/components/responses/Problem"
         "429":
           $ref: "#/components/responses/Problem"
+  /v1/institutions:
+    get:
+      operationId: listInstitutions
+      summary: Every institution with its domains
+      description: >-
+        Platform-admin read with an enrolled second factor (D-111). Returns every
+        institution ordered by name then id, with its status and its registered
+        domains. No pagination in this release (D-112, DEBT-51).
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Every institution
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InstitutionList"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "429":
+          $ref: "#/components/responses/Problem"
+    post:
+      operationId: createInstitution
+      summary: Create an institution with its domains
+      description: >-
+        Platform-admin write with an enrolled second factor (D-109 to D-113). One
+        transaction writes the institution, one row per domain and the audit rows
+        for both. A domain already registered to any institution, in any letter
+        case, answers `409 INSTITUTION_DOMAIN_TAKEN` and nothing is written. The
+        institution admin is assigned afterwards through
+        `POST /v1/admin/institutions/{id}/admins`.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InstitutionCreate"
+      responses:
+        "201":
+          description: The created institution
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Institution"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+        "413":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        "429":
+          $ref: "#/components/responses/Problem"
   /v1/mentorships:
     get:
       operationId: listMentorships
@@ -2292,6 +2352,72 @@ components:
           type: string
           format: email
           description: An account that exists; an unknown address is `422`.
+    InstitutionKind:
+      type: string
+      enum: [UNIVERSITY, BOOTCAMP, TRAINING_INSTITUTE, OTHER]
+    InstitutionCreate:
+      type: object
+      additionalProperties: false
+      required: [name, kind, country_code]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 160
+          description: Trimmed before the write.
+        kind:
+          $ref: "#/components/schemas/InstitutionKind"
+        country_code:
+          type: string
+          pattern: "^[A-Za-z]{2}$"
+          description: Two letters, upper-cased before the write.
+        mou_signed_on:
+          type: string
+          format: date
+          description: Optional; never in the future.
+        domains:
+          type: array
+          maxItems: 20
+          description: Optional bare domains, lower-cased before the write.
+          items:
+            type: string
+            minLength: 3
+            maxLength: 253
+            pattern: '^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$'
+    Institution:
+      type: object
+      additionalProperties: false
+      required: [id, name, kind, country_code, status, mou_signed_on, domains]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        kind:
+          $ref: "#/components/schemas/InstitutionKind"
+        country_code:
+          type: string
+        status:
+          type: string
+          enum: [ONBOARDING, ACTIVE, SUSPENDED]
+        mou_signed_on:
+          type: string
+          format: date
+          nullable: true
+        domains:
+          type: array
+          items:
+            type: string
+    InstitutionList:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Institution"
     RoleList:
       type: object
       additionalProperties: false

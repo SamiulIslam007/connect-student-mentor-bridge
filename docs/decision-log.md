@@ -831,3 +831,43 @@ date: 2026-10-29
 - Reason: `apps/web` ships no stylesheet and no palette file, so there was no existing token to reuse and inventing a brand palette is not this change's business; one constant keeps the manifest, the icons and the browser chrome from drifting, and a real palette replaces it in one edit when one exists.
 - Status: Decided
 - Affects: `experience/installable-pwa`, `apps/web/app/manifest.ts`, `apps/web/app/layout.tsx`, `apps/web/public/`
+
+### D-109: Institution creation stops at the institution
+
+- Date: 2026-11-11
+- Decision: `POST /v1/institutions` creates the institution and its domains only. The institution admin is assigned afterwards through the existing `POST /v1/admin/institutions/{id}/admins`, which this change does not modify.
+- Reason: one route, one failure mode, no partial-failure rule for "institution created, admin not found".
+- Status: Decided
+- Affects: `institutions/onboarding`, `docs/api-contracts.md` section 5.7
+
+### D-110: Name, kind and country code are required; MoU date and domains are optional
+
+- Date: 2026-11-11
+- Decision: `name`, `kind` and `country_code` are required; `mou_signed_on` and `domains` are optional and labelled optional in the page. `min_cohort_size` is not in the body and stays null, so the suppression threshold remains 5.
+- Reason: the required trio is the set of non-null columns, and a partner can be registered before the MoU is signed or the domains are known.
+- Status: Decided
+- Affects: `institutions/onboarding`, `packages/contracts/openapi.yaml`
+
+### D-111: The institution resource lives at `/v1/institutions`
+
+- Date: 2026-11-11
+- Decision: The institution resource lives at `/v1/institutions` for both the create and the list, guarded by `PLATFORM_ADMIN` with an enrolled second factor, rather than under `/v1/admin`.
+- Reason: the actor owns the path name, as it does for `/v1/institution/...`; `/v1/admin` would misname a resource later reads may share.
+- Status: Decided
+- Affects: `institutions/onboarding`, `docs/auth-and-access-control.md`
+
+### D-112: No pagination on the institution list for the pilot
+
+- Date: 2026-11-11
+- Decision: `GET /v1/institutions` returns every institution in one response with no pagination for the pilot, and the bound is recorded as debt.
+- Reason: the pilot has one partner, and a cursor would add a second query shape and a second web state for a list that fits on one screen.
+- Status: Decided
+- Affects: `institutions/onboarding`, `docs/known-debt.md` (DEBT-51)
+
+### D-113: The kind is the existing enum and a duplicate domain is a 409
+
+- Date: 2026-11-11
+- Decision: `kind` is validated against the existing `institution_kind` enum values, and a domain that already exists in any letter case answers `409 INSTITUTION_DOMAIN_TAKEN` with the whole transaction rolled back. Domains are stored lower-cased.
+- Reason: a free-text kind would fragment the taxonomy the dashboard groups by, and two institutions claiming one domain would make Level 1 matching arbitrary.
+- Status: Decided
+- Affects: `institutions/onboarding`, `docs/data-model.md`

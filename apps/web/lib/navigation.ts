@@ -37,6 +37,11 @@ export function navLinks(signedIn: boolean, roles: readonly string[] = []): NavM
                   href: "/admin/reports",
                   label: strings.nav.adminReports,
                 },
+                {
+                  kind: "link" as const,
+                  href: "/admin/institutions",
+                  label: strings.nav.institutions,
+                },
               ]
             : []),
           ...(roles.includes("INSTITUTION_ADMIN")

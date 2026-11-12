@@ -229,7 +229,9 @@ export type IdentityErrorCode =
   /** A signed-in student asked for a student-only read without a profile. */
   | "STUDENT_PROFILE_REQUIRED"
   /** A claim was already decided by another reviewer (or by itself). */
-  | "CLAIM_ALREADY_DECIDED";
+  | "CLAIM_ALREADY_DECIDED"
+  /** A domain is already registered to an institution (any letter case). */
+  | "INSTITUTION_DOMAIN_TAKEN";
 
 /** A failure a feature module may map to a response, with no library detail. */
 export class IdentityError extends Error {

@@ -14,6 +14,9 @@ import { MeController } from "../src/me/me.controller.js";
 import { MeRolesController } from "../src/me/roles.controller.js";
 import { AttestationController } from "../src/institutions/attestation.controller.js";
 import { ATTESTATIONS_SERVICE } from "../src/institutions/attestation.tokens.js";
+import { InstitutionsController } from "../src/institutions/institutions.controller.js";
+import { INSTITUTIONS_SERVICE } from "../src/institutions/institutions.tokens.js";
+import { DrizzleInstitutionsService } from "../src/institutions/drizzle-institutions.service.js";
 import { DrizzleAttestationsService } from "../src/institutions/drizzle-attestation.service.js";
 import { DrizzleMatchingService } from "../src/matching/drizzle-matching.service.js";
 import { MatchingController } from "../src/matching/matching.controller.js";
@@ -169,6 +172,15 @@ const MATRIX: Requirement[] = [
     mutating: true,
     body: { email: "target@example.com" },
   },
+  // Institution onboarding: both routes are platform-admin only and need an
+  // enrolled second factor; the resource is `/v1/institutions` (D-111).
+  { route: /^GET \/v1\/institutions$/, access: "PLATFORM_ADMIN" },
+  {
+    route: /^POST \/v1\/institutions$/,
+    access: "PLATFORM_ADMIN",
+    mutating: true,
+    body: { name: "Matrix University", kind: "UNIVERSITY", country_code: "BD" },
+  },
   // Matching: the controller requires the student role, and every registered
   // account holds it, so the matrix can only assert "signed-in" here; the
   // ROLE_REQUIRED refusal is driven by the integration test, which revokes it.
@@ -201,6 +213,7 @@ before(async () => {
       ReportsAdminController,
       MatchingController,
       AttestationController,
+      InstitutionsController,
     ],
     requestIdRoutes: [
       AuthController,
@@ -220,6 +233,7 @@ before(async () => {
       ReportsAdminController,
       MatchingController,
       AttestationController,
+      InstitutionsController,
     ],
     providers: (database) => [
       { provide: PROFILES_SERVICE, useValue: new DrizzleProfilesService(database) },
@@ -239,6 +253,7 @@ before(async () => {
         useValue: new DrizzleMatchingService(new DrizzleProfilesService(database)),
       },
       { provide: ATTESTATIONS_SERVICE, useValue: new DrizzleAttestationsService(database) },
+      { provide: INSTITUTIONS_SERVICE, useValue: new DrizzleInstitutionsService(database) },
     ],
   });
   if (started.skipped) {
