@@ -9,8 +9,10 @@ import {
   fieldImpactSnapshots,
   fields,
   mentorProfiles,
+  mentorshipRequests,
   reputationEvents,
 } from "../db/schema/index.js";
+import { REQUEST_TTL_MS } from "../requests/drizzle-requests.service.js";
 
 export interface ImpactRow {
   fieldId: string;
@@ -24,13 +26,25 @@ export interface ImpactReport {
   countedOutcomes: number;
 }
 
+/**
+ * The own-impact read adds two request counts (D-115, D-116). It is a separate
+ * type so the public mentor read cannot gain them by accident.
+ */
+export interface OwnImpactReport extends ImpactReport {
+  requestsDecidedInTime: number;
+  requestsLateOrExpired: number;
+}
+
+/** The window in hours, derived from the one constant the sweeper applies. */
+export const DECISION_WINDOW_HOURS = REQUEST_TTL_MS / (60 * 60 * 1000);
+
 export interface StoredSnapshot extends SnapshotTotal {
   pointsTotal: number;
 }
 
 export interface ReputationService {
-  /** Counts by field and outcome type; never a score, points, or ranking. */
-  impactForUser(userId: string): Promise<ImpactReport>;
+  /** Counts by field and outcome type plus the two request counts; never a score. */
+  impactForUser(userId: string): Promise<OwnImpactReport>;
   /** `null` when the profile is absent or not `ACTIVE` (design D8). */
   impactForMentorProfile(mentorProfileId: string): Promise<ImpactReport | null>;
   /** Recomputes the snapshot from the ledger, for the replay test. */
@@ -44,16 +58,56 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export class DrizzleReputationService implements ReputationService {
   constructor(@Inject(DATABASE) private readonly db: Database) {}
 
-  async impactForUser(userId: string): Promise<ImpactReport> {
+  async impactForUser(userId: string): Promise<OwnImpactReport> {
     const [mentor] = await this.db
       .select({ id: mentorProfiles.id })
       .from(mentorProfiles)
       .where(eq(mentorProfiles.userId, userId))
       .limit(1);
     if (!mentor) {
-      return { rows: [], countedOutcomes: 0 };
+      return {
+        rows: [],
+        countedOutcomes: 0,
+        requestsDecidedInTime: 0,
+        requestsLateOrExpired: 0,
+      };
     }
-    return await this.impactForMentorProfile(mentor.id) ?? { rows: [], countedOutcomes: 0 };
+    const impact = await this.impactForMentorProfile(mentor.id);
+    const reliability = await this.responseCounts(mentor.id);
+    return {
+      ...(impact ?? { rows: [], countedOutcomes: 0 }),
+      ...reliability,
+    };
+  }
+
+  /**
+   * One aggregate pass over the mentor's requests. The rule mirrors
+   * `responseReliability` in @connect/domain, and the integration test asserts
+   * the two agree on the same rows.
+   */
+  private async responseCounts(
+    mentorProfileId: string,
+  ): Promise<{ requestsDecidedInTime: number; requestsLateOrExpired: number }> {
+    const decided = sql`${mentorshipRequests.status} in ('ACCEPTED', 'DECLINED', 'REDIRECTED')`;
+    const decidedAt = sql`${mentorshipRequests.decidedAt} is not null`;
+    const window = sql`(${mentorshipRequests.createdAt} + (${DECISION_WINDOW_HOURS}::int * interval '1 hour'))`;
+
+    const [row] = await this.db
+      .select({
+        inTime: sql<number>`count(*) filter (where ${decided} and ${decidedAt} and ${mentorshipRequests.decidedAt} <= ${window})`.mapWith(
+          Number,
+        ),
+        late: sql<number>`count(*) filter (where ${mentorshipRequests.status} = 'EXPIRED' or (${decidedAt} and ${mentorshipRequests.decidedAt} > ${window}))`.mapWith(
+          Number,
+        ),
+      })
+      .from(mentorshipRequests)
+      .where(eq(mentorshipRequests.mentorProfileId, mentorProfileId));
+
+    return {
+      requestsDecidedInTime: row?.inTime ?? 0,
+      requestsLateOrExpired: row?.late ?? 0,
+    };
   }
 
   async impactForMentorProfile(mentorProfileId: string): Promise<ImpactReport | null> {

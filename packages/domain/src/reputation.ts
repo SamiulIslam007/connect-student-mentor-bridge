@@ -120,3 +120,54 @@ export function replaySnapshots(events: readonly CountedEvent[]): SnapshotTotal[
     ),
   );
 }
+
+/**
+ * Response reliability (FR-REP-04, D-114 to D-116): a partition of a mentor's
+ * requests into decided-in-time and late-or-expired. Pure, all-time, and the
+ * window arrives as an argument so the sweeper and this rule keep one source.
+ * A row increments at most one bucket, which is what makes "never both"
+ * structural rather than asserted. PENDING and WITHDRAWN increment neither.
+ */
+export interface RequestTimingRow {
+  status: string;
+  createdAt: Date;
+  decidedAt: Date | null;
+}
+
+export interface ResponseReliability {
+  decidedInTime: number;
+  lateOrExpired: number;
+}
+
+/** Statuses that mean the mentor answered (REDIRECTED is a Phase 1b decision). */
+const DECIDED_STATUSES: readonly string[] = ["ACCEPTED", "DECLINED", "REDIRECTED"];
+
+export function responseReliability(
+  requests: readonly RequestTimingRow[],
+  windowHours: number,
+): ResponseReliability {
+  if (!Number.isFinite(windowHours) || windowHours <= 0) {
+    throw new Error("windowHours must be a positive number");
+  }
+  const windowMs = windowHours * 60 * 60 * 1000;
+  let decidedInTime = 0;
+  let lateOrExpired = 0;
+
+  for (const request of requests) {
+    if (request.status === "EXPIRED") {
+      lateOrExpired += 1;
+      continue;
+    }
+    if (!request.decidedAt || !DECIDED_STATUSES.includes(request.status)) {
+      continue;
+    }
+    const elapsed = request.decidedAt.getTime() - request.createdAt.getTime();
+    if (elapsed <= windowMs) {
+      decidedInTime += 1;
+    } else {
+      lateOrExpired += 1;
+    }
+  }
+
+  return { decidedInTime, lateOrExpired };
+}

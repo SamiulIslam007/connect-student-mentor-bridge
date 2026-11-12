@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { after, before, beforeEach, test, type TestContext } from "node:test";
 
+import { responseReliability } from "@connect/domain";
+
 import { AffiliationsController } from "../src/affiliations/affiliations.controller.js";
 import { AFFILIATIONS_SERVICE } from "../src/affiliations/affiliations.tokens.js";
 import { DrizzleAffiliationsService } from "../src/affiliations/drizzle-affiliations.service.js";
@@ -361,7 +363,16 @@ test("a conflict-declared outcome counts without earning the mentor reputation",
   assert.equal((await current.client.query("SELECT id FROM field_impact_snapshots")).rowCount, 0);
 
   const impact = await apiRequest(current, "GET", "/v1/me/impact", undefined, pair.mentorToken);
-  assert.deepEqual(impact.body, { data: [], counted_outcomes: 0 }, "a platform-decided outcome is excluded");
+  assert.deepEqual(
+    impact.body,
+    {
+      data: [],
+      counted_outcomes: 0,
+      requests_decided_in_time: 1,
+      requests_late_or_expired: 0,
+    },
+    "a platform-decided outcome is excluded",
+  );
 });
 
 test("the pair factor falls to one half and the next student starts at one", async (context) => {
@@ -523,7 +534,12 @@ test("the impact read returns counts only and excludes every uncounted state", a
 
   const own = await apiRequest(current, "GET", "/v1/me/impact", undefined, pair.mentorToken);
   assert.equal(own.status, 200, own.text);
-  assert.deepEqual(Object.keys(own.body ?? {}).sort(), ["counted_outcomes", "data"]);
+  assert.deepEqual(Object.keys(own.body ?? {}).sort(), [
+    "counted_outcomes",
+    "data",
+    "requests_decided_in_time",
+    "requests_late_or_expired",
+  ]);
   assert.equal(own.body?.counted_outcomes, 1);
   const rows = own.body?.data as Record<string, unknown>[];
   assert.deepEqual(Object.keys(rows[0]).sort(), ["count", "field_id", "field_name", "outcome_type"]);
@@ -567,11 +583,88 @@ test("the impact read returns counts only and excludes every uncounted state", a
   assert.equal(inactive.status, 404, "a non-active mentor is not found");
 });
 
+/** Copies the pair's existing request shape with a chosen status and timing. */
+async function seedRequest(
+  current: TestApiStack,
+  mentorProfileId: string,
+  input: { status: string; decidedAfterHours?: number },
+): Promise<void> {
+  await current.client.query(
+    `INSERT INTO mentorship_requests
+       (student_profile_id, mentor_profile_id, field_id, question, context_summary,
+        target_outcome, timeframe, status, decided_at, expires_at, created_at, updated_at)
+     SELECT student_profile_id, mentor_profile_id, field_id, 'A follow-up question',
+            'Second-year student', 'Understand the field', timeframe, $2,
+            CASE WHEN $3::int IS NULL THEN NULL ELSE created_at + ($3::int * interval '1 hour') END,
+            created_at + interval '49 hours', created_at, created_at
+     FROM mentorship_requests WHERE mentor_profile_id = $1 LIMIT 1`,
+    [mentorProfileId, input.status, input.decidedAfterHours ?? null],
+  );
+}
+
+test("the own impact read reports the two request counts and the public read does not", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const pair = await acceptPair(current, "reliability.student@example.com", "reliability.mentor@example.edu.bd");
+  // The accept above is one request decided inside the window; add the rest.
+  await seedRequest(current, pair.mentorProfileId, { status: "DECLINED", decidedAfterHours: 2 });
+  await seedRequest(current, pair.mentorProfileId, { status: "ACCEPTED", decidedAfterHours: 72 });
+  await seedRequest(current, pair.mentorProfileId, { status: "EXPIRED" });
+  await seedRequest(current, pair.mentorProfileId, { status: "WITHDRAWN" });
+  await seedRequest(current, pair.mentorProfileId, { status: "PENDING" });
+
+  const own = await apiRequest(current, "GET", "/v1/me/impact", undefined, pair.mentorToken);
+  assert.equal(own.status, 200, own.text);
+  assert.equal(own.body?.requests_decided_in_time, 2, "two decisions inside the window");
+  assert.equal(own.body?.requests_late_or_expired, 2, "one late decision and one expiry");
+
+  // The SQL aggregate and the pure rule must agree on the same rows.
+  const rows = await current.client.query<{ status: string; created_at: Date; decided_at: Date | null }>(
+    "SELECT status, created_at, decided_at FROM mentorship_requests WHERE mentor_profile_id = $1",
+    [pair.mentorProfileId],
+  );
+  assert.deepEqual(
+    responseReliability(
+      rows.rows.map((row) => ({
+        status: row.status,
+        createdAt: new Date(row.created_at),
+        decidedAt: row.decided_at ? new Date(row.decided_at) : null,
+      })),
+      48,
+    ),
+    {
+      decidedInTime: Number(own.body?.requests_decided_in_time),
+      lateOrExpired: Number(own.body?.requests_late_or_expired),
+    },
+  );
+
+  for (const forbidden of ["response_rate", "percentage", "score", "points", "tier", "ranking", "student_id"]) {
+    assert.equal(forbidden in (own.body ?? {}), false, `the own read exposes no ${forbidden}`);
+  }
+
+  const publicRead = await apiRequest(
+    current,
+    "GET",
+    `/v1/mentors/${pair.mentorProfileId}/impact`,
+    undefined,
+    pair.mentorToken,
+  );
+  assert.equal(publicRead.status, 200, publicRead.text);
+  assert.deepEqual(Object.keys(publicRead.body ?? {}).sort(), ["counted_outcomes", "data"]);
+  assert.equal("requests_decided_in_time" in (publicRead.body ?? {}), false);
+  assert.equal("requests_late_or_expired" in (publicRead.body ?? {}), false);
+});
+
 test("a non-mentor sees an empty impact list", async (context) => {
   const current = requireStack(context);
   if (!current) return;
   const student = await studentWithProfile(current, "noimpact@example.com");
   const response = await apiRequest(current, "GET", "/v1/me/impact", undefined, student);
   assert.equal(response.status, 200);
-  assert.deepEqual(response.body, { data: [], counted_outcomes: 0 });
+  assert.deepEqual(response.body, {
+    data: [],
+    counted_outcomes: 0,
+    requests_decided_in_time: 0,
+    requests_late_or_expired: 0,
+  });
 });

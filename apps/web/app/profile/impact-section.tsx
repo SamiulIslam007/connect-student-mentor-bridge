@@ -2,8 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { IMPACT_RELIABILITY_MIN_SAMPLE } from "@connect/config";
+
 import {
   impactState,
+  reliabilityState,
   renderRows,
   type ImpactReport,
   type ImpactRow,
@@ -14,6 +17,8 @@ import { strings } from "../../lib/strings";
 export function ImpactSection() {
   const [rows, setRows] = useState<ImpactRow[]>([]);
   const [total, setTotal] = useState(0);
+  const [decidedInTime, setDecidedInTime] = useState(0);
+  const [lateOrExpired, setLateOrExpired] = useState(0);
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
 
@@ -28,6 +33,8 @@ export function ImpactSection() {
       const payload = (await response.json()) as ImpactReport;
       setRows(payload.data ?? []);
       setTotal(payload.counted_outcomes ?? 0);
+      setDecidedInTime(payload.requests_decided_in_time ?? 0);
+      setLateOrExpired(payload.requests_late_or_expired ?? 0);
     } catch (error) {
       console.error(
         JSON.stringify({
@@ -46,6 +53,12 @@ export function ImpactSection() {
   }, [load]);
 
   const state = impactState({ loaded, failed, rows });
+  const report: ImpactReport = {
+    data: rows,
+    counted_outcomes: total,
+    requests_decided_in_time: decidedInTime,
+    requests_late_or_expired: lateOrExpired,
+  };
 
   return (
     <section>
@@ -77,7 +90,7 @@ export function ImpactSection() {
               </tr>
             </thead>
             <tbody>
-              {renderRows({ data: rows, counted_outcomes: total }).map((row) => (
+              {renderRows(report).map((row) => (
                 <tr key={`${row.field}|${row.type}`}>
                   <td>{row.field}</td>
                   <td>{row.type}</td>
@@ -87,6 +100,25 @@ export function ImpactSection() {
             </tbody>
           </table>
         </>
+      ) : null}
+
+      {state === "ready" ? (
+        <section>
+          <h3>{strings.impact.reliabilityTitle}</h3>
+          <p>{strings.impact.reliabilityIntro}</p>
+          {reliabilityState(report, IMPACT_RELIABILITY_MIN_SAMPLE) === "hidden" ? (
+            <p>{strings.impact.reliabilityNotEnough}</p>
+          ) : (
+            <ul>
+              <li>
+                {strings.impact.decidedInTime}: {decidedInTime}
+              </li>
+              <li>
+                {strings.impact.lateOrExpired}: {lateOrExpired}
+              </li>
+            </ul>
+          )}
+        </section>
       ) : null}
     </section>
   );

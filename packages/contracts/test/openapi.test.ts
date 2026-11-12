@@ -420,17 +420,39 @@ test("the outcome contract carries no score and no counting route", () => {
 
 test("the impact surface is documented, session-guarded, and exposes no score", () => {
   const document = contract();
-  for (const path of ["/v1/me/impact", "/v1/mentors/{id}/impact"]) {
+  // The own read carries the two request counts (D-115), the public read does not.
+  const expected: Record<string, string> = {
+    "/v1/me/impact": "OwnImpactResponse",
+    "/v1/mentors/{id}/impact": "ImpactResponse",
+  };
+  for (const [path, name] of Object.entries(expected)) {
     const operation = document.paths[path].get;
     assert.deepEqual(operation.security, [{ bearerAuth: [] }], `${path} must require a session`);
     assert.ok(operation.responses["401"], `${path} documents the unauthenticated response`);
     const schema = (operation.responses["200"] as { content: Record<string, { schema: unknown }> })
       .content["application/json"].schema;
-    assert.deepEqual(schema, { $ref: "#/components/schemas/ImpactResponse" });
+    assert.deepEqual(schema, { $ref: `#/components/schemas/${name}` }, path);
   }
 
   const response = document.components.schemas.ImpactResponse;
   assert.deepEqual(Object.keys(response.properties ?? {}).sort(), ["counted_outcomes", "data"]);
+
+  const own = document.components.schemas.OwnImpactResponse;
+  assert.deepEqual(Object.keys(own.properties ?? {}).sort(), [
+    "counted_outcomes",
+    "data",
+    "requests_decided_in_time",
+    "requests_late_or_expired",
+  ]);
+  assert.deepEqual(own.required, [
+    "data",
+    "counted_outcomes",
+    "requests_decided_in_time",
+    "requests_late_or_expired",
+  ]);
+  for (const forbidden of ["rate", "percentage", "score", "points", "tier", "ranking", "student_id"]) {
+    assert.equal(forbidden in (own.properties ?? {}), false, `the own read exposes no ${forbidden}`);
+  }
   const row = document.components.schemas.ImpactRow;
   assert.deepEqual(Object.keys(row.properties ?? {}).sort(), [
     "count",

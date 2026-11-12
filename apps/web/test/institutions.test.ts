@@ -98,7 +98,7 @@ const page = readFileSync(
 
 test("the page reads and writes through the BFF route", () => {
   assert.match(page, /fetch\("\/api\/institutions"\)/);
-  assert.match(page, /fetch\("\/api\/institutions", \{\n\s+method: "POST"/);
+  assert.match(page, /fetch\("\/api\/institutions", \{\r?\n\s+method: "POST"/);
   assert.match(page, /strings\.adminInstitutions\./);
   assert.doesNotMatch(page, /cookies\(\)/, "a client page never reads the session cookie");
   assert.match(page, /response\.status === 409/, "a duplicate domain is its own message");
