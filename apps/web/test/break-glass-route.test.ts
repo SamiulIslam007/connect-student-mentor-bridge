@@ -40,7 +40,9 @@ test("the route forwards to the break-glass read with the session header", async
 
   assert.equal(response.status, 200);
   assert.match(calls[0].url, /\/v1\/admin\/mentorships\/m-1\/break-glass-read$/);
-  assert.deepEqual(JSON.parse(String(calls[0].body)), { mentorship_id: "m-1", reason: "the report names it" });
+  // The upstream body carries the reason only: the API's allowlist documents
+  // exactly one key for this route, and the id already forms the path.
+  assert.deepEqual(JSON.parse(String(calls[0].body)), { reason: "the report names it" });
 });
 
 test("no session cookie is a refusal before any upstream call", async () => {
