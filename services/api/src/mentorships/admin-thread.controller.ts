@@ -66,6 +66,7 @@ export class AdminThreadController {
       },
       messages: thread.messages.map(messagePayload),
       sessions: thread.sessions.map(sessionPayload),
+      truncated: thread.truncated,
     };
   }
 }

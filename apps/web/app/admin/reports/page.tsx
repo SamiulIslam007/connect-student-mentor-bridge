@@ -119,6 +119,7 @@ export default function AdminReportsPage() {
     }
     setThreadBusy(true);
     setThreadError(null);
+    setThread(null);
     try {
       const response = await fetch("/api/admin/mentorships/break-glass", {
         method: "POST",
@@ -292,6 +293,9 @@ export default function AdminReportsPage() {
                               : ""}
                             {thread.agreement.goal ? ` · ${thread.agreement.goal}` : ""}
                           </p>
+                          {thread.truncated ? (
+                            <p>{strings.adminReports.threadTruncated}</p>
+                          ) : null}
                           <ol>
                             {thread.messages.map((message) => (
                               <li key={message.id}>

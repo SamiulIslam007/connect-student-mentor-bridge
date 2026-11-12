@@ -62,6 +62,7 @@ export interface ThreadView {
   };
   sessions: ThreadSessionView[];
   messages: ThreadMessageView[];
+  truncated: boolean;
 }
 
 export interface ThreadSummary {
@@ -109,5 +110,6 @@ export function threadView(payload: unknown): ThreadView | null {
     },
     messages: Array.isArray(value.messages) ? value.messages : [],
     sessions: Array.isArray(value.sessions) ? value.sessions : [],
+    truncated: value.truncated === true,
   };
 }

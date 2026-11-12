@@ -55,7 +55,12 @@ The system SHALL allow an account holding `PLATFORM_ADMIN` with an enrolled seco
 #### Scenario: A platform admin without a second factor is refused
 
 - **WHEN** a platform admin with no enrolled second factor calls the break-glass route
-- **THEN** the request is refused before any write, no audit entry is written, and no content is returned
+- **THEN** the response is `403` with code `MFA_REQUIRED`, the request is refused before any write, no audit entry is written, and no content is returned
+
+#### Scenario: An anonymous caller is refused
+
+- **WHEN** a client with no session calls the break-glass route
+- **THEN** the response is `401`, no audit entry is written, and no content is returned
 
 #### Scenario: An unknown mentorship is not found
 

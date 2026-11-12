@@ -31,9 +31,13 @@ export async function POST(request: Request): Promise<NextResponse> {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ reason: payload.reason }),
   });
-  return proxyJson(
+  const response = await proxyJson(
     `/v1/admin/mentorships/${encodeURIComponent(mentorshipId)}/break-glass-read`,
     forwarded,
     { sessionToken: token },
   );
+  // proxyJson rebuilds the response and drops upstream headers; this one must
+  // not be cacheable by the browser either (design R3).
+  response.headers.set("cache-control", "no-store");
+  return response;
 }

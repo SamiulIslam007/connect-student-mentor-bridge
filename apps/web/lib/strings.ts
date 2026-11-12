@@ -376,6 +376,7 @@ export const strings = {
     threadAgreement: "Agreement",
     threadNoAgreement: "No agreement recorded.",
     threadFirstMessage: "First message",
+    threadTruncated: "This thread is longer than 500 messages; only the oldest 500 are shown.",
     threadLastMessage: "Last message",
     targetUser: "User",
     targetMessage: "Message",

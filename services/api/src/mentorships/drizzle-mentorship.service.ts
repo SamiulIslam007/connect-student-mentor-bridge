@@ -30,7 +30,7 @@ import {
 import { users } from "../db/schema/index.js";
 import { appendAuditEntry } from "../identity/audit-log.js";
 import { enqueueOutboxEvent } from "../platform/outbox/outbox.js";
-import { BREAK_GLASS_REASON_MAX_LENGTH } from "./mentorship.service.js";
+import { BREAK_GLASS_MESSAGE_CAP, BREAK_GLASS_REASON_MAX_LENGTH } from "./mentorship.service.js";
 import type {
   AgreementInput,
   BreakGlassReadInput,
@@ -598,13 +598,15 @@ export class DrizzleMentorshipService implements MentorshipService {
       breakGlass: true,
     });
 
-    const messages = await this.moderationMessages(mentorship.id);
+    const { messages, truncated } = await this.moderationMessages(mentorship.id);
     const sessions = await this.moderationSessions(mentorship.id);
-    return { mentorship, messages, sessions };
+    return { mentorship, messages, sessions, truncated };
   }
 
-  /** Every message, oldest first, through the participant projection. */
-  private async moderationMessages(mentorshipId: string): Promise<MessageRecord[]> {
+  /** Oldest-first messages through the participant projection, capped and flagged. */
+  private async moderationMessages(
+    mentorshipId: string,
+  ): Promise<{ messages: MessageRecord[]; truncated: boolean }> {
     const truncate = sql`date_trunc('milliseconds', ${threadMessages.createdAt})`;
     const rows = await this.db
       .select({
@@ -617,8 +619,13 @@ export class DrizzleMentorshipService implements MentorshipService {
       .from(threadMessages)
       .innerJoin(senderUser, eq(senderUser.id, threadMessages.senderUserId))
       .where(eq(threadMessages.mentorshipId, mentorshipId))
-      .orderBy(truncate, asc(threadMessages.id));
-    return rows as MessageRecord[];
+      .orderBy(truncate, asc(threadMessages.id))
+      .limit(BREAK_GLASS_MESSAGE_CAP + 1);
+    const truncated = rows.length > BREAK_GLASS_MESSAGE_CAP;
+    return {
+      messages: (truncated ? rows.slice(0, BREAK_GLASS_MESSAGE_CAP) : rows) as MessageRecord[],
+      truncated,
+    };
   }
 
   private async moderationSessions(mentorshipId: string): Promise<SessionRecord[]> {

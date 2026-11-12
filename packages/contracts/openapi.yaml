@@ -3348,7 +3348,7 @@ components:
     BreakGlassThread:
       type: object
       additionalProperties: false
-      required: [mentorship_id, status, agreement, messages, sessions]
+      required: [mentorship_id, status, agreement, messages, sessions, truncated]
       properties:
         mentorship_id:
           type: string
@@ -3365,9 +3365,14 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Session"
+        truncated:
+          type: boolean
+          description: >-
+            True when the thread holds more than the 500 messages this read
+            returns; the participant route paginates, this one does not.
       description: >-
-        Counts of nothing and no outcome, profile or email text: this is the
-        participant projection of the thread, the agreement and the sessions.
+        No outcome, profile or email text: this is the participant projection of
+        the thread, the agreement and the sessions.
     BreakGlassAgreement:
       type: object
       additionalProperties: false

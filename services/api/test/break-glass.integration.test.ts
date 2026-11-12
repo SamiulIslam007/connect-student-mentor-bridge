@@ -212,7 +212,9 @@ test("a platform admin reads the thread, the agreement and the sessions, and one
     "messages",
     "sessions",
     "status",
+    "truncated",
   ]);
+  assert.equal(response.body?.truncated, false, "a short thread is not truncated");
   assert.equal(response.body?.mentorship_id, seed.mentorshipId);
   assert.equal(response.body?.status, "active");
 
@@ -363,4 +365,76 @@ test("the participant read is unchanged, including its 404 for a third account",
     outsider.token,
   );
   assert.equal(third.status, 404, "a third account still reads as not found");
+});
+
+/**
+ * The rule is "audit row before content", not "an audit row exists somewhere".
+ * Recording the order of the two database calls is what makes a future
+ * `Promise.all` refactor fail instead of silently returning content first.
+ */
+test("the audit insert is issued before any message is read", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const seed = await seedThread(current);
+  const admin = await platformAdmin(current, "admin-order@example.com");
+  const adminUser = await current.client.query<{ id: string }>(
+    "SELECT id FROM users WHERE email = 'admin-order@example.com'",
+  );
+
+  const order: string[] = [];
+  const real = current.database.db;
+  const tableName = (table: unknown): string =>
+    String((table as Record<symbol, unknown>)[Symbol.for("drizzle:Name")] ?? "unknown");
+  const recording = new Proxy(real, {
+    get(target, property, receiver) {
+      const value = Reflect.get(target, property, receiver);
+      if (typeof value !== "function") {
+        return value;
+      }
+      if (property === "insert") {
+        return (...args: unknown[]) => {
+          order.push(`insert:${tableName(args[0])}`);
+          return (value as (...inner: unknown[]) => unknown).apply(target, args);
+        };
+      }
+      if (property === "select") {
+        return (...args: unknown[]) => {
+          const builder = (value as (...inner: unknown[]) => unknown).apply(target, args);
+          return new Proxy(builder as object, {
+            get(inner, innerProperty, innerReceiver) {
+              const innerValue = Reflect.get(inner, innerProperty, innerReceiver);
+              if (innerProperty !== "from" || typeof innerValue !== "function") {
+                return typeof innerValue === "function" ? innerValue.bind(inner) : innerValue;
+              }
+              return (table: unknown) => {
+                order.push(`from:${tableName(table)}`);
+                return (innerValue as (...a: unknown[]) => unknown).call(inner, table);
+              };
+            },
+          });
+        };
+      }
+      return value.bind(target);
+    },
+  });
+
+  const service = new DrizzleMentorshipService(recording as never);
+  const thread = await service.breakGlassRead({
+    mentorshipId: seed.mentorshipId,
+    actorUserId: String(adminUser.rows[0]?.id),
+    reason: "order probe",
+    requestId: "order-probe",
+  });
+
+  assert.equal(thread.messages.length, 2);
+  assert.equal(thread.truncated, false);
+  const auditAt = order.findIndex((entry) => entry === "insert:audit_logs");
+  const messagesAt = order.findIndex((entry) => entry === "from:thread_messages");
+  assert.ok(auditAt >= 0, `the audit insert is issued: ${order.join(", ")}`);
+  assert.ok(messagesAt >= 0, "the thread is read");
+  assert.ok(
+    auditAt < messagesAt,
+    `the audit row is written before any message is read: ${order.join(", ")}`,
+  );
+  assert.equal((await auditRows(current)).length, 1);
 });

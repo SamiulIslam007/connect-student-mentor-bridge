@@ -59,8 +59,7 @@ The data model must tag every field with one of these classes (`docs/data-model.
 | Retaliation after a dispute | Private double-blind feedback, platform arbiter | Policy document |
 | Fake mentor identities | Affiliation levels, institution attestation | SEC-AUTH-1 |
 | Institution inflating outcomes | Institution cannot edit or arbitrate | SEC-AC-2 |
-| Bribery or off-platform payment for confirmations | Terms, reporting, anomaly signals | SEC-ADMIN-1 | Administrative access to private content is explicit, attributed and audited before the content is disclosed | Must | **Built** by `break-glass-thread-read` (2026-11-12): one route, `PLATFORM_ADMIN` plus an enrolled second factor, a required reason, one audit row written before the read, `Cache-Control: no-store`, the participant projection only, and eight distinct refusals each asserted to return no content and write no row. No shared admin account and no standing `INSTITUTION_ADMIN` access (D-121). Participants are not notified (D-123, DEBT-52) |
-| SEC-ABUSE-2 |
+| Bribery or off-platform payment for confirmations | Terms, reporting, anomaly signals | SEC-ABUSE-2 |
 | Sock-puppet accounts | Email-domain checks, rate limits, device and network signals as inputs to human review | SEC-ABUSE-1 |
 | Harassment | Reporting, moderation queue, suspension path | SEC-ABUSE-3 |
 
@@ -103,9 +102,10 @@ Each requirement has an ID, a priority (**Must**, **Should**, **Could**), and th
 | SEC-AC-1 | Every endpoint declares a policy; a route without one fails CI | Must | CI check |
 | SEC-AC-2 | Institution admins and employers cannot edit outcomes, reputation, or resolve disputes | Must | Matrix test |
 | SEC-AC-3 | The permission matrix is tested for every role on every endpoint, including IDOR cases | Must | Matrix test |
-| SEC-AC-4 | Break-glass access needs a reason and a case reference, expires, and is audited | Must | Test and weekly review |
+| SEC-AC-4 | Break-glass access needs a reason and a case reference, expires, and is audited | Must | Test and weekly review. **Partially built** by `break-glass-thread-read` (2026-11-12): the reason and the audit are built (D-121); a case reference and an expiry are not, because the pilot read is a per-call route with no grant to expire and no case table to point at (SEC-ADMIN-1, DEBT-54) |
 | SEC-AC-5 | Student-level data for institutions is returned only with active, purpose-specific consent | Must | Test |
 | SEC-AC-6 | No shared admin accounts | Must | Process check |
+| SEC-ADMIN-1 | Break-glass access to private thread content needs a stated reason, is a per-call read (no standing grant, no expiry), returns only the participant projection, and is audited before any content is disclosed | Must | `services/api/test/break-glass.integration.test.ts` (order, eight refusals, the payload key set) |
 
 ### 5.3 Input, output, and API
 

@@ -96,6 +96,7 @@ const threadViewValue = {
     { id: "s-1", scheduled_start: "2026-11-02T09:00:00.000Z", duration_minutes: 45, status: "scheduled" },
     { id: "s-2", scheduled_start: "2026-11-09T09:00:00.000Z", duration_minutes: 30, status: "scheduled" },
   ],
+  truncated: false,
 };
 
 test("the thread summary counts messages and sessions and names the range", () => {
@@ -112,6 +113,7 @@ test("the thread summary counts messages and sessions and names the range", () =
       agreement: { cadence: null, planned_weeks: null, goal: null, agreement_acknowledged: false },
       messages: [],
       sessions: [],
+      truncated: false,
     }),
     { messageCount: 0, firstAt: null, lastAt: null, agreementPresent: false, sessionCount: 0 },
   );
