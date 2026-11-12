@@ -72,8 +72,49 @@ test("a throttled route does not block another route or an operational probe", a
   });
   assert.equal(forgot.status, 200, "each route has its own bucket");
 
-  for (let probe = 0; probe < 5; probe += 1) {
+  // More probes than the account bucket allows per minute: the named skip has
+  // to cover both throttlers, not only the default one (design R1, D-118).
+  for (let probe = 0; probe < 130; probe += 1) {
     const health = await apiRequest(current, "GET", "/healthz");
     assert.equal(health.status, 200, "the operational probes are never throttled");
   }
+});
+
+/** The address bucket allows five sign-ins a minute, so the hourly account
+ * bucket can only be reached by waiting out the minute between batches. */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+test("the account bucket, not the address bucket, refuses the eleventh sign-in", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  await registerAndVerify(current, "account-bucket@example.com");
+
+  // A clean address window first, so earlier tests cannot influence this one.
+  await sleep(61_000);
+  for (let attempt = 1; attempt <= 5; attempt += 1) {
+    const allowed = await signIn(current, "account-bucket@example.com");
+    assert.equal(allowed.status, 200, `attempt ${attempt}: ${allowed.text}`);
+  }
+
+  await sleep(61_000);
+  for (let attempt = 6; attempt <= 10; attempt += 1) {
+    const allowed = await signIn(current, "account-bucket@example.com");
+    assert.equal(allowed.status, 200, `attempt ${attempt}: ${allowed.text}`);
+  }
+
+  await sleep(61_000);
+  const refused = await signIn(current, "account-bucket@example.com");
+  assert.equal(refused.status, 429, refused.text);
+  assert.equal(refused.body?.code, "RATE_LIMITED");
+  assert.ok(
+    Number(refused.headers.get("retry-after")) > 60,
+    "the wait names the hourly account bucket, not the minute address bucket",
+  );
+
+  // A different account is still served. It is one the earlier test registered,
+  // because the register route allows only three accounts an hour per address.
+  const other = await signIn(current, "throttle-other@example.com");
+  assert.equal(other.status, 200, "a different account is served in the same window");
 });

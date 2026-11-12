@@ -84,8 +84,13 @@ export class ProblemDetailsFilter implements ExceptionFilter {
     const throttled =
       rawStatus === 429 || (exception instanceof HttpException && exception.getStatus() === 429);
     if (throttled) {
-      const header = Number(response.getHeader("retry-after") ?? 60);
-      const retryAfter = Number.isFinite(header) && header > 0 ? Math.ceil(header) : 60;
+      // A named throttler writes `Retry-After-account`, so the plain name is
+      // absent when the account bucket blocks. The longest wait wins (D-118).
+      const waits = Object.entries(response.getHeaders())
+        .filter(([name]) => name.toLowerCase().startsWith("retry-after"))
+        .map(([, value]) => Number(Array.isArray(value) ? value[0] : value))
+        .filter((value) => Number.isFinite(value) && value > 0);
+      const retryAfter = waits.length > 0 ? Math.ceil(Math.max(...waits)) : 60;
       response
         .setHeader("Retry-After", String(retryAfter))
         .status(429)

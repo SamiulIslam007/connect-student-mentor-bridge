@@ -903,3 +903,19 @@ date: 2026-10-29
 - Reason: a ratio over one or two requests reads as a judgement on no evidence, and the threshold is a tuning value, not code.
 - Status: Decided
 - Affects: `mentorship/reputation-ledger`, `packages/config/src/index.ts`, `apps/web/lib/impact-view.ts`
+
+### D-118: A second named throttler keys on the account
+
+- Date: 2026-11-11
+- Decision: A second named throttler `account` is registered beside `default`. Sign-in takes 10 per hour per account, password reset and forgot-password take 5 per hour per account, registration takes none, and the module-level default is 120 per minute. No existing limit value changes.
+- Reason: the spec already promised a per-account key and only the address half was built; mirroring the per-IP numbers per account would double an attacker's allowance for one account.
+- Status: Decided
+- Affects: `platform/rate-limits`, `packages/config/src/index.ts`, `services/api/src/app.module.ts`
+
+### D-119: The account key is a hash, resolved in a fixed order
+
+- Date: 2026-11-11
+- Decision: The account key is derived in a fixed order: a hash of the normalised body email, then a hash of a present session credential, then the client address. A request with no derivable account key falls back to the address bucket and never errors, and no key ever contains a raw email address.
+- Reason: the credential routes are where the attack happens and they carry an email; hashing keeps personal data out of a key that can surface in headers, and a fallback keeps anonymous routes working.
+- Status: Decided
+- Affects: `platform/rate-limits`, `services/api/src/app.module.ts`, `docs/api-contracts.md` section 9
