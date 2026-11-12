@@ -20,6 +20,9 @@ import { OutcomesController } from "../src/outcomes/outcomes.controller.js";
 import { OUTCOME_SERVICE } from "../src/outcomes/outcomes.tokens.js";
 import { DrizzlePrivacyService } from "../src/privacy/drizzle-privacy.service.js";
 import { AttestationController } from "../src/institutions/attestation.controller.js";
+import { InstitutionsController } from "../src/institutions/institutions.controller.js";
+import { INSTITUTIONS_SERVICE } from "../src/institutions/institutions.tokens.js";
+import { DrizzleInstitutionsService } from "../src/institutions/drizzle-institutions.service.js";
 import { ATTESTATIONS_SERVICE } from "../src/institutions/attestation.tokens.js";
 import { DrizzleAttestationsService } from "../src/institutions/drizzle-attestation.service.js";
 import { DrizzleMatchingService } from "../src/matching/drizzle-matching.service.js";
@@ -62,6 +65,7 @@ const CONTROLLERS = [
   ReportsAdminController,
   MatchingController,
   AttestationController,
+  InstitutionsController,
 ];
 
 let stack: TestApiStack | undefined;
@@ -88,6 +92,7 @@ before(async () => {
         useValue: new DrizzleMatchingService(new DrizzleProfilesService(database)),
       },
       { provide: ATTESTATIONS_SERVICE, useValue: new DrizzleAttestationsService(database) },
+      { provide: INSTITUTIONS_SERVICE, useValue: new DrizzleInstitutionsService(database) },
     ],
   });
   if (started.skipped) {
