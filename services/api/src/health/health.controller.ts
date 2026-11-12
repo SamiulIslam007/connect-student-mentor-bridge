@@ -40,7 +40,9 @@ export const defaultProbe: DatabaseProbe = createDefaultProbe();
  * Operational endpoints (docs/api-contracts.md section 1, SEC-INF-8).
  * Unversioned, unauthenticated, and stable in shape.
  */
-@SkipThrottle()
+// The plain @SkipThrottle() marks only the `default` bucket; a named skip is
+// required once a second throttler exists (D-118, verified in throttler 6.7.1).
+@SkipThrottle({ default: true, account: true })
 @Controller()
 export class HealthController {
   constructor(@Inject(DATABASE_PROBE) private readonly probe: DatabaseProbe) {}

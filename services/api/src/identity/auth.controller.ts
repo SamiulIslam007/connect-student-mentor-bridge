@@ -103,6 +103,9 @@ export class AuthController {
   }
 
   @Throttle({ default: RATE_LIMITS.auth })
+  @Throttle({
+    account: { limit: RATE_LIMITS.accountAuth.limit, ttl: RATE_LIMITS.accountAuth.ttl },
+  })
   @Post("sign-in")
   @HttpCode(200)
   async signIn(@Body() body: unknown, @Req() request: RequestWithId) {
@@ -230,6 +233,9 @@ export class AuthController {
   }
 
   @Throttle({ default: RATE_LIMITS.reset })
+  @Throttle({
+    account: { limit: RATE_LIMITS.accountReset.limit, ttl: RATE_LIMITS.accountReset.ttl },
+  })
   @Post("forgot-password")
   @HttpCode(200)
   async forgotPassword(
@@ -244,6 +250,9 @@ export class AuthController {
   }
 
   @Throttle({ default: RATE_LIMITS.reset })
+  @Throttle({
+    account: { limit: RATE_LIMITS.accountReset.limit, ttl: RATE_LIMITS.accountReset.ttl },
+  })
   @Post("reset-password")
   @HttpCode(200)
   async resetPassword(@Body() body: unknown, @Req() request: RequestWithId): Promise<{ status: string }> {

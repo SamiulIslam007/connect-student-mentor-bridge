@@ -105,4 +105,16 @@ export const RATE_LIMITS = {
   write: { limit: 60, ttl: 60_000 },
   /** Every other route, including the public directory. */
   default: { limit: 120, ttl: 60_000 },
+  /**
+   * Per-account sign-in, hourly: one account tried from many addresses
+   * (`DEBT-27`, D-118). A person never reaches it; a dictionary run does.
+   */
+  accountAuth: { limit: 10, ttl: 3_600_000 },
+  /** Per-account password reset and forgot-password, hourly (D-118). */
+  accountReset: { limit: 5, ttl: 3_600_000 },
+  /**
+   * The module-level account bucket. Deliberately the same order as `default`,
+   * so registering the throttler changes no route's behaviour (R1).
+   */
+  accountDefault: { limit: 120, ttl: 60_000 },
 } as const;

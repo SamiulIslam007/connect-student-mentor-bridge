@@ -512,9 +512,14 @@ Default limits are configuration, not code (SEC-ABUSE-4). Concrete values remain
 | `POST /v1/auth/forgot-password`, `reset-password` | 3 per hour | client IP |
 | `POST /v1/requests`, `POST /v1/mentorships/{id}/messages`, `POST /v1/outcomes`, `:{id}/confirm`, `:{id}/dispute` | 60 per minute | client IP |
 | every other route (including the public directory) | 120 per minute | client IP |
-| `GET /healthz`, `GET /readyz` | unthrottled | - |
+| `POST /v1/auth/sign-in` (second bucket) | 10 per hour | account (body email, else session, else client IP) |
+| `POST /v1/auth/forgot-password`, `reset-password` (second bucket) | 5 per hour | account (body email, else session, else client IP) |
+| every other route (second bucket) | 120 per minute | account (body email, else session, else client IP) |
+| `GET /healthz`, `GET /readyz` | unthrottled, both buckets | - |
 
-A refusal is `429 RATE_LIMITED` with a numeric `Retry-After`. The store is in process memory (`@nestjs/throttler`), so the limit is **per instance**: a multi-instance deployment needs a shared store, which ADR-006 defers until after the pilot. The per-account bucket named by `SEC-ABUSE-1` is not implemented yet (DEBT-27).
+A refusal is `429 RATE_LIMITED` with a numeric `Retry-After`. The store is in process memory (`@nestjs/throttler`), so the limit is **per instance**: a multi-instance deployment needs a shared store, which ADR-006 defers until after the pilot.
+
+Two buckets apply (`per-account-rate-limit`, 2026-11-12, D-118, D-119). The address bucket is unchanged; the account bucket keys on the normalised body `email` when present, otherwise on a present session credential, otherwise on the client address, and the key is a SHA-256 hash so no email address appears in a key. Registration has no account bucket, because no account exists before the request succeeds. A named bucket answers with `Retry-After-account`, and the refusal's `Retry-After` carries the longest wait of the buckets that blocked.
 
 ## 10. Error catalog (initial)
 

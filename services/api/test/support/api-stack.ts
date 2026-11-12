@@ -23,6 +23,7 @@ import type { EmailMessage, EmailSender } from "../../src/email/email-sender.js"
 import { ProblemDetailsFilter } from "../../src/http/problem-details.filter.js";
 import { BodyAllowlistInterceptor } from "../../src/http/body-allowlist.interceptor.js";
 import { API_MAX_BODY_BYTES } from "../../src/http/request-body.js";
+import { accountTracker } from "../../src/http/account-throttler.js";
 import { RequestIdMiddleware } from "../../src/http/request-id.middleware.js";
 import {
   openTestDatabase,
@@ -154,6 +155,14 @@ export async function startApiStack(
     imports: options.throttle
       ? [ThrottlerModule.forRoot([
           { name: "default", ttl: RATE_LIMITS.default.ttl, limit: RATE_LIMITS.default.limit },
+          // Mirrors the application's second named throttler, so the account
+          // bucket is exercised by the same wiring production uses (D-118).
+          {
+            name: "account",
+            ttl: RATE_LIMITS.accountDefault.ttl,
+            limit: RATE_LIMITS.accountDefault.limit,
+            getTracker: accountTracker,
+          },
         ])]
       : [],
     controllers,
