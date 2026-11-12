@@ -34,7 +34,8 @@ export type AuditAction =
   | "ACCOUNT_DELETED"
   | "REPORT_RESOLVED"
   | "INSTITUTION_CREATED"
-  | "INSTITUTION_DOMAIN_REGISTERED";
+  | "INSTITUTION_DOMAIN_REGISTERED"
+  | "THREAD_BREAK_GLASS_READ";
 
 export interface AuditEntry {
   action: AuditAction;
@@ -45,6 +46,8 @@ export interface AuditEntry {
   objectId?: string | null;
   requestId: string;
   reason?: string;
+  /** True only for a read that widens access to private content (D-124). */
+  breakGlass?: boolean;
   metadata?: Record<string, unknown>;
 }
 
@@ -64,6 +67,7 @@ export async function appendAuditEntry(database: AuditWriter, entry: AuditEntry)
     objectId: entry.objectId ?? null,
     requestId: entry.requestId,
     reason: entry.reason ?? null,
+    breakGlass: entry.breakGlass ?? false,
     metadata: entry.metadata ?? {},
   });
 }

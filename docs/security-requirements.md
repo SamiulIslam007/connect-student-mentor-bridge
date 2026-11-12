@@ -102,9 +102,10 @@ Each requirement has an ID, a priority (**Must**, **Should**, **Could**), and th
 | SEC-AC-1 | Every endpoint declares a policy; a route without one fails CI | Must | CI check |
 | SEC-AC-2 | Institution admins and employers cannot edit outcomes, reputation, or resolve disputes | Must | Matrix test |
 | SEC-AC-3 | The permission matrix is tested for every role on every endpoint, including IDOR cases | Must | Matrix test |
-| SEC-AC-4 | Break-glass access needs a reason and a case reference, expires, and is audited | Must | Test and weekly review |
+| SEC-AC-4 | Break-glass access needs a reason and a case reference, expires, and is audited | Must | Test and weekly review. **Partially built** by `break-glass-thread-read` (2026-11-12): the reason and the audit are built (D-121); a case reference and an expiry are not, because the pilot read is a per-call route with no grant to expire and no case table to point at (SEC-ADMIN-1, DEBT-54) |
 | SEC-AC-5 | Student-level data for institutions is returned only with active, purpose-specific consent | Must | Test |
 | SEC-AC-6 | No shared admin accounts | Must | Process check |
+| SEC-ADMIN-1 | Break-glass access to private thread content needs a stated reason, is a per-call read (no standing grant, no expiry), returns only the participant projection, and is audited before any content is disclosed | Must | `services/api/test/break-glass.integration.test.ts` (order, eight refusals, the payload key set) |
 
 ### 5.3 Input, output, and API
 

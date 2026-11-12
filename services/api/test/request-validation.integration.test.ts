@@ -13,6 +13,7 @@ import { AuthController } from "../src/identity/auth.controller.js";
 import { MeController } from "../src/me/me.controller.js";
 import { MeRolesController } from "../src/me/roles.controller.js";
 import { DrizzleMentorshipService } from "../src/mentorships/drizzle-mentorship.service.js";
+import { AdminThreadController } from "../src/mentorships/admin-thread.controller.js";
 import { MentorshipsController, SessionsController } from "../src/mentorships/mentorships.controller.js";
 import { MENTORSHIP_SERVICE } from "../src/mentorships/mentorships.tokens.js";
 import { DrizzleOutcomeService } from "../src/outcomes/drizzle-outcome.service.js";
@@ -58,6 +59,7 @@ const CONTROLLERS = [
   AffiliationsController,
   RequestsController,
   MentorshipsController,
+  AdminThreadController,
   SessionsController,
   OutcomesController,
   PrivacyController,

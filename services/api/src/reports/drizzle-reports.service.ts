@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 
 import { IdentityError } from "@connect/domain";
 
@@ -37,6 +37,7 @@ function toRecord(row: typeof reports.$inferSelect): ReportRecord {
     resolvedByUserId: row.resolvedByUserId,
     resolvedAt: row.resolvedAt,
     createdAt: row.createdAt,
+    mentorshipId: null,
   };
 }
 
@@ -159,10 +160,35 @@ export class DrizzleReportsService implements ReportsService {
       .limit(input.limit + 1);
 
     const page = rows.slice(0, input.limit).map(toRecord);
+    await this.attachMentorshipIds(page);
     return {
       reports: page,
       nextCursor: rows.length > input.limit ? page[page.length - 1].id : null,
     };
+  }
+
+  /**
+   * One lookup for the whole page: a reported message carries the mentorship the
+   * admin page needs to form the break-glass route (design R1). Any other target
+   * keeps null.
+   */
+  private async attachMentorshipIds(page: ReportRecord[]): Promise<void> {
+    const messageIds = page
+      .filter((report) => report.targetKind === "MESSAGE")
+      .map((report) => report.targetId);
+    if (messageIds.length === 0) {
+      return;
+    }
+    const found = await this.database
+      .select({ id: threadMessages.id, mentorshipId: threadMessages.mentorshipId })
+      .from(threadMessages)
+      .where(inArray(threadMessages.id, messageIds));
+    const byMessage = new Map(found.map((row) => [row.id, row.mentorshipId]));
+    for (const report of page) {
+      if (report.targetKind === "MESSAGE") {
+        report.mentorshipId = byMessage.get(report.targetId) ?? null;
+      }
+    }
   }
 
   async resolve(input: ResolveReportInput): Promise<ReportRecord> {

@@ -236,6 +236,25 @@ test("a report is resolved once, the reporter is emailed, and no sanction leaks"
 
   const queue = await apiRequest(current, "GET", "/v1/reports", undefined, admin);
   assert.equal((queue.body?.data as unknown[]).length, 1);
+  // The queue carries the mentorship of a reported message so the admin page can
+  // form the break-glass route; the rest of the key set is unchanged (R1).
+  const queueRow = (queue.body?.data as Record<string, unknown>[])[0];
+  assert.equal(queueRow.mentorship_id, seeded.mentorshipId);
+  assert.deepEqual(Object.keys(queueRow).sort(), [
+    "created_at",
+    "decision",
+    "details",
+    "id",
+    "mentorship_id",
+    "reason",
+    "reporter_user_id",
+    "resolution_reason",
+    "resolved_at",
+    "resolved_by_user_id",
+    "status",
+    "target_id",
+    "target_kind",
+  ]);
 
   const resolved = await apiRequest(
     current,
@@ -348,4 +367,30 @@ test("a suspension stores its end date, revokes sessions, audits, and notifies o
     [seeded.mentorId],
   );
   assert.equal(mentor.rows[0].status, "ACTIVE", "a refused suspension changes nothing");
+});
+
+test("a report on a user carries no mentorship id", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const student = await signInToken(current, "student@example.com");
+  const admin = await adminToken(current, "admin-nomento@example.com");
+  // A user target must be an existing account: register one for this test.
+  await registerAndVerify(current, "reported-user@example.com");
+  const target = await current.client.query<{ id: string }>(
+    "SELECT id FROM users WHERE email = 'reported-user@example.com'",
+  );
+
+  const created = await apiRequest(
+    current,
+    "POST",
+    "/v1/reports",
+    { target_kind: "user", target_id: target.rows[0]?.id, reason: "harassment" },
+    student,
+  );
+  assert.equal(created.status, 201, created.text);
+
+  const queue = await apiRequest(current, "GET", "/v1/reports", undefined, admin);
+  const row = (queue.body?.data as Record<string, unknown>[])[0];
+  assert.equal(row.target_kind, "user");
+  assert.equal(row.mentorship_id, null, "a user target has no mentorship");
 });

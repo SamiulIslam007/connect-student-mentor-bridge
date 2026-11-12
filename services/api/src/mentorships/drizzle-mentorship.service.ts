@@ -28,9 +28,12 @@ import {
   threadMessages,
 } from "../db/schema/index.js";
 import { users } from "../db/schema/index.js";
+import { appendAuditEntry } from "../identity/audit-log.js";
 import { enqueueOutboxEvent } from "../platform/outbox/outbox.js";
+import { BREAK_GLASS_MESSAGE_CAP, BREAK_GLASS_REASON_MAX_LENGTH } from "./mentorship.service.js";
 import type {
   AgreementInput,
+  BreakGlassReadInput,
   CreateSessionInput,
   ListMentorshipsInput,
   ListMessagesInput,
@@ -38,6 +41,7 @@ import type {
   MentorshipService,
   MessagePage,
   MessageRecord,
+  ModerationThread,
   SessionInput,
   SessionRecord,
 } from "./mentorship.service.js";
@@ -130,6 +134,22 @@ function requireRecord(row: MentorshipRecord | null | undefined): MentorshipReco
     throw new IdentityError("SESSION_NOT_FOUND", "the mentorship does not exist");
   }
   return row;
+}
+
+
+/** The reason is required on every break-glass read and bounded (D-120). */
+function breakGlassReason(value: unknown): string {
+  const reason = typeof value === "string" ? value.trim() : "";
+  if (!reason) {
+    throw new IdentityError("VALIDATION_ERROR", "reason is required");
+  }
+  if (reason.length > BREAK_GLASS_REASON_MAX_LENGTH) {
+    throw new IdentityError(
+      "VALIDATION_ERROR",
+      `reason must be at most ${BREAK_GLASS_REASON_MAX_LENGTH} characters`,
+    );
+  }
+  return reason;
 }
 
 /** The participants of one mentorship, with the two account emails (never returned). */
@@ -555,6 +575,66 @@ export class DrizzleMentorshipService implements MentorshipService {
       }
       return row as SessionRecord;
     });
+  }
+
+  /**
+   * The audited break-glass read (D-121). The order is the security rule:
+   * validate the reason, resolve the mentorship, write the audit row, and only
+   * then read. A refusal before the write returns no content and leaves no row.
+   */
+  async breakGlassRead(input: BreakGlassReadInput): Promise<ModerationThread> {
+    const reason = breakGlassReason(input.reason);
+    uuidOf(input.mentorshipId, "mentorship id");
+    const mentorship = requireRecord((await readRecord(this.db, input.mentorshipId))[0]);
+
+    await appendAuditEntry(this.db, {
+      action: "THREAD_BREAK_GLASS_READ",
+      actorUserId: input.actorUserId,
+      actorRole: "PLATFORM_ADMIN",
+      objectType: "MENTORSHIP",
+      objectId: mentorship.id,
+      requestId: input.requestId,
+      reason,
+      breakGlass: true,
+    });
+
+    const { messages, truncated } = await this.moderationMessages(mentorship.id);
+    const sessions = await this.moderationSessions(mentorship.id);
+    return { mentorship, messages, sessions, truncated };
+  }
+
+  /** Oldest-first messages through the participant projection, capped and flagged. */
+  private async moderationMessages(
+    mentorshipId: string,
+  ): Promise<{ messages: MessageRecord[]; truncated: boolean }> {
+    const truncate = sql`date_trunc('milliseconds', ${threadMessages.createdAt})`;
+    const rows = await this.db
+      .select({
+        id: threadMessages.id,
+        senderUserId: threadMessages.senderUserId,
+        senderName: senderUser.name,
+        body: threadMessages.body,
+        createdAt: threadMessages.createdAt,
+      })
+      .from(threadMessages)
+      .innerJoin(senderUser, eq(senderUser.id, threadMessages.senderUserId))
+      .where(eq(threadMessages.mentorshipId, mentorshipId))
+      .orderBy(truncate, asc(threadMessages.id))
+      .limit(BREAK_GLASS_MESSAGE_CAP + 1);
+    const truncated = rows.length > BREAK_GLASS_MESSAGE_CAP;
+    return {
+      messages: (truncated ? rows.slice(0, BREAK_GLASS_MESSAGE_CAP) : rows) as MessageRecord[],
+      truncated,
+    };
+  }
+
+  private async moderationSessions(mentorshipId: string): Promise<SessionRecord[]> {
+    const rows = await this.db
+      .select(sessionColumns)
+      .from(mentorshipSessions)
+      .where(eq(mentorshipSessions.mentorshipId, mentorshipId))
+      .orderBy(asc(mentorshipSessions.scheduledStart), asc(mentorshipSessions.id));
+    return rows as SessionRecord[];
   }
 
   async complete(userId: string, mentorshipId: string): Promise<MentorshipRecord> {

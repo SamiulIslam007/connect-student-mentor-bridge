@@ -87,6 +87,32 @@ export interface SessionInput {
   reason?: string;
 }
 
+/** The break-glass reason bound, and the number the refusal message states. */
+export const BREAK_GLASS_REASON_MAX_LENGTH = 1_000;
+
+/**
+ * The break-glass read returns at most this many messages and says so, because
+ * the participant read paginates and an unbounded moderation response would
+ * grow with the thread (design R3 has no cursor on this route).
+ */
+export const BREAK_GLASS_MESSAGE_CAP = 500;
+
+export interface BreakGlassReadInput {
+  mentorshipId: string;
+  actorUserId: string;
+  /** Validated by the service: required, trimmed, at most the documented bound. */
+  reason: unknown;
+  requestId: string;
+}
+
+export interface ModerationThread {
+  mentorship: MentorshipRecord;
+  messages: MessageRecord[];
+  sessions: SessionRecord[];
+  /** True when the thread holds more messages than the cap returns. */
+  truncated: boolean;
+}
+
 export interface MentorshipService {
   list(input: ListMentorshipsInput): Promise<MentorshipRecord[]>;
   /** Participant-only; a foreign id reads as not found. */
@@ -100,6 +126,11 @@ export interface MentorshipService {
   confirmHeld(userId: string, sessionId: string): Promise<SessionRecord>;
   cancelSession(input: SessionInput): Promise<SessionRecord>;
   complete(userId: string, mentorshipId: string): Promise<MentorshipRecord>;
+  /**
+   * The audited break-glass read (D-121): validate, resolve, write the audit
+   * row, then read. Content is never returned without its audit row.
+   */
+  breakGlassRead(input: BreakGlassReadInput): Promise<ModerationThread>;
 }
 
 export function mentorshipPayload(mentorship: MentorshipRecord): Record<string, unknown> {

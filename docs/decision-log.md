@@ -919,3 +919,43 @@ date: 2026-10-29
 - Reason: the credential routes are where the attack happens and they carry an email; hashing keeps personal data out of a key that can surface in headers, and a fallback keeps anonymous routes working.
 - Status: Decided
 - Affects: `platform/rate-limits`, `services/api/src/app.module.ts`, `docs/api-contracts.md` section 9
+
+### D-120: The break-glass read is a POST with a required reason
+
+- Date: 2026-11-11
+- Decision: The break-glass read is `POST /v1/admin/mentorships/{id}/break-glass-read` with a required `reason` of 1 to 1000 characters in the body. A GET with the reason in the query string is rejected.
+- Reason: the call writes an audit row, so it is a state change, and a reason in a URL leaks a moderator's free text into access and proxy logs.
+- Status: Decided
+- Affects: `mentorship/thread-and-sessions`, `packages/contracts/openapi.yaml`, `docs/api-contracts.md` section 5.5
+
+### D-121: The actor, the order and the refusals
+
+- Date: 2026-11-11
+- Decision: The actor is `PLATFORM_ADMIN` with an enrolled second factor. The order is authorize, validate, resolve, write the audit row, read, respond. A missing or empty reason is `422` with no audit row and no content; a non-admin is `403`; an admin without a second factor is refused before any write; an unknown mentorship is `404` with no audit row; the participant read is unchanged.
+- Reason: a moderation read must leave a record before it discloses anything, and each refusal has to be distinguishable from the others in a test.
+- Status: Decided
+- Affects: `mentorship/thread-and-sessions`, `docs/auth-and-access-control.md`, `docs/security-requirements.md`
+
+### D-122: Messages plus the agreement and the sessions, never outcome text
+
+- Date: 2026-11-11
+- Decision: The read returns the thread messages oldest first plus the agreement and the session records, using the participant read's own projection. Outcome text, profile text and email addresses are never returned.
+- Reason: a reviewer needs the session a report is about, and needs nothing beyond what the requirement authorises.
+- Status: Decided
+- Affects: `mentorship/thread-and-sessions`, `docs/api-contracts.md` section 5.5
+
+### D-123: No participant notification; the audit row is the record
+
+- Date: 2026-11-11
+- Decision: Participants are not notified that their thread was read; the audit row is the record, and a debt row (DEBT-52) holds the disclosure decision open.
+- Reason: notification is the more defensible product long term but `FR-NOT-01` does not list it as a trigger and it needs its own template and its own decision about disclosing moderator activity.
+- Status: Decided
+- Affects: `mentorship/thread-and-sessions`, `docs/known-debt.md` (DEBT-52)
+
+### D-124: No migration, one new action member
+
+- Date: 2026-11-11
+- Decision: No migration. `audit_logs.action` is plain text and `break_glass` and `reason` already exist, so the audit write is schema-complete; `AuditAction` gains `THREAD_BREAK_GLASS_READ`.
+- Reason: a separate reads table would duplicate what the audit log already records, and a column that exists does not need creating.
+- Status: Decided
+- Affects: `services/api/src/identity/audit-log.ts`, `docs/data-model.md`

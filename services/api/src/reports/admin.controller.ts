@@ -42,6 +42,7 @@ function adminPayload(report: ReportRecord): Record<string, unknown> {
     resolved_by_user_id: report.resolvedByUserId,
     resolved_at: report.resolvedAt?.toISOString() ?? null,
     created_at: report.createdAt.toISOString(),
+    mentorship_id: report.mentorshipId,
   };
 }
 

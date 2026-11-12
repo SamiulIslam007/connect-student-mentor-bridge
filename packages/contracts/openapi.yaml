@@ -1460,6 +1460,60 @@ paths:
           $ref: "#/components/responses/Problem"
         "429":
           $ref: "#/components/responses/Problem"
+  /v1/admin/mentorships/{id}/break-glass-read:
+    post:
+      operationId: breakGlassReadThread
+      summary: Read a mentorship thread through an audited break-glass read
+      description: >-
+        Platform-admin read with an enrolled second factor (D-120 to D-124). The
+        order is fixed: authorize, validate the reason, resolve the mentorship,
+        append one `THREAD_BREAK_GLASS_READ` audit entry carrying the actor, the
+        mentorship, the reason and the break-glass marker, then read. A missing or
+        empty reason, a non-admin caller, an admin without a second factor and an
+        unknown mentorship all return no content and write no audit entry. The
+        response reuses the participant projection for messages and sessions and
+        never carries outcome text, profile text or an email address, and it is
+        `Cache-Control: no-store`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The mentorship id (uuid).
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BreakGlassReadRequest"
+      responses:
+        "200":
+          description: The thread, the agreement and the session records
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                enum: ["no-store"]
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BreakGlassThread"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "413":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        "429":
+          $ref: "#/components/responses/Problem"
   /v1/mentorships:
     get:
       operationId: listMentorships
@@ -2267,6 +2321,11 @@ components:
           type: [string, "null"]
         created_at:
           type: string
+        mentorship_id:
+          type: [string, "null"]
+          description: >-
+            The mentorship a reported message belongs to, for the admin page's
+            break-glass route. Null for every other target kind.
     ReportQueuePage:
       type: object
       properties:
@@ -3276,6 +3335,73 @@ components:
     SessionStatus:
       type: string
       enum: [SCHEDULED, HELD, CANCELLED]
+    BreakGlassReadRequest:
+      type: object
+      additionalProperties: false
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 1000
+          description: Trimmed before the write; the refusal message states the bound.
+    BreakGlassThread:
+      type: object
+      additionalProperties: false
+      required: [mentorship_id, status, agreement, messages, sessions, truncated]
+      properties:
+        mentorship_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+        agreement:
+          $ref: "#/components/schemas/BreakGlassAgreement"
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/ThreadMessage"
+        sessions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Session"
+        truncated:
+          type: boolean
+          description: >-
+            True when the thread holds more than the 500 messages this read
+            returns; the participant route paginates, this one does not.
+      description: >-
+        No outcome, profile or email text: this is the participant projection of
+        the thread, the agreement and the sessions.
+    BreakGlassAgreement:
+      type: object
+      additionalProperties: false
+      required:
+        - cadence
+        - planned_weeks
+        - goal
+        - student_acknowledged_at
+        - mentor_acknowledged_at
+        - agreement_acknowledged
+        - started_at
+        - ended_at
+      properties:
+        cadence:
+          type: [string, "null"]
+        planned_weeks:
+          type: [integer, "null"]
+        goal:
+          type: [string, "null"]
+        student_acknowledged_at:
+          type: [string, "null"]
+        mentor_acknowledged_at:
+          type: [string, "null"]
+        agreement_acknowledged:
+          type: boolean
+        started_at:
+          type: [string, "null"]
+        ended_at:
+          type: [string, "null"]
     Mentorship:
       type: object
       additionalProperties: false
