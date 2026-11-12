@@ -444,7 +444,7 @@ test("the impact surface is documented, session-guarded, and exposes no score", 
     "requests_decided_in_time",
     "requests_late_or_expired",
   ]);
-  assert.deepEqual(own.required, [
+  assert.deepEqual((own as { required?: unknown }).required, [
     "data",
     "counted_outcomes",
     "requests_decided_in_time",
