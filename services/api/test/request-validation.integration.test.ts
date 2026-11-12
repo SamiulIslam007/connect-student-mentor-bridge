@@ -245,6 +245,10 @@ test("a library rate-limit code becomes 429 RATE_LIMITED, not a 500", async () =
     getHeader() {
       return undefined;
     },
+    /** The filter reads every `retry-after*` header a named bucket may set. */
+    getHeaders() {
+      return captured.headers;
+    },
     json(body: unknown) {
       captured.body = body;
       return this;
