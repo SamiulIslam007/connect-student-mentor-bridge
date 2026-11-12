@@ -807,3 +807,27 @@ date: 2026-10-29
 - Reason: personal text on a shared device must not survive a deliberate sign-out, and the second call site would otherwise be missed by a rule that only names "the sign-out path".
 - Status: Decided
 - Affects: `apps/web/app/session-nav.tsx`, `apps/web/app/account/sessions/page.tsx`, `mentorship/request-lifecycle`
+
+### D-107: No service worker and no offline cache (owner decision)
+
+- Date: 2026-11-11
+- Decision: The installable-web-app work ships a manifest, icons, and metadata only: no service worker, no offline cache, no custom install prompt. Offline behaviour stays with `FR-UX-02`.
+- Reason: the framework documentation lists a valid manifest plus HTTPS as the install criteria and does not list a service worker; an offline cache is a retention and privacy decision on a shared device, not a side effect of installability.
+- Status: Decided
+- Affects: `experience/installable-pwa`, `docs/known-debt.md` (DEBT-37 narrowed)
+
+### D-108: Icons are rendered from the existing brand mark, flat tiles if none exists (owner decision)
+
+- Date: 2026-11-11
+- Decision: The three icons (192, 512, 512 maskable) are rendered from the existing brand mark by a one-off local command and committed as PNGs; if no mark exists in the tree, flat colour tiles ship instead and the handoff says so. No dependency and no build step are added.
+- Reason: installability needs real icon files at the declared sizes, and a generated icon route would add a rendering surface for a static asset.
+- Status: Decided
+- Affects: `experience/installable-pwa`, `apps/web/public/`
+
+### D-125: The install colours are one constant, chosen because the app has no palette
+
+- Date: 2026-11-12
+- Decision: `apps/web/app/manifest.ts` exports `manifestColors` with `background: #ffffff` and `theme: #0f172a`; the manifest's `background_color` and `theme_color`, the flat icon tiles, and the layout's `viewport.themeColor` all read it. The tiles themselves are that theme colour.
+- Reason: `apps/web` ships no stylesheet and no palette file, so there was no existing token to reuse and inventing a brand palette is not this change's business; one constant keeps the manifest, the icons and the browser chrome from drifting, and a real palette replaces it in one edit when one exists.
+- Status: Decided
+- Affects: `experience/installable-pwa`, `apps/web/app/manifest.ts`, `apps/web/app/layout.tsx`, `apps/web/public/`
