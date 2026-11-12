@@ -374,8 +374,10 @@ test("a report on a user carries no mentorship id", async (context) => {
   if (!current) return;
   const student = await signInToken(current, "student@example.com");
   const admin = await adminToken(current, "admin-nomento@example.com");
+  // A user target must be an existing account: register one for this test.
+  await registerAndVerify(current, "reported-user@example.com");
   const target = await current.client.query<{ id: string }>(
-    "SELECT id FROM users WHERE email = 'mentor@example.com'",
+    "SELECT id FROM users WHERE email = 'reported-user@example.com'",
   );
 
   const created = await apiRequest(
