@@ -376,7 +376,7 @@ test("the audit insert is issued before any message is read", async (context) =>
   const current = requireStack(context);
   if (!current) return;
   const seed = await seedThread(current);
-  const admin = await platformAdmin(current, "admin-order@example.com");
+  await platformAdmin(current, "admin-order@example.com");
   const adminUser = await current.client.query<{ id: string }>(
     "SELECT id FROM users WHERE email = 'admin-order@example.com'",
   );
