@@ -76,6 +76,13 @@ export const MATCH_FACTOR_WEIGHTS = {
 export const MATCH_ALUMNI_BATCH_DISTANCE = 0;
 
 /**
+ * Impact reliability: below this many requests the own-impact view shows a
+ * single "not enough data yet" line instead of the two counts (D-117). A
+ * **Proposed default** pending pilot traffic.
+ */
+export const IMPACT_RELIABILITY_MIN_SAMPLE = 3;
+
+/**
  * Rate-limit starting values, **placeholders pending pilot traffic**
  * (`docs/api-contracts.md` §9 keeps the concrete values Open as SEC-O2). They
  * are configuration, so tuning needs no code change. `ttl` is milliseconds,

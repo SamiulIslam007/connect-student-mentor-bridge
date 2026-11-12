@@ -7,6 +7,7 @@ import {
   hasScoreKey,
   impactState,
   outcomeLabel,
+  reliabilityState,
   renderRows,
   type ImpactReport,
 } from "../lib/impact-view.js";
@@ -18,6 +19,8 @@ const report: ImpactReport = {
     { field_id: "f-1", field_name: "Engineering", outcome_type: "interview", count: 1 },
   ],
   counted_outcomes: 3,
+  requests_decided_in_time: 4,
+  requests_late_or_expired: 1,
 };
 
 test("loading, error, empty, and ready are distinct states", () => {
@@ -66,4 +69,36 @@ test("the impact summary carries the disclaimer and makes no audit claim", () =>
     "utf8",
   );
   assert.match(source, /strings\.disclaimer\.verified/);
+});
+
+test("response reliability is hidden below the sample and shown at it", () => {
+  const base = { data: [], counted_outcomes: 0 };
+  const two = { ...base, requests_decided_in_time: 2, requests_late_or_expired: 0 };
+  const three = { ...base, requests_decided_in_time: 2, requests_late_or_expired: 1 };
+
+  assert.equal(reliabilityState(two, 3), "hidden");
+  assert.equal(reliabilityState({ ...base, requests_decided_in_time: 0, requests_late_or_expired: 0 }, 3), "hidden");
+  assert.equal(reliabilityState(three, 3), "shown");
+  assert.equal(reliabilityState({ ...base, requests_decided_in_time: 0, requests_late_or_expired: 4 }, 3), "shown");
+});
+
+test("the view model exposes no percentage, rate, or score", () => {
+  for (const key of ["percentage", "rate", "score", "points", "tier", "ranking"]) {
+    assert.equal(key in report, false, key);
+  }
+  assert.equal(hasScoreKey(report as unknown as Record<string, unknown>), false);
+  assert.match(report.requests_decided_in_time.toString(), /^\d+$/, "a count, not a rate");
+});
+
+test("the section renders the two counts from the catalog and no percentage sign", () => {
+  const source = readFileSync(
+    fileURLToPath(new URL("../app/profile/impact-section.tsx", import.meta.url)),
+    "utf8",
+  );
+  assert.match(source, /strings\.impact\.reliabilityTitle/);
+  assert.match(source, /strings\.impact\.decidedInTime/);
+  assert.match(source, /strings\.impact\.lateOrExpired/);
+  assert.match(source, /strings\.impact\.reliabilityNotEnough/);
+  assert.match(source, /reliabilityState\(report, IMPACT_RELIABILITY_MIN_SAMPLE\)/);
+  assert.doesNotMatch(source, /%/);
 });

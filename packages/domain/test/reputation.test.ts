@@ -7,6 +7,7 @@ import {
   pointsToNumeric,
   replaySnapshots,
   reputationPoints,
+  responseReliability,
   reversalPoints,
   snapshotDelta,
   type CountedEvent,
@@ -119,4 +120,71 @@ test("replay reproduces a snapshot after a reversal", () => {
     },
   ]);
   assert.equal(earlierCountedForPair(events, pair), 1, "a reversal is not a second count");
+});
+
+function timing(status: string, createdAt: Date, decidedAt: Date | null = null) {
+  return { status, createdAt, decidedAt };
+}
+
+const at = (hoursFromBase: number): Date => new Date(Date.UTC(2026, 10, 1) + hoursFromBase * 3_600_000);
+
+test("requests decided inside the window are counted in time", () => {
+  assert.deepEqual(
+    responseReliability(
+      [
+        timing("ACCEPTED", at(0), at(2)),
+        timing("DECLINED", at(0), at(47)),
+        timing("ACCEPTED", at(0), at(48)),
+      ],
+      48,
+    ),
+    { decidedInTime: 3, lateOrExpired: 0 },
+  );
+});
+
+test("a late decision and an expired request are late or expired", () => {
+  assert.deepEqual(
+    responseReliability(
+      [timing("ACCEPTED", at(0), at(49)), timing("EXPIRED", at(0))],
+      48,
+    ),
+    { decidedInTime: 0, lateOrExpired: 2 },
+  );
+});
+
+test("withdrawn and pending requests increment neither bucket", () => {
+  assert.deepEqual(
+    responseReliability(
+      [timing("WITHDRAWN", at(0)), timing("PENDING", at(0)), timing("REDIRECTED", at(0), at(3))],
+      48,
+    ),
+    { decidedInTime: 1, lateOrExpired: 0 },
+  );
+});
+
+test("a decided status without a decision timestamp increments neither", () => {
+  assert.deepEqual(responseReliability([timing("ACCEPTED", at(0))], 48), {
+    decidedInTime: 0,
+    lateOrExpired: 0,
+  });
+});
+
+test("the buckets are a partition of the decided rows", () => {
+  const rows = [
+    timing("ACCEPTED", at(0), at(1)),
+    timing("DECLINED", at(0), at(2)),
+    timing("ACCEPTED", at(0), at(72)),
+    timing("EXPIRED", at(0)),
+    timing("WITHDRAWN", at(0)),
+    timing("PENDING", at(0)),
+  ];
+  const counts = responseReliability(rows, 48);
+  assert.equal(counts.decidedInTime, 2);
+  assert.equal(counts.lateOrExpired, 2);
+  assert.ok(counts.decidedInTime + counts.lateOrExpired <= rows.length);
+});
+
+test("an invalid window is refused rather than guessed", () => {
+  assert.throws(() => responseReliability([], 0), /windowHours/);
+  assert.throws(() => responseReliability([], Number.NaN), /windowHours/);
 });

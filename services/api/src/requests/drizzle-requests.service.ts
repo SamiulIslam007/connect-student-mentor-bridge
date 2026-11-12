@@ -36,7 +36,8 @@ type Executor = Pick<Database, "select">;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_PAGE_SIZE = 50;
-const REQUEST_TTL_MS = 48 * 60 * 60 * 1000;
+/** The mentor's decision window. One source: the sweeper and the reliability read both use it. */
+export const REQUEST_TTL_MS = 48 * 60 * 60 * 1000;
 
 const studentUser = alias(users, "student_user");
 const mentorUser = alias(users, "mentor_user");

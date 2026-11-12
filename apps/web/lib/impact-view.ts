@@ -15,6 +15,24 @@ export interface ImpactRow {
 export interface ImpactReport {
   data: ImpactRow[];
   counted_outcomes: number;
+  /** Requests the mentor decided inside the window (D-114, D-116). */
+  requests_decided_in_time: number;
+  requests_late_or_expired: number;
+}
+
+/**
+ * Below the configured sample the two counts are replaced by one line (D-117).
+ * A pure helper so the rule is testable without a renderer, like `impactState`.
+ */
+export type ReliabilityState = "hidden" | "shown";
+
+export function reliabilityState(
+  report: Pick<ImpactReport, "requests_decided_in_time" | "requests_late_or_expired">,
+  minimum: number,
+): ReliabilityState {
+  return report.requests_decided_in_time + report.requests_late_or_expired < minimum
+    ? "hidden"
+    : "shown";
 }
 
 export type ImpactState = "loading" | "error" | "empty" | "ready";

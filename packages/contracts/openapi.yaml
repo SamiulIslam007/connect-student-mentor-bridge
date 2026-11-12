@@ -2079,19 +2079,22 @@ paths:
   /v1/me/impact:
     get:
       operationId: getOwnImpact
-      summary: The caller's counted outcomes by field and type (counts only)
+      summary: The caller's counted outcomes and request response counts
       description: >-
-        Counts only: no score, points, tier, or ranking key exists. A caller
-        without a mentor profile gets an empty list.
+        Counts only: no score, points, tier, percentage, rate, or ranking key
+        exists (D-116). The two request counts cover every request the caller's
+        mentor profile has ever received: decided inside the decision window, and
+        decided late or expired (D-114). The share is derived by the client. A
+        caller without a mentor profile gets empty counts.
       security:
         - bearerAuth: []
       responses:
         "200":
-          description: Counts by field and outcome type
+          description: Counts by field and outcome type plus the two request counts
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ImpactResponse"
+                $ref: "#/components/schemas/OwnImpactResponse"
         "401":
           $ref: "#/components/responses/Problem"
   /v1/mentors/{id}/impact:
@@ -3756,6 +3759,29 @@ components:
         count:
           type: integer
           minimum: 0
+    OwnImpactResponse:
+      type: object
+      additionalProperties: false
+      required: [data, counted_outcomes, requests_decided_in_time, requests_late_or_expired]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImpactRow"
+        counted_outcomes:
+          type: integer
+          minimum: 0
+        requests_decided_in_time:
+          type: integer
+          minimum: 0
+          description: Requests the mentor decided inside the window (D-114, D-116).
+        requests_late_or_expired:
+          type: integer
+          minimum: 0
+          description: Requests decided after the window, or expired undecided.
+      description: >-
+        The own-impact read only (D-115). There is no percentage, rate, score,
+        points, tier, or ranking property, and no student identifier.
     ImpactResponse:
       type: object
       additionalProperties: false

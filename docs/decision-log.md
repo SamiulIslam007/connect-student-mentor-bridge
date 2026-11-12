@@ -871,3 +871,35 @@ date: 2026-10-29
 - Reason: a free-text kind would fragment the taxonomy the dashboard groups by, and two institutions claiming one domain would make Level 1 matching arbitrary.
 - Status: Decided
 - Affects: `institutions/onboarding`, `docs/data-model.md`
+
+### D-114: Response reliability is all-time and the window is an argument
+
+- Date: 2026-11-11
+- Decision: Response reliability counts every request the mentor has ever received, with no rolling window, and the pure function takes the window as an argument so no clock and no constant live inside it.
+- Reason: a rolling window needs a clock parameter and an empty-window rule for no gain at pilot scale, and one source for the 48-hour value is what keeps the sweeper and this computation in step.
+- Status: Decided
+- Affects: `mentorship/reputation-ledger`, `services/api/src/reputation/`
+
+### D-115: The two counts are visible on the own impact read only
+
+- Date: 2026-11-11
+- Decision: The two request counts appear on `GET /v1/me/impact` only. `GET /v1/mentors/{id}/impact` and every directory card keep their current payload.
+- Reason: a public response rate is a reputation signal the policy does not authorise, and the own-impact view is where the mentor's own behaviour belongs.
+- Status: Decided
+- Affects: `mentorship/reputation-ledger`, `packages/contracts/openapi.yaml`
+
+### D-116: Counts only, never a percentage
+
+- Date: 2026-11-11
+- Decision: The payload carries two integer counts, `requests_decided_in_time` and `requests_late_or_expired`, and no percentage, score, points, tier or ranking key. The share is derivable and the docs say so in words.
+- Reason: the impact view model is frozen against anything that reads as a score or a percentage (design D8), and `FR-REP-05` forbids a cross-field aggregate.
+- Status: Decided
+- Affects: `mentorship/reputation-ledger`, `apps/web/lib/impact-view.ts`, `docs/api-contracts.md`
+
+### D-117: Below three requests the view shows a not-enough-data line
+
+- Date: 2026-11-11
+- Decision: Below three requests the impact section shows a single not-enough-data line instead of the two counts. The threshold is one constant in `packages/config` (`IMPACT_RELIABILITY_MIN_SAMPLE`, proposed default 3).
+- Reason: a ratio over one or two requests reads as a judgement on no evidence, and the threshold is a tuning value, not code.
+- Status: Decided
+- Affects: `mentorship/reputation-ledger`, `packages/config/src/index.ts`, `apps/web/lib/impact-view.ts`

@@ -5,7 +5,11 @@ import { IdentityError, type IdentityService } from "@connect/domain";
 import { actingAccountWithRoles } from "../authorization/authorize.js";
 import type { RequestWithId } from "../http/request-id.middleware.js";
 import { IDENTITY_SERVICE } from "../identity/identity.tokens.js";
-import type { ImpactReport, ReputationService } from "./drizzle-reputation.service.js";
+import type {
+  ImpactReport,
+  OwnImpactReport,
+  ReputationService,
+} from "./drizzle-reputation.service.js";
 import { REPUTATION_SERVICE } from "./reputation.tokens.js";
 
 /**
@@ -25,6 +29,18 @@ function payload(report: ImpactReport): Record<string, unknown> {
   };
 }
 
+/**
+ * The own read adds the two request counts (D-115). Built as its own payload so
+ * the public route's key set cannot drift into it.
+ */
+function ownPayload(report: OwnImpactReport): Record<string, unknown> {
+  return {
+    ...payload(report),
+    requests_decided_in_time: report.requestsDecidedInTime,
+    requests_late_or_expired: report.requestsLateOrExpired,
+  };
+}
+
 @Controller("v1")
 export class ReputationController {
   constructor(
@@ -35,7 +51,7 @@ export class ReputationController {
   @Get("me/impact")
   async ownImpact(@Req() request: RequestWithId): Promise<Record<string, unknown>> {
     const acting = await actingAccountWithRoles(this.identity, request);
-    return payload(await this.reputation.impactForUser(acting.account.id));
+    return ownPayload(await this.reputation.impactForUser(acting.account.id));
   }
 
   @Get("mentors/:id/impact")

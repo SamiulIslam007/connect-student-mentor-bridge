@@ -586,6 +586,12 @@ export const strings = {
     outcomeJobOffer: "Job offer",
     outcomeSkillMilestone: "Skill milestone",
     outcomeInterview: "Interview",
+    reliabilityTitle: "Response reliability",
+    reliabilityIntro:
+      "How you answered the requests you received: two counts, never a rate. Requests you withdrew or have not answered yet are in neither count.",
+    decidedInTime: "Answered inside the decision window",
+    lateOrExpired: "Answered late, or expired",
+    reliabilityNotEnough: "Not enough requests yet to show response reliability.",
   },
   /** FR-VER-05 (D-83): one sentence, rendered wherever a badge or a count appears. */
   disclaimer: {
