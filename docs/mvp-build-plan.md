@@ -17,24 +17,27 @@ date: 2026-10-29
 
 ### 1.1 Must (Gate 1 cannot pass without these)
 
-| Area | Requirements |
+| Area | Requirements (one row per register area, every Must id spelled out) |
 |---|---|
-| Identity | FR-AUTH-01 to 07; Google + email/password; email verification; forgot-password; 18+ gate; MFA for privileged roles |
-| Profiles | FR-PROF-01 to 05; dynamic fields; availability; capacity cap; access mode; mentor activation gate |
-| Affiliation | FR-VER-01, 02, 04, 05; Level 1 for mentors and students |
-| Discovery | FR-DISC-01 to 03, 06 |
-| Requests | FR-REQ-01, 02, 03 (accept/decline), 05, 06, 07, 08; 48h expiry, 24h reminder |
-| Mentorship | FR-THR-01 to 03 |
-| Outcomes | FR-OUT-01, 03 to 07, 09; state machine; conflict declaration; evidence tier |
-| Reputation | FR-REP-01 to 05, 07 |
-| Admin and trust | FR-ADM-01, 03 to 07 |
-| Privacy and audit | FR-CONS-01, 02; FR-PRIV-01; FR-PRIV-02 (intake and ledger-safe pseudonymization); FR-AUD-01 |
+| Authentication and access | FR-AUTH-01, FR-AUTH-02, FR-AUTH-03, FR-AUTH-04, FR-AUTH-05, FR-AUTH-06, FR-AUTH-07, FR-AUTH-08, FR-AUTH-09, FR-AUTH-10 |
+| Profiles and onboarding | FR-PROF-01, FR-PROF-02, FR-PROF-03, FR-PROF-04, FR-PROF-05 |
+| Affiliation verification | FR-VER-01, FR-VER-02, FR-VER-04, FR-VER-05 |
+| Discovery and matching | FR-DISC-01, FR-DISC-02, FR-DISC-03, FR-DISC-06 |
+| Mentorship requests | FR-REQ-01, FR-REQ-02, FR-REQ-03, FR-REQ-05, FR-REQ-06, FR-REQ-07, FR-REQ-08 |
+| Mentorship, threads, and sessions | FR-THR-01, FR-THR-02, FR-THR-03 |
+| Outcomes and verification | FR-OUT-01, FR-OUT-03, FR-OUT-04, FR-OUT-06, FR-OUT-07, FR-OUT-09, FR-OUT-10 |
+| Reputation | FR-REP-01, FR-REP-02, FR-REP-03, FR-REP-04, FR-REP-05, FR-REP-07 |
+| Institutions | FR-INST-01 |
+| Platform administration, trust, and safety | FR-ADM-01, FR-ADM-03, FR-ADM-04, FR-ADM-05, FR-ADM-06, FR-ADM-07 |
 | Notifications | FR-NOT-01 |
-| Experience | FR-UX-01, 02, 04, 05 |
+| Consent, privacy, and audit | FR-CONS-01, FR-CONS-02, FR-PRIV-01, FR-PRIV-02, FR-PRIV-03, FR-AUD-01 |
+| Client experience | FR-UX-01, FR-UX-02, FR-UX-04, FR-UX-05 |
+
+This list is the register's Must set, id for id (`docs/functional-requirements.md`), and the two are checked against each other by a sorted diff rather than by reading.
 
 ### 1.2 Should (Phase 1 if it fits; otherwise Phase 1b)
 
-FR-DISC-04, 05; FR-MEN-01, 02; FR-SES-01, 02; FR-OUT-11 (withdraw); FR-REQ-04 (redirect approval); FR-INST-01, 02 (basic), 03; FR-NOT-02 to 04; FR-AUD-02; FR-OUT-02 (evidence upload); FR-PRIV-03 (retention sweeper); FR-UX-03, 06; institution funnel detail (FR-INST-02); field merge tool (FR-ADM-08); ops dashboard (FR-ADM-09).
+FR-DISC-04, 05; FR-MEN-01, 02; FR-SES-01, 02; FR-OUT-11 (withdraw); FR-REQ-04 (redirect approval); FR-INST-02 (basic), 03; FR-NOT-02 to 04; FR-AUD-02; FR-OUT-02 (evidence upload); FR-UX-03, 06; institution funnel detail (FR-INST-02); field merge tool (FR-ADM-08); ops dashboard (FR-ADM-09).
 
 ### 1.3 Later (explicitly out)
 
@@ -121,7 +124,6 @@ The original ten entries keep their numbers. Rows were inserted without renumber
 | — | `response-reliability` | Response reliability on the mentor's own impact read: a pure `responseReliability` partition in `@connect/domain`, two integer counts (`requests_decided_in_time`, `requests_late_or_expired`) from one aggregate over `mentorship_requests`, a separate `OwnImpactResponse` so the public read is unchanged, and a not-enough-data line below `IMPACT_RELIABILITY_MIN_SAMPLE` (3). No migration | `DONE` (archived 2026-11-12; gates green under `CI=true` — domain 119, web 178, contracts 19, api 241, 0 skipped; PR #51, merge `cee79b3`; no migration; FR-REP-04 built, FR-REP-02 reliability item built, DEBT-25 closed, D-114 to D-117 recorded) |
 | — | `per-account-rate-limit` | A second named throttler `account` keyed by the body email, then a session credential, then the address (SHA-256, no raw email in the key): sign-in 10 per hour, password reset 5 per hour, 120 per minute elsewhere. `@SkipThrottle` in its named form on the health probes, and the 429 boundary now reports the longest wait of the buckets that blocked. No migration | `DONE` (archived 2026-11-12; gates green under `CI=true` — domain 119, web 178, contracts 19, api 248, 0 skipped; PR #53, merge `8e8839e`; no migration; SEC-ABUSE-1 built for both keys, DEBT-27 closed, DEBT-02 satisfied, D-118 and D-119 recorded) |
 | — | `break-glass-thread-read` | `POST /v1/admin/mentorships/{id}/break-glass-read` (PLATFORM_ADMIN + MFA, a required reason, one audit row written before the content, the participant projection of messages, agreement and sessions, a 500-message cap, `Cache-Control: no-store`), the report queue's nullable `mentorship_id`, and a "Read thread" disclosure on `/admin/reports`. No migration | `DONE` (archived 2026-11-12; gates green under `CI=true` — domain 119, web 187, contracts 19, api 254, 0 skipped; PR #55, merge `d441802`; no migration; FR-ADM-06 built for threads, FR-THR-03 complete, DEBT-30 closed, DEBT-52 to DEBT-54 opened, D-120 to D-124 recorded; an independent second review found two must-fix issues, both fixed before merge) |
-After these: privacy export and deletion, institution aggregates with suppression, accessibility and hardening.
 
 ## 6. Decisions still open, and when to decide
 
