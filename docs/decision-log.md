@@ -1183,3 +1183,19 @@ date: 2026-10-29
 - Reason: a list that is ahead of the code cannot be scored; marking is honest where inventing a feature is not. The two sanction actions were already written and could not be filtered, which is the same defect in the read direction.
 - Status: Decided
 - Affects: `docs/auth-and-access-control.md`, `docs/functional-requirements.md`, `services/api/src/audit/audit.service.ts`
+
+### D-154: Every controller carries the request-id middleware, and a denial row names the role it is about
+
+- Date: 2026-11-14
+- Decision: the request-id middleware applies to every controller a module registers, and a test reads `services/api/src/*/*.module.ts` against `app.module.ts` so the next omission fails the suite. A `PERMISSION_DENIED` row records the role the refusal is about when the caller holds it, and otherwise the highest role the caller does hold.
+- Reason: `AuditController`, `ConsentController`, `InstitutionsController` and `AdminThreadController` were missing from the middleware list, so their responses carried no `X-Request-Id` and their audit rows could not be correlated — invisible to the suite because each test stack passes its own controller list. Separately, the first version of the denial row took `roles[0]`, which is always `STUDENT` because every account holds it, so every row misstated the actor's role.
+- Status: Decided
+- Affects: `services/api/src/app.module.ts`, `services/api/src/http/problem-details.filter.ts`, `services/api/test/request-id-coverage.test.ts`, `docs/auth-and-access-control.md`
+
+### D-155: The action filter's list is derived from the union, not typed against it
+
+- Date: 2026-11-14
+- Decision: `AUDIT_ACTIONS` is derived from an exhaustive `Record<AuditAction, true>` map, so a new member of the union fails typecheck until it is listed, and the read test iterates the derived list instead of naming four literals.
+- Reason: `satisfies readonly AuditAction[]` only proved that every listed value is an action, not that every action is listed — which is exactly how `ACCOUNT_WARNED` and `ACCOUNT_REINSTATED` shipped unfilterable (D-153).
+- Status: Decided
+- Affects: `services/api/src/audit/audit.service.ts`, `services/api/test/audit-read.integration.test.ts`

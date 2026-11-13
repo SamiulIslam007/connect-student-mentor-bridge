@@ -17,7 +17,11 @@ import { ProblemDetailsFilter } from "./http/problem-details.filter.js";
 import { BodyAllowlistInterceptor } from "./http/body-allowlist.interceptor.js";
 import { AuthController } from "./identity/auth.controller.js";
 import { IdentityModule } from "./identity/identity.module.js";
+import { AuditController } from "./audit/audit.controller.js";
+import { ConsentController } from "./consent/consent.controller.js";
 import { AttestationController } from "./institutions/attestation.controller.js";
+import { InstitutionsController } from "./institutions/institutions.controller.js";
+import { AdminThreadController } from "./mentorships/admin-thread.controller.js";
 import { InstitutionsModule } from "./institutions/institutions.module.js";
 import { MeController } from "./me/me.controller.js";
 import { MentorshipsController, SessionsController } from "./mentorships/mentorships.controller.js";
@@ -114,6 +118,12 @@ export class AppModule implements NestModule {
         ReportsAdminController,
         MatchingController,
         AttestationController,
+        // Four controllers were missing here, so their responses carried no
+        // X-Request-Id and their audit rows could not be correlated (D-154).
+        AuditController,
+        ConsentController,
+        InstitutionsController,
+        AdminThreadController,
       );
   }
 }

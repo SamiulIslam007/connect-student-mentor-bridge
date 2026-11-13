@@ -1,52 +1,58 @@
 import type { AuditAction } from "../identity/audit-log.js";
 
 /**
- * The action filter accepts exactly the closed union the writers use, so a typo
- * is a `422` instead of an empty page (design R3).
+ * Every action, once, as a map keyed by the union itself: a new member of
+ * `AuditAction` cannot be forgotten here, which is how `ACCOUNT_WARNED` went
+ * missing (D-153). The filter then accepts exactly what the writers use, so a
+ * typo is a `422` instead of an empty page (design R3).
  */
-export const AUDIT_ACTIONS = [
-  "USER_REGISTERED",
-  "EMAIL_VERIFIED",
-  "ACCOUNT_ACTIVATED",
-  "ACCOUNT_SUSPENDED",
-  "ACCOUNT_DEACTIVATED",
-  "SIGN_IN_SUCCEEDED",
-  "SIGN_IN_FAILED",
-  "PASSWORD_RESET_REQUESTED",
-  "PASSWORD_RESET_COMPLETED",
-  "SIGNED_OUT",
-  "SIGNED_OUT_EVERYWHERE",
-  "MFA_ENROLLED",
-  "MFA_VERIFIED",
-  "MFA_VERIFICATION_FAILED",
-  "MFA_DISABLED",
-  "SESSION_REVOKED",
-  "ROLE_GRANTED",
-  "AFFILIATION_GRANTED",
-  "AFFILIATION_REJECTED",
-  "AFFILIATION_REVOKED",
-  "PROVIDER_SIGN_IN",
-  "OUTCOME_REPORTED",
-  "OUTCOME_CONFIRMED",
-  "OUTCOME_DISPUTED",
-  "OUTCOME_COI_DECLARED",
-  "OUTCOME_ESCALATED",
-  "OUTCOME_WITHDRAWN",
-  "OUTCOME_REVIEWED",
-  "OUTCOME_REVERSED",
-  "ACCOUNT_DELETED",
-  "REPORT_RESOLVED",
-  "INSTITUTION_CREATED",
-  "INSTITUTION_DOMAIN_REGISTERED",
-  "THREAD_BREAK_GLASS_READ",
-  "CONSENT_GRANTED",
-  "CONSENT_WITHDRAWN",
-  "ORIENTATION_COMPLETED",
-  "ACCOUNT_WARNED",
-  "ACCOUNT_REINSTATED",
-  "DATA_EXPORTED",
-  "PERMISSION_DENIED",
-] as const satisfies readonly AuditAction[];
+const AUDIT_ACTION_MAP: Record<AuditAction, true> = {
+  USER_REGISTERED: true,
+  EMAIL_VERIFIED: true,
+  ACCOUNT_ACTIVATED: true,
+  ACCOUNT_SUSPENDED: true,
+  ACCOUNT_DEACTIVATED: true,
+  SIGN_IN_SUCCEEDED: true,
+  SIGN_IN_FAILED: true,
+  PASSWORD_RESET_REQUESTED: true,
+  PASSWORD_RESET_COMPLETED: true,
+  SIGNED_OUT: true,
+  SIGNED_OUT_EVERYWHERE: true,
+  MFA_ENROLLED: true,
+  MFA_VERIFIED: true,
+  MFA_VERIFICATION_FAILED: true,
+  MFA_DISABLED: true,
+  SESSION_REVOKED: true,
+  ROLE_GRANTED: true,
+  AFFILIATION_GRANTED: true,
+  AFFILIATION_REJECTED: true,
+  AFFILIATION_REVOKED: true,
+  PROVIDER_SIGN_IN: true,
+  OUTCOME_REPORTED: true,
+  OUTCOME_CONFIRMED: true,
+  OUTCOME_DISPUTED: true,
+  OUTCOME_COI_DECLARED: true,
+  OUTCOME_ESCALATED: true,
+  OUTCOME_WITHDRAWN: true,
+  OUTCOME_REVIEWED: true,
+  OUTCOME_REVERSED: true,
+  ACCOUNT_DELETED: true,
+  REPORT_RESOLVED: true,
+  INSTITUTION_CREATED: true,
+  INSTITUTION_DOMAIN_REGISTERED: true,
+  THREAD_BREAK_GLASS_READ: true,
+  CONSENT_GRANTED: true,
+  CONSENT_WITHDRAWN: true,
+  ORIENTATION_COMPLETED: true,
+  ACCOUNT_WARNED: true,
+  ACCOUNT_REINSTATED: true,
+  DATA_EXPORTED: true,
+  PERMISSION_DENIED: true,
+};
+
+export const AUDIT_ACTIONS: readonly AuditAction[] = Object.keys(
+  AUDIT_ACTION_MAP,
+) as AuditAction[];
 
 /**
  * The object types the writers actually store, in their real letter case: the
