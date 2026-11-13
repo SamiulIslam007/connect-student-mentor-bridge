@@ -394,6 +394,19 @@ test("a suspended account is refused as unavailable and writes nothing", async (
   assert.equal(pauseRefused.body?.code, refused.body?.code);
 });
 
+test("an ordinary role refusal writes no audit row", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  // Every registered account holds STUDENT, so the non-sensitive case is a
+  // student-only account refused on a MENTOR route.
+  const student = await studentWithProfile(current, "role.refusal@example.com");
+  const refused = await apiRequest(current, "POST", "/v1/me/mentor-profile/pause", undefined, student);
+  assert.equal(refused.status, 403, refused.text);
+  assert.equal(refused.body?.code, "ROLE_REQUIRED");
+  const rows = await current.client.query("SELECT id FROM audit_logs WHERE action = 'PERMISSION_DENIED'");
+  assert.equal(rows.rowCount, 0, "a non-sensitive refusal is not audited");
+});
+
 test("application-only needs a note, and with one the request is created", async (context) => {
   const current = requireStack(context);
   if (!current) return;

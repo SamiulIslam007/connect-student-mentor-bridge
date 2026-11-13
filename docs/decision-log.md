@@ -1159,3 +1159,27 @@ date: 2026-10-29
 - Reason: the funnel read then wrote unconditionally, so an operator's suspension could be replaced by a computed `PENDING` in the window between the two statements. The condition costs nothing at the four call sites and needs no lock.
 - Status: Decided
 - Affects: `profiles/mentor-onboarding`, `services/api/src/onboarding/mentor-activation.ts`
+
+### D-151: A data export writes one DATA_EXPORTED row inside its own transaction
+
+- Date: 2026-11-14
+- Decision: `exportAccount` appends one `DATA_EXPORTED` audit entry after the `privacy_requests` row and after the document's own audit section is read, with the caller as actor and object, the request identifier, and empty metadata. `PrivacyOptions` gains an optional audit-writer seam, defaulted to `appendAuditEntry`, which the deletion path uses too.
+- Reason: the documented list asks for a data export to be auditable, and the export was the only privacy fact without a row. Writing it in the transaction means a delivered export is always recorded; reading the audit section first keeps the row out of the document it describes.
+- Status: Decided
+- Affects: `trust/privacy-export-and-erasure`, `services/api/src/privacy/drizzle-privacy.service.ts`, `docs/auth-and-access-control.md`
+
+### D-152: A refusal on a sensitive action writes one PERMISSION_DENIED row
+
+- Date: 2026-11-14
+- Decision: `actingAccountWithRoles` notes the caller on the request, `requireRole` (and the institution-scope refusal) notes the denial only when the required role is `PLATFORM_ADMIN` or `INSTITUTION_ADMIN`, and `ProblemDetailsFilter` appends one `PERMISSION_DENIED` row for a `ROLE_REQUIRED` or `MFA_REQUIRED` error carrying that note. A refusal on an ordinary role route writes nothing. The filter holds the database, awaits the write before responding, and logs a failed write without changing the `403`.
+- Reason: section 12 lists "permission denied on a sensitive action" and nothing wrote it, but recording every `403` would log routine role mistakes. The refusal path already owns the request id and the response, so the row belongs there rather than in eight controllers.
+- Status: Decided
+- Affects: `trust/consent-and-audit-records`, `services/api/src/http/problem-details.filter.ts`, `services/api/src/authorization/authorize.ts`
+
+### D-153: The documented list marks what no code path emits, and the read accepts every writer action
+
+- Date: 2026-11-14
+- Decision: `docs/auth-and-access-control.md` section 12 names the documented events with no code path yet and the requirement that owns each. `FR-AUD-01` reads Done when every documented action that has a code path writes its row. `AUDIT_ACTIONS` gains `DATA_EXPORTED`, `PERMISSION_DENIED`, `ACCOUNT_WARNED` and `ACCOUNT_REINSTATED`, so the filter accepts every action a writer emits, and still refuses an unknown value with `422`.
+- Reason: a list that is ahead of the code cannot be scored; marking is honest where inventing a feature is not. The two sanction actions were already written and could not be filtered, which is the same defect in the read direction.
+- Status: Decided
+- Affects: `docs/auth-and-access-control.md`, `docs/functional-requirements.md`, `services/api/src/audit/audit.service.ts`

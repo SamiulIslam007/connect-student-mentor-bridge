@@ -356,6 +356,20 @@ test("a malformed filter is a 422 naming its parameter", async (context) => {
   }
 });
 
+test("every action a writer emits is a filter value", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const admin = await adminToken(current);
+
+  // The list is closed, so an action with no writer is a typo; these four have
+  // writers and were missing from it (D-153).
+  for (const action of ["ACCOUNT_WARNED", "ACCOUNT_REINSTATED", "DATA_EXPORTED", "PERMISSION_DENIED"]) {
+    const page = await apiRequest(current, "GET", `/v1/admin/audit?action=${action}`, undefined, admin);
+    assert.equal(page.status, 200, `${action}: ${page.text}`);
+    assert.deepEqual(page.body?.data, [], `${action} has no rows yet and is still accepted`);
+  }
+});
+
 test("keyset paging stays stable while a newer row is appended", async (context) => {
   const current = requireStack(context);
   if (!current) return;

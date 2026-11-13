@@ -5,6 +5,10 @@ import type { NextFunction, Request, Response } from "express";
 
 export interface RequestWithId extends Request {
   requestId: string;
+  /** Set once the session resolves, so a refusal can name the caller (D-152). */
+  actingAccount?: { userId: string; roles: string[] };
+  /** Set only for a refusal on an admin route, which is the sensitive case (D-152). */
+  sensitiveDenial?: { requiredRole: string };
 }
 
 const MAX_INCOMING_REQUEST_ID_LENGTH = 128;

@@ -184,7 +184,7 @@ export async function startApiStack(
     bodyParser: false,
   });
   app.useBodyParser("json", { limit: API_MAX_BODY_BYTES, strict: false });
-  app.useGlobalFilters(new ProblemDetailsFilter());
+  app.useGlobalFilters(new ProblemDetailsFilter(connection.db));
   app.useGlobalInterceptors(new BodyAllowlistInterceptor());
   await app.listen(0, "127.0.0.1");
   const baseUrl = await app.getUrl();
