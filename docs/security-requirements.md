@@ -113,9 +113,9 @@ Each requirement has an ID, a priority (**Must**, **Should**, **Could**), and th
 |---|---|---|---|
 | SEC-API-1 | All inputs are validated against the OpenAPI schema; unknown fields are rejected; request body size is limited | Must | **Built** by `request-validation-and-rate-limits` (2026-11-09): a global interceptor refuses undocumented top-level keys with `422 VALIDATION_FAILED`, the allowlist is contract-parity tested (`ROUTE_BODY_KEYS`), and the JSON body is capped at 100 KiB with a `413 PAYLOAD_TOO_LARGE` |
 | SEC-API-2 | All database access is parameterized (no string-built SQL) | Must | Lint and review |
-| SEC-API-3 | User-generated content is encoded on output; a strict content security policy is set | Must | Automated scan |
-| SEC-API-4 | Security headers: HSTS, `X-Content-Type-Options`, `Referrer-Policy`, frame protection | Must | Automated scan |
-| SEC-API-5 | CORS is restricted to known origins | Must | Config test |
+| SEC-API-3 | User-generated content is encoded on output; a strict content security policy is set | Must | Automated scan — **built for the API, report-only on the web** (2026-11-13): `helmet` sends `default-src 'none'` with script, frame, form, base and object sources forbidden on every API response, asserted on a `200`, a `401` and a `422`; `apps/web/lib/security-headers.ts` sends `Content-Security-Policy-Report-Only` on every page, and enforcing it is DEBT-56 behind a browser pass |
+| SEC-API-4 | Security headers: HSTS, `X-Content-Type-Options`, `Referrer-Policy`, frame protection | Must | Automated scan — **built on both** (2026-11-13): the API sends HSTS, nosniff, `no-referrer`, `DENY`, CORP and COOP and hides `X-Powered-By`; the web app sends nosniff, `no-referrer`, `DENY` and a `Permissions-Policy`, both asserted by tests |
+| SEC-API-5 | CORS is restricted to known origins | Must | Config test — **built as an empty allowlist** (2026-11-13): the browser never calls the API (every browser request goes through the web BFF), so `enableCors` is not called and the absence of a cross-origin allow header is the restriction; a test asserts no allow header on a normal response and on a preflight, and adding `enableCors` fails it. A browser-direct client would need a new decision and DEBT-57 |
 | SEC-API-6 | Errors use the standard problem format and never expose stack traces, SQL, or internals | Must | Test |
 | SEC-API-7 | Retryable writes accept an `Idempotency-Key` and are safe to repeat | Must | Test |
 | SEC-API-8 | Identifiers are UUIDs, not sequential integers | Must | Schema review |

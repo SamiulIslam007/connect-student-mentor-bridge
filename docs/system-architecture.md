@@ -641,3 +641,5 @@ The ADR log lives in `architecture-decisions.md`. All entries are **Proposed** u
 3. **Identity:** are you comfortable with an embedded auth library for the pilot, accepting that a university may later require SAML through Keycloak or WorkOS?
 4. **Synchronous counting (section 5.3):** do you accept that `outcomes` calls `reputation` inside one transaction, instead of a purely event-driven design? It protects integrity at the cost of tighter coupling inside the monolith.
 5. **Agent permissions (N11):** do you approve "branch and commit on feature branches only; never push or merge to `main`; never touch secrets" as the default for your OpenCode agents?
+
+**Trust boundary (2026-11-13):** the browser talks only to the web app, and only the web app talks to the API. That is why the API carries no CORS allowlist and a strict, enforcing content security policy, while the web app's policy ships report-only until a browser pass (D-131 to D-133).
