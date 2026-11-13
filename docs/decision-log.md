@@ -1031,3 +1031,35 @@ date: 2026-10-29
 - Reason: the pilot has one first-party client and the cookie is `Lax` on every write route; a token needs a page-side change on eleven forms and a decision about the API's own clients, and neither exists yet.
 - Status: Decided
 - Affects: `platform/http-security-controls`, `docs/known-debt.md`
+
+### D-135: The audit read is one GET with six filters and a keyset cursor
+
+- Date: 2026-11-13
+- Decision: `GET /v1/admin/audit` takes optional `actor`, `action`, `object_type`, `object_id`, `from` and `to` (ANDed, UTC days, inclusive), orders by `occurred_at` descending then `id` descending, and pages with a keyset cursor built from the last row's `(occurred_at, id)` pair. `limit` is 1 to 100 with a default of 50. An unknown `action` or `object_type`, an `actor` with characters outside `[A-Za-z0-9_-]`, an unparseable date, `from` later than `to` or an out-of-range `limit` is `422` naming the parameter. `object_type` is matched exactly against the values the writers store, which include upper-case ones (`AFFILIATION`, `CONSENT_RECORD`), so the index leads with the column and the admin page sends the value it was given.
+- Reason: offset pagination drifts as rows are appended and a POST search body would put filters where the body allowlist has to grow; a typo that returns an empty page would hide itself in an incident review, which is why an unknown value is refused instead.
+- Status: Decided
+- Affects: `trust/audit-log-inspection`, `packages/contracts/openapi.yaml`, `docs/api-contracts.md`, `services/api/src/audit/audit.controller.ts`
+
+### D-136: The projection is the row minus metadata, prev_hash and hash
+
+- Date: 2026-11-13
+- Decision: The read returns `id`, `occurred_at`, `actor_user_id`, `actor_role`, `action`, `object_type`, `object_id`, `request_id`, `break_glass` and `reason`. `metadata`, `prev_hash` and `hash` are not in the select at all, so a writer that adds a key to `metadata` cannot widen the payload. `reason` is returned because the audit row states it and the suspension and report paths already put it on the record.
+- Reason: `metadata` can hold free text no requirement authorises disclosing, and the hash chain is an integrity device for the database, not for a browser. Freezing the key set in a test keeps the payload from drifting as writers change.
+- Status: Decided
+- Affects: `trust/audit-log-inspection`, `packages/contracts/openapi.yaml`, `services/api/src/audit/drizzle-audit.service.ts`
+
+### D-137: Reading the audit log is not itself audited
+
+- Date: 2026-11-13
+- Decision: `GET /v1/admin/audit` writes no audit row and no `AUDIT_LOG_READ` action is added to the union.
+- Reason: a row per read would let a reader inflate the table they are reviewing and would put a write on a route whose value is that it is a pure read. The consequence — a reviewer's reading is not itself on the record — is stated in the capability and in the register's annotation, and the test asserts that two reads change no row count.
+- Status: Decided
+- Affects: `trust/audit-log-inspection`, `docs/functional-requirements.md`
+
+### D-138: No index for the action filter; DEBT-58 records the bound
+
+- Date: 2026-11-13
+- Decision: The two existing indexes cover the actor and object filters; the `action` filter scans. A `shortcut:` comment in the service and DEBT-58 state that `audit_logs(action, occurred_at)` is added when the table passes roughly a million rows.
+- Reason: the filter is used in incident review, not on a hot path, and an extra index on an insert-only table costs every write; the pilot's table holds thousands of rows.
+- Status: Decided
+- Affects: `docs/known-debt.md`, `services/api/src/audit/drizzle-audit.service.ts`

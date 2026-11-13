@@ -38,6 +38,7 @@ export function navLinks(signedIn: boolean, roles: readonly string[] = []): NavM
                   href: "/admin/reports",
                   label: strings.nav.adminReports,
                 },
+                { kind: "link" as const, href: "/admin/audit", label: strings.nav.audit },
                 {
                   kind: "link" as const,
                   href: "/admin/institutions",

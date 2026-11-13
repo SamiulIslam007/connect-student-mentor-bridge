@@ -37,6 +37,9 @@ import { ReportsAdminController } from "../src/reports/admin.controller.js";
 import { DrizzleReportsService } from "../src/reports/drizzle-reports.service.js";
 import { ReportsController } from "../src/reports/reports.controller.js";
 import { REPORTS_SERVICE } from "../src/reports/reports.tokens.js";
+import { AuditController } from "../src/audit/audit.controller.js";
+import { AUDIT_SERVICE } from "../src/audit/audit.tokens.js";
+import { DrizzleAuditService } from "../src/audit/drizzle-audit.service.js";
 import { ConsentController } from "../src/consent/consent.controller.js";
 import { DrizzleConsentService } from "../src/consent/drizzle-consent.service.js";
 import { CONSENT_SERVICE } from "../src/consent/consent.tokens.js";
@@ -173,6 +176,8 @@ const MATRIX: Requirement[] = [
     mutating: true,
     body: { decision: "verify", reason: "checked against the registrar" },
   },
+  // The audit read: platform admin, second factor, and a pure read (D-135).
+  { route: /^GET \/v1\/admin\/audit$/, access: "PLATFORM_ADMIN" },
   {
     // A break-glass read of a private thread: platform admin, second factor,
     // and a stated reason (D-120, D-121).
@@ -231,6 +236,7 @@ before(async () => {
       MatchingController,
       AttestationController,
       InstitutionsController,
+      AuditController,
     ],
     requestIdRoutes: [
       AuthController,
@@ -253,6 +259,7 @@ before(async () => {
       MatchingController,
       AttestationController,
       InstitutionsController,
+      AuditController,
     ],
     providers: (database) => [
       { provide: PROFILES_SERVICE, useValue: new DrizzleProfilesService(database) },
@@ -274,6 +281,7 @@ before(async () => {
       },
       { provide: ATTESTATIONS_SERVICE, useValue: new DrizzleAttestationsService(database) },
       { provide: INSTITUTIONS_SERVICE, useValue: new DrizzleInstitutionsService(database) },
+      { provide: AUDIT_SERVICE, useValue: new DrizzleAuditService(database) },
     ],
   });
   if (started.skipped) {

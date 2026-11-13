@@ -1514,6 +1514,89 @@ paths:
           $ref: "#/components/responses/Problem"
         "429":
           $ref: "#/components/responses/Problem"
+  /v1/admin/audit:
+    get:
+      operationId: listAuditLog
+      summary: Search the append-only audit log
+      description: >-
+        Platform-admin read with an enrolled second factor (D-135, D-136). Newest
+        first, keyset-paginated on the `(occurred_at, id)` pair. The projection is
+        the row minus `metadata`, `prev_hash` and `hash`: those are never selected,
+        so no free text a writer adds can leak. `action` and `object_type` are
+        validated against the values the writers use, so a typo is a `422` rather
+        than an empty page. The read itself writes no audit entry (D-137).
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: actor
+          in: query
+          required: false
+          description: The acting account id (the identity library's text id).
+          schema:
+            type: string
+            maxLength: 64
+        - name: action
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 64
+        - name: object_type
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 64
+        - name: object_id
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 128
+        - name: from
+          in: query
+          required: false
+          description: First day included, UTC.
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: false
+          description: Last day included, UTC.
+          schema:
+            type: string
+            format: date
+        - name: cursor
+          in: query
+          required: false
+          description: The `next_cursor` of the previous page.
+          schema:
+            type: string
+            maxLength: 128
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        "200":
+          description: One page of audit entries
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditPage"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        "429":
+          $ref: "#/components/responses/Problem"
   /v1/mentorships:
     get:
       operationId: listMentorships
@@ -2324,6 +2407,59 @@ components:
         account_status:
           type: string
           description: Accepted and ignored (no-op); the server owns account status.
+    AuditEntry:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          occurred_at,
+          actor_user_id,
+          actor_role,
+          action,
+          object_type,
+          object_id,
+          request_id,
+          break_glass,
+          reason,
+        ]
+      description: >-
+        One audit row as a reviewer reads it. `metadata`, `prev_hash` and `hash`
+        are deliberately absent (D-136).
+      properties:
+        id:
+          type: string
+          format: uuid
+        occurred_at:
+          type: string
+          format: date-time
+        actor_user_id:
+          type: [string, "null"]
+        actor_role:
+          type: string
+        action:
+          type: string
+        object_type:
+          type: string
+        object_id:
+          type: [string, "null"]
+        request_id:
+          type: string
+        break_glass:
+          type: boolean
+        reason:
+          type: [string, "null"]
+    AuditPage:
+      type: object
+      additionalProperties: false
+      required: [data, next_cursor]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditEntry"
+        next_cursor:
+          type: [string, "null"]
     ReportCreateRequest:
       type: object
       additionalProperties: false
