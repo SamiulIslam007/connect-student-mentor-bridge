@@ -1164,7 +1164,7 @@ date: 2026-10-29
 
 - Date: 2026-11-14
 - Decision: `exportAccount` appends one `DATA_EXPORTED` audit entry after the `privacy_requests` row and after the document's own audit section is read, with the caller as actor and object, the request identifier, and empty metadata. `PrivacyOptions` gains an optional audit-writer seam, defaulted to `appendAuditEntry`, which the deletion path uses too.
-- Reason: the documented list asks for a data export to be auditable, and the export was the only privacy fact without a row. Writing it in the transaction means a delivered export is always recorded; reading the audit section first keeps the row out of the document it describes.
+- Reason: the documented list asks for a data export to be auditable, and the export was the only privacy fact without a row. Writing it in the transaction means an export that completed is always recorded; reading the audit section first keeps the row out of the document it describes.
 - Status: Decided
 - Affects: `trust/privacy-export-and-erasure`, `services/api/src/privacy/drizzle-privacy.service.ts`, `docs/auth-and-access-control.md`
 

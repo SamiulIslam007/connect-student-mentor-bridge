@@ -202,7 +202,9 @@ export class ProblemDetailsFilter implements ExceptionFilter {
       requestId,
       metadata: {
         method: request.method,
-        path: request.originalUrl,
+        // The route without its query string, bounded: a caller controls the query
+        // and this column is append-only (design R4).
+        path: String(request.path).slice(0, 200),
         required_role: denial.requiredRole,
       },
     };

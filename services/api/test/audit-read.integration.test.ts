@@ -169,7 +169,7 @@ test("the four refusals write nothing and leak no row", async (context) => {
     [await accountId(current, "institution@example.edu.bd"), institution.rows[0].id],
   );
   await seedAudit(current);
-  const before = await auditCount(current);
+  const beforeRows = await current.client.query<{ id: string }>("SELECT id FROM audit_logs");
 
   const anonymous = await apiRequest(current, "GET", "/v1/admin/audit");
   assert.equal(anonymous.status, 401, anonymous.text);
@@ -191,7 +191,19 @@ test("the four refusals write nothing and leak no row", async (context) => {
   assert.equal(noFactor.status, 403, noFactor.text);
   assert.equal(noFactor.body?.code, "MFA_REQUIRED");
 
-  assert.equal(await auditCount(current), before, "a refused read writes no audit row");
+  // The read itself writes nothing; the three sensitive refusals each write one
+  // denial row, which is the point of D-152.
+  const after = await current.client.query<{ id: string; action: string }>(
+    "SELECT id, action FROM audit_logs ORDER BY occurred_at, id",
+  );
+  const beforeIds = new Set(beforeRows.rows.map((row) => row.id));
+  const added = after.rows.filter((row) => !beforeIds.has(row.id));
+  assert.deepEqual(
+    added.map((row) => row.action),
+    ["PERMISSION_DENIED", "PERMISSION_DENIED", "PERMISSION_DENIED"],
+    "one denial row per sensitive refusal and none for the anonymous 401",
+  );
+  assert.equal(Number(await auditCount(current)), beforeRows.rows.length + added.length);
 });
 
 test("a page carries the ten reviewed keys and never metadata, prev_hash or hash", async (context) => {

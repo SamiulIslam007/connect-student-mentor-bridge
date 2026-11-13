@@ -232,6 +232,8 @@ export class DrizzlePrivacyService implements PrivacyService {
       await this.auditWriter(tx, {
         action: "DATA_EXPORTED",
         actorUserId: input.userId,
+        // The same convention as the ACCOUNT_DELETED row: the caller is a user.
+        actorRole: "USER",
         objectType: "users",
         objectId: input.userId,
         requestId: input.requestId,
