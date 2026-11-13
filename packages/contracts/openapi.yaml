@@ -2130,6 +2130,80 @@ paths:
           $ref: "#/components/responses/Problem"
         "409":
           $ref: "#/components/responses/Problem"
+  /v1/me/consents:
+    get:
+      operationId: readOwnConsents
+      summary: The caller's consent state per purpose
+      description: >-
+        One row per purpose with the published document version, the version the
+        caller accepted (null when nothing is accepted or the latest action was a
+        withdrawal) and the institution a data-sharing consent names. The
+        institutions list carries the caller's own affiliations so the sharing
+        section can name them. A stale accepted version is a signal, never a
+        refusal on any other route (D-127).
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The five purposes and the caller's institutions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConsentsResponse"
+        "401":
+          $ref: "#/components/responses/Problem"
+    post:
+      operationId: recordOwnConsent
+      summary: Grant or withdraw one consent purpose
+      description: >-
+        Appends one consent row and one audit row in one transaction. A
+        VOLUNTEER_AGREEMENT grant also stamps the mentor's orientation once.
+        institution_id is required for INSTITUTION_DATA_SHARING, must name an
+        institution the caller is affiliated with, and is refused elsewhere.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [purpose, action, document_version]
+              properties:
+                purpose:
+                  type: string
+                  enum:
+                    - TERMS
+                    - PRIVACY_NOTICE
+                    - VOLUNTEER_AGREEMENT
+                    - COMMUNITY_GUIDELINES
+                    - INSTITUTION_DATA_SHARING
+                action:
+                  type: string
+                  enum: [GRANTED, WITHDRAWN]
+                document_version:
+                  type: string
+                  minLength: 1
+                  maxLength: 32
+                institution_id:
+                  type: string
+                  format: uuid
+      responses:
+        "200":
+          description: The recorded consent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConsentRecordedResponse"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        "413":
+          $ref: "#/components/responses/Problem"
   /v1/me/impact:
     get:
       operationId: getOwnImpact
@@ -3870,6 +3944,71 @@ components:
           type: string
           minLength: 1
           maxLength: 1000
+    ConsentsResponse:
+      type: object
+      additionalProperties: false
+      required: [purposes, institutions]
+      properties:
+        purposes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ConsentState"
+        institutions:
+          type: array
+          items:
+            $ref: "#/components/schemas/ConsentInstitution"
+    ConsentState:
+      type: object
+      additionalProperties: false
+      required: [purpose, current_version, accepted_version, action, institution_id]
+      properties:
+        purpose:
+          type: string
+          enum:
+            - TERMS
+            - PRIVACY_NOTICE
+            - VOLUNTEER_AGREEMENT
+            - COMMUNITY_GUIDELINES
+            - INSTITUTION_DATA_SHARING
+        current_version:
+          type: string
+        accepted_version:
+          type: string
+          nullable: true
+        action:
+          type: string
+          nullable: true
+          enum: [GRANTED, WITHDRAWN]
+        institution_id:
+          type: string
+          nullable: true
+    ConsentInstitution:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+    ConsentRecordedResponse:
+      type: object
+      additionalProperties: false
+      required: [purpose, action, document_version, institution_id, orientation_completed_at]
+      properties:
+        purpose:
+          type: string
+        action:
+          type: string
+          enum: [GRANTED, WITHDRAWN]
+        document_version:
+          type: string
+        institution_id:
+          type: string
+          nullable: true
+        orientation_completed_at:
+          type: string
+          nullable: true
     ImpactRow:
       type: object
       additionalProperties: false

@@ -19,6 +19,7 @@ import {
   TEST_PASSWORD,
   type TestApiStack,
 } from "./support/api-stack.js";
+import { grantMentorAgreements } from "./support/agreements.js";
 import { truncateAll } from "./support/database.js";
 
 let stack: TestApiStack | undefined;
@@ -369,6 +370,7 @@ test("a new mentor profile is DRAFT/APPLIED; Level 1 makes it PENDING, a factor 
   assert.equal(pendingProfile.status, "PENDING");
   assert.equal(pendingProfile.onboarding_status, "AFFILIATION_VERIFIED");
 
+  await grantMentorAgreements(current.client, await userIdFor(current, "activation.mentor@example.edu.bd"));
   const enrolledToken = await enrollSecondFactor(current, token);
   const active = await apiRequest(current, "GET", "/v1/me", undefined, enrolledToken);
   const activeProfile = active.body?.mentor_profile as Record<string, unknown>;
@@ -409,6 +411,7 @@ test("granting the mentor role recomputes an existing profile", async (context) 
   const token = await tokenFor(current, "regrant.mentor@example.edu.bd");
   await apiRequest(current, "POST", "/v1/me/roles/mentor", undefined, token);
   await saveMentorProfile(current, token);
+  await grantMentorAgreements(current.client, await userIdFor(current, "regrant.mentor@example.edu.bd"));
   const enrolledToken = await enrollSecondFactor(current, token);
   await apiRequest(current, "POST", "/v1/me/affiliations", { kind: "ALUMNUS" }, enrolledToken);
 

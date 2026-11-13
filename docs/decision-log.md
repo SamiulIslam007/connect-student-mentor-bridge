@@ -967,3 +967,35 @@ date: 2026-10-29
 - Reason: the register is the pilot gate's scoreboard; five rows no longer described what the owner decided or what the code does, two status blocks contradicted themselves and the build plan carried a different Must set. The register may not be lowered to reach a number, so every amendment names the decision that narrowed it and every annotation names the symbol that proves it.
 - Status: Decided
 - Affects: `docs/functional-requirements.md`, `docs/mvp-build-plan.md`, `docs/milestones-and-phases.md`, `docs/audit/08-resolution-report.md`
+
+### D-127: The agreements and the orientation are part of the activation gate, and the orientation is a column
+
+- Date: 2026-11-13
+- Decision: `mentorActivation` in `packages/domain` takes `hasVolunteerAgreement`, `hasCommunityGuidelines` and `orientationCompleted` and reaches `ACTIVE` only with Level 1, an enrolled second factor and all three. The orientation is `mentor_profiles.orientation_completed_at` plus one `ORIENTATION_COMPLETED` audit row written by the request that accepts the volunteer agreement, never a sixth consent purpose, and it is never withdrawable.
+- Reason: FR-PROF-03 names the agreements and the orientation, and the predicate was enforcing only two of the four conditions. A consent purpose for the orientation would need an enum migration and would let a user "withdraw" something that has no withdrawal meaning.
+- Status: Decided
+- Affects: `profiles/mentor-onboarding`, `trust/consent-purposes`, `packages/domain/src/mentor-onboarding.ts`, `services/api/src/onboarding/mentor-activation.ts`, `docs/data-model.md`
+
+### D-128: One signed-in consent route pair serves all five purposes
+
+- Date: 2026-11-13
+- Decision: `GET /v1/me/consents` returns every purpose with `current_version`, `accepted_version`, `action` and `institution_id`, plus the caller's institutions; `POST /v1/me/consents` takes `purpose`, `action`, `document_version` and an optional `institution_id`, appends one `consent_records` row and one audit row in one transaction, and requires `institution_id` only for `INSTITUTION_DATA_SHARING`. The purpose enum is the only source of valid values; no enum value is added.
+- Reason: five bespoke routes would multiply the four hand-maintained route registries by five for one behaviour, and the enum already holds every purpose.
+- Status: Decided
+- Affects: `trust/consent-purposes`, `packages/contracts/openapi.yaml`, `packages/contracts/src/body-keys.ts`, `docs/api-contracts.md`
+
+### D-129: Re-acceptance is a banner, never a refusal
+
+- Date: 2026-11-13
+- Decision: `GET /v1/me/consents` reports the published version beside the accepted one, and the app header renders a link to `/consent` when they differ. No route refuses a request because a document version is stale.
+- Reason: a middleware that blocked writes until re-acceptance would lock a pilot user out of the product over a document edit, which the requirement does not ask for and which would produce a support incident; the signal is enough to drive re-acceptance without one.
+- Status: Decided
+- Affects: `trust/consent-purposes`, `apps/web/app/session-nav.tsx`, `apps/web/lib/consents.ts`
+
+### D-130: No backfill, and accepting a document re-runs the activation funnel
+
+- Date: 2026-11-13
+- Decision: Migration `0018` adds a nullable column and writes no consent record; an already-`ACTIVE` mentor profile keeps its status until its next re-evaluation, when a profile without the agreements returns to `PENDING`. A `POST /v1/me/consents` for a mentor purpose calls `syncMentorActivation` in the same transaction.
+- Reason: a backfill would write consent records nobody gave, which is the one thing an append-only consent table must never contain; without the funnel call an accepted agreement would wait for an unrelated trigger before it could activate the profile.
+- Status: Decided
+- Affects: `trust/consent-purposes`, `services/api/drizzle/0018_many_gabe_jones.sql`, `services/api/src/consent/drizzle-consent.service.ts`

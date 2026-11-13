@@ -367,7 +367,7 @@ Check: `institution_id IS NOT NULL OR organization_name IS NOT NULL`. A partial 
 | `id` | `uuid` PK | |
 | `user_id` | `text` unique FK | References `users.id`; cascade on account removal |
 | `primary_field_id` | `uuid` FK | Required; the single source of truth for the mentor's primary field |
-| `status` | `mentor_status` | Default `DRAFT`. **Transitions built** by #5: `DRAFT` → `PENDING` → `ACTIVE` on a verified Level 1 affiliation plus an enrolled second factor; losing either returns it to `PENDING` and keeps `activated_at` |
+| `status` | `mentor_status` | Default `DRAFT`. **Transitions built** by #5 and widened by `consent-purposes-and-mentor-agreements`: `DRAFT` → `PENDING` → `ACTIVE` on a verified Level 1 affiliation, an enrolled second factor, the volunteer agreement, the community guidelines and the orientation; losing any of them returns it to `PENDING` and keeps `activated_at` (D-127) |
 | `headline`, `bio` | `text` | Required |
 | `expertise_summary`, `scope_statement` | `text` | Required. "What I can and cannot help with" |
 | `languages` | `text[]` | Default `'{}'` |
@@ -376,12 +376,12 @@ Check: `institution_id IS NOT NULL OR organization_name IS NOT NULL`. A partial 
 | `onboarding_status` | `mentor_onboarding_status` | **Built** by #5; default `APPLIED`. Verification progress only, never the operating status |
 | `current_role_title`, `current_organization` | `text?` | **Not created**; not scheduled (no requirement asks for them) |
 | `access_mode` | `mentor_access_mode` | **Built** by `profile-availability-and-access-mode` (4b); default `OPEN`. `PAUSED` is written only by pause/resume, and a save that omits it leaves it alone |
-| `orientation_completed_at` | `timestamptz?` | **Not created**; mentor agreements and orientation are unbuilt (DEBT-18) |
+| `orientation_completed_at` | `timestamptz?` | **Built** by `consent-purposes-and-mentor-agreements` (migration `0018`); set once when the mentor accepts the volunteer agreement, never cleared, and one input to the activation predicate (D-127) |
 | `activated_at` | `timestamptz?` | **Built** by #5; set once on the first `ACTIVE` and never cleared |
 
 **`mentor_fields`** (**built**): (`mentor_profile_id uuid` FK on delete `cascade`, `field_id uuid` FK on delete `restrict`) composite key. Holds **additional** fields only; the primary field is `mentor_profiles.primary_field_id`, so one fact has one writer. Reputation is later keyed by the same `field_id`.
 
-`student_profiles.onboarding_completed_at` is **not created**; nothing schedules it (it belongs with the unbuilt agreements and orientation, DEBT-18).
+`student_profiles.onboarding_completed_at` is **not created** and nothing schedules it: the agreements shipped as consent records plus the mentor's orientation column, so a student-side onboarding timestamp has no requirement behind it.
 
 **`availability_windows`** (**built** by `profile-availability-and-access-mode`, 4b): `id uuid PK`, `user_id text` FK `users.id` (cascade), `context` (`availability_context`: `STUDENT` or `MENTOR`), `weekday smallint` (1 to 7), `start_minute smallint` (0 to 1440), `end_minute smallint` (0 to 1440), `timezone text` (IANA), `created_at`, `updated_at`. Checks `end_minute > start_minute` plus the weekday and minute bounds; index on (`user_id`, `context`). Minutes are wall-clock minutes in the row's own zone, so the availability-match factor in #6 is a pure comparison. At most 21 windows per context (Proposed default, policy not DDL). Generalizes the README's `MentorAvailability` to both sides.
 

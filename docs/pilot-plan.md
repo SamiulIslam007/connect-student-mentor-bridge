@@ -86,7 +86,7 @@ Only the items truly required before a real user is onboarded. Deferred items ar
 |---|---|---|
 | Terms | Terms of use published | Owner |
 | Privacy | Privacy Notice published and matching `data-privacy-and-retention.md` | Owner |
-| Consent | Consent screens live for the five MVP purposes; append-only records verified | Owner |
+| Consent | Consent screens live for the five MVP purposes: `/terms` and `/privacy` for the two published documents, `/consent` for all five grants and withdrawals; append-only records verified | Owner |
 | Recovery | A backup **restore performed and recorded** | Owner |
 | Operations | One-page runbook (deploy, rollback, rotate keys, handle a dispute backlog, breach response) written and rehearsed | Owner |
 | Product | Phase 1 Must requirements working from the Docker stack | Owner |

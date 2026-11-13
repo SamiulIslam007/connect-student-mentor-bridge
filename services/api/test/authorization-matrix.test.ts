@@ -37,6 +37,9 @@ import { ReportsAdminController } from "../src/reports/admin.controller.js";
 import { DrizzleReportsService } from "../src/reports/drizzle-reports.service.js";
 import { ReportsController } from "../src/reports/reports.controller.js";
 import { REPORTS_SERVICE } from "../src/reports/reports.tokens.js";
+import { ConsentController } from "../src/consent/consent.controller.js";
+import { DrizzleConsentService } from "../src/consent/drizzle-consent.service.js";
+import { CONSENT_SERVICE } from "../src/consent/consent.tokens.js";
 import { PrivacyController } from "../src/privacy/privacy.controller.js";
 import { PRIVACY_SERVICE } from "../src/privacy/privacy.tokens.js";
 import { DrizzleProfilesService } from "../src/profiles/drizzle-profiles.service.js";
@@ -150,6 +153,9 @@ const MATRIX: Requirement[] = [
   { route: /^GET \/v1\/me\/impact$/, access: "signed-in" },
   { route: /^GET \/v1\/mentors\/:id\/impact$/, access: "signed-in" },
   // Privacy: the caller's own record only; the account id comes from the session.
+  // Consent: the caller's own record only, and a stale version never refuses.
+  { route: /^GET \/v1\/me\/consents$/, access: "signed-in" },
+  { route: /^POST \/v1\/me\/consents$/, access: "signed-in", mutating: true },
   { route: /^POST \/v1\/privacy\/export$/, access: "signed-in", mutating: true },
   { route: /^POST \/v1\/privacy\/delete$/, access: "signed-in", mutating: true },
   // Moderation: reporting is any signed-in user; the queue, the resolution, and
@@ -218,6 +224,7 @@ before(async () => {
       OutcomesController,
       ReviewQueueController,
       ReputationController,
+      ConsentController,
       PrivacyController,
       ReportsController,
       ReportsAdminController,
@@ -239,6 +246,7 @@ before(async () => {
       OutcomesController,
       ReviewQueueController,
       ReputationController,
+      ConsentController,
       PrivacyController,
       ReportsController,
       ReportsAdminController,
@@ -254,6 +262,7 @@ before(async () => {
       { provide: MENTORSHIP_SERVICE, useValue: new DrizzleMentorshipService(database) },
       { provide: OUTCOME_SERVICE, useValue: new DrizzleOutcomeService(database) },
       { provide: REPUTATION_SERVICE, useValue: new DrizzleReputationService(database) },
+      { provide: CONSENT_SERVICE, useValue: new DrizzleConsentService(database) },
       {
         provide: PRIVACY_SERVICE,
         useValue: new DrizzlePrivacyService({ database, secret: "x".repeat(32) }),

@@ -1,9 +1,14 @@
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 
 import { mentorActivation, type AffiliationLevel, type MentorOperatingStatus } from "@connect/domain";
 
 import type { Database } from "../db/database.js";
-import { affiliations, mentorProfiles, users } from "../db/schema/index.js";
+import {
+  affiliations,
+  consentRecords,
+  mentorProfiles,
+  users,
+} from "../db/schema/index.js";
 
 type Executor = Pick<Database, "select" | "update">;
 
@@ -19,6 +24,7 @@ export async function syncMentorActivation(database: Executor, userId: string): 
       activatedAt: mentorProfiles.activatedAt,
       emailVerified: users.emailVerified,
       mfaEnrolled: users.twoFactorEnabled,
+      orientationCompletedAt: mentorProfiles.orientationCompletedAt,
     })
     .from(mentorProfiles)
     .innerJoin(users, eq(users.id, mentorProfiles.userId))
@@ -34,12 +40,32 @@ export async function syncMentorActivation(database: Executor, userId: string): 
     .where(and(eq(affiliations.userId, userId), eq(affiliations.status, "VERIFIED")))
     .limit(1);
 
+  // The two mentor documents are consent rows, so the latest row per purpose is
+  // the state; a withdrawal is a later row and turns the input false (D-127).
+  const consents = await database
+    .select({
+      purpose: consentRecords.purpose,
+      action: consentRecords.action,
+    })
+    .from(consentRecords)
+    .where(eq(consentRecords.userId, userId))
+    .orderBy(desc(consentRecords.occurredAt));
+  const latest = new Map<string, string>();
+  for (const consent of consents) {
+    if (!latest.has(consent.purpose)) {
+      latest.set(consent.purpose, consent.action);
+    }
+  }
+
   const now = new Date();
   const next = mentorActivation({
     current: profile.status as MentorOperatingStatus,
     emailVerified: profile.emailVerified,
     mfaEnrolled: profile.mfaEnrolled === true,
     level: (verified?.level ?? null) as AffiliationLevel | null,
+    hasVolunteerAgreement: latest.get("VOLUNTEER_AGREEMENT") === "GRANTED",
+    hasCommunityGuidelines: latest.get("COMMUNITY_GUIDELINES") === "GRANTED",
+    orientationCompleted: profile.orientationCompletedAt !== null,
     activatedAt: profile.activatedAt,
     now,
   });

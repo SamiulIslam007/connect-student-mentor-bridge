@@ -11,11 +11,22 @@ function activation(overrides: Partial<MentorActivationInput> = {}) {
     emailVerified: true,
     mfaEnrolled: false,
     level: null,
+    hasVolunteerAgreement: true,
+    hasCommunityGuidelines: true,
+    orientationCompleted: true,
     activatedAt: null,
     now: NOW,
     ...overrides,
   });
 }
+
+/** The four combinations that keep a fully verified mentor out of ACTIVE (D-127). */
+const MISSING_AGREEMENT = [
+  ["volunteer agreement", { hasVolunteerAgreement: false }],
+  ["community guidelines", { hasCommunityGuidelines: false }],
+  ["orientation", { orientationCompleted: false }],
+  ["all three", { hasVolunteerAgreement: false, hasCommunityGuidelines: false, orientationCompleted: false }],
+] as const;
 
 test("a fresh profile with neither condition stays DRAFT", () => {
   assert.deepEqual(activation(), {
@@ -86,4 +97,33 @@ test("a suspended or removed profile is never resurrected", () => {
       { status: current, onboardingStatus: "AFFILIATION_VERIFIED", activatedAt: null },
     );
   }
+});
+
+test("Level 1 and a factor without the agreements stay PENDING; with them the profile is ACTIVE", () => {
+  for (const [label, missing] of MISSING_AGREEMENT) {
+    assert.deepEqual(
+      activation({ current: "PENDING", level: "LEVEL_1", mfaEnrolled: true, ...missing }),
+      { status: "PENDING", onboardingStatus: "AFFILIATION_VERIFIED", activatedAt: null },
+      `missing the ${label} must not activate`,
+    );
+  }
+  assert.deepEqual(activation({ current: "PENDING", level: "LEVEL_1", mfaEnrolled: true }), {
+    status: "ACTIVE",
+    onboardingStatus: "AFFILIATION_VERIFIED",
+    activatedAt: NOW,
+  });
+});
+
+test("an ACTIVE profile without the agreements returns to PENDING and keeps activated_at", () => {
+  const earlier = new Date("2026-01-01T00:00:00.000Z");
+  assert.deepEqual(
+    activation({
+      current: "ACTIVE",
+      level: "LEVEL_1",
+      mfaEnrolled: true,
+      hasVolunteerAgreement: false,
+      activatedAt: earlier,
+    }),
+    { status: "PENDING", onboardingStatus: "AFFILIATION_VERIFIED", activatedAt: earlier },
+  );
 });

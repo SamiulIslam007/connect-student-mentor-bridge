@@ -16,6 +16,7 @@ import {
   startApiStack,
   type TestApiStack,
 } from "./support/api-stack.js";
+import { grantMentorAgreements } from "./support/agreements.js";
 import { truncateAll } from "./support/database.js";
 
 let stack: TestApiStack | undefined;
@@ -453,6 +454,7 @@ test("verification activates a mentor who then holds Level 1 and a factor", asyn
   assert.equal(saved.status, 200, saved.text);
 
   const mentorId = await userIdFor(current, "pending-mentor@attestation.example");
+  await grantMentorAgreements(current.client, mentorId);
   await enrollFactor(current, mentorId);
   const claim = await seedClaim(current, {
     userId: mentorId,

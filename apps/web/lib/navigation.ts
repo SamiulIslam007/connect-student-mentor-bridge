@@ -29,6 +29,7 @@ export function navLinks(signedIn: boolean, roles: readonly string[] = []): NavM
           { kind: "link", href: "/mentors", label: strings.nav.mentors },
           { kind: "link", href: "/requests", label: strings.nav.requests },
           { kind: "link", href: "/account/sessions", label: strings.nav.sessions },
+          { kind: "link", href: "/consent", label: strings.nav.consents },
           ...(roles.includes("PLATFORM_ADMIN")
             ? [
                 { kind: "link" as const, href: "/admin/reviews", label: strings.nav.admin },

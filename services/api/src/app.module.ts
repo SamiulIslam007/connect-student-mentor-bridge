@@ -34,6 +34,7 @@ import { PrivacyController } from "./privacy/privacy.controller.js";
 import { ReportsAdminController } from "./reports/admin.controller.js";
 import { ReportsController } from "./reports/reports.controller.js";
 import { ReportsModule } from "./reports/reports.module.js";
+import { ConsentModule } from "./consent/consent.module.js";
 import { PrivacyModule } from "./privacy/privacy.module.js";
 import { ProfilesController } from "./profiles/profiles.controller.js";
 import { ProfilesModule } from "./profiles/profiles.module.js";
@@ -67,6 +68,7 @@ import { RequestsModule } from "./requests/requests.module.js";
     MentorshipsModule,
     OutcomesModule,
     ReputationModule,
+    ConsentModule,
     PrivacyModule,
     ReportsModule,
     MatchingModule,
