@@ -4,7 +4,7 @@
 
 ### Requirement: A request is refused when the mentor's account is not active
 
-The request creation path SHALL refuse a request to a mentor whose account status is not `ACTIVE` with the existing `MENTOR_UNAVAILABLE` conflict, SHALL use that same answer for a suspension, a self-deactivation, and an anonymized account so no cause is disclosed, SHALL write no `mentorship_requests` row, and SHALL keep the not-found answer for an id that names no mentor profile at all.
+The request creation path SHALL refuse a request to a mentor whose account status is not `ACTIVE` with the existing `MENTOR_UNAVAILABLE` conflict, SHALL use that same answer for a suspension, a self-deactivation, and an anonymized account so no cause is disclosed, SHALL write no `mentorship_requests` row, and SHALL keep the existing validation answer for an id that names no mentor profile at all.
 
 #### Scenario: A suspended mentor cannot receive a new request
 
@@ -14,7 +14,7 @@ The request creation path SHALL refuse a request to a mentor whose account statu
 #### Scenario: The refusal names no cause
 
 - **WHEN** the request to a suspended mentor is refused
-- **THEN** the problem title is the same one a paused mentor returns, so the caller cannot tell a suspension from a pause or a deactivation
+- **THEN** the problem title is the same one a paused mentor returns, and a body the request validation refuses for its own reason (group office hours, a self-request, a below-Level-1 affiliation) keeps its documented answer for an inactive account too, so the caller cannot tell a suspension from a pause or a deactivation
 
 #### Scenario: An unknown mentor id keeps its own answer
 

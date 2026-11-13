@@ -94,10 +94,13 @@ export class DrizzleReportsService implements ReportsService {
         const found = await executor
           .select({ id: mentorProfiles.id })
           .from(mentorProfiles)
+          .innerJoin(users, eq(users.id, mentorProfiles.userId))
           .where(
             and(
               eq(mentorProfiles.id, targetId),
-              sql`(${mentorProfiles.userId} = ${reporterUserId} OR ${mentorProfiles.status} = 'ACTIVE')`,
+              // The same rule the public profile read applies: an account that is
+              // not active has no visible profile to report (D-147).
+              sql`(${mentorProfiles.userId} = ${reporterUserId} OR (${mentorProfiles.status} = 'ACTIVE' AND ${users.status} = 'ACTIVE'))`,
             ),
           )
           .limit(1);

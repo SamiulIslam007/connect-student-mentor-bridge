@@ -26,7 +26,7 @@ None. Each delta is an added requirement in the capability that already owns the
 
 ## Impact
 
-- **Code**: `services/api/src/profiles/drizzle-profiles.service.ts` (`listMentors`, `readSuggestionPool`, `readMentorContext`), `services/api/src/reputation/drizzle-reputation.service.ts` (`impactForMentorProfile`), `services/api/src/requests/drizzle-requests.service.ts` (`create`), `services/api/src/onboarding/mentor-activation.ts` (the conditional write).
+- **Code**: `services/api/src/profiles/drizzle-profiles.service.ts` (`listMentors`, `readSuggestionPool`, `readMentorContext`), `services/api/src/reputation/drizzle-reputation.service.ts` (`impactForMentorProfile`), `packages/domain/src/request.ts` (the pause branch of `canCreateRequest`), `services/api/src/requests/drizzle-requests.service.ts` (`create`), `services/api/src/reports/drizzle-reports.service.ts` (the profile report target), `services/api/src/onboarding/mentor-activation.ts` (the conditional write).
 - **Tests**: `services/api/test/profiles.integration.test.ts` (directory and context), `services/api/test/matching.integration.test.ts` (suggestions), `services/api/test/requests.integration.test.ts` (the refusal), `services/api/test/reputation.integration.test.ts` (impact), `services/api/test/reports.integration.test.ts` (suspend, both lifts, byte-identical profile row), `services/api/test/mentor-activation.test.ts` (the conditional write).
 - **API/contract**: no route, parameter, or body change; `GET /v1/mentors/{id}` and the directory return `404` or an absent card for a suspended account, which the existing contract already allows.
 - **Data**: none.

@@ -388,6 +388,12 @@ test("a suspended account is absent from suggestions and eligible again after a 
     [eligible.id, suspended.id].sort(),
     "the lift restores eligibility with no profile write",
   );
+
+  // Anonymized is the removal case, and the profile stays ACTIVE so the account
+  // condition is what excludes it.
+  await current.client.query("UPDATE users SET status = 'ANONYMIZED' WHERE id = $1", [suspended.userId]);
+  const afterRemoval = await apiRequest(current, "GET", "/v1/suggestions", undefined, student.token);
+  assert.deepEqual(suggestionIds(afterRemoval.body), [eligible.id], "an anonymized account is absent");
 });
 
 test("a dual-role account never suggests its own mentor profile", async (context) => {

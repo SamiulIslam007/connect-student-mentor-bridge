@@ -984,7 +984,13 @@ test("a suspended account leaves the directory and returns with no profile write
   assert.deepEqual(directoryIds(listed.body), [mentor.id], "an active account is listed");
 
   await setAccountStatus(current, "suspended-directory@example.com", "SUSPENDED");
-  for (const query of ["", "?access_state=available", "?access_state=full", "?language=EN"]) {
+  const fieldId = (
+    await current.client.query<{ primary_field_id: string }>(
+      "SELECT primary_field_id FROM mentor_profiles WHERE id = $1",
+      [mentor.id],
+    )
+  ).rows[0].primary_field_id;
+  for (const query of ["", "?access_state=available", "?access_state=full", "?language=EN", `?field=${fieldId}`]) {
     const page = await apiRequest(current, "GET", `/v1/mentors${query}`);
     assert.equal(page.status, 200, page.text);
     assert.deepEqual(
@@ -1007,13 +1013,24 @@ test("a suspended account leaves the directory and returns with no profile write
   await setAccountStatus(current, "suspended-directory@example.com", "ACTIVE");
   const again = await apiRequest(current, "GET", "/v1/mentors");
   assert.deepEqual(directoryIds(again.body), [mentor.id], "the card returns with no profile write");
+  const contextAgain = await apiRequest(
+    current,
+    "GET",
+    `/v1/mentors/${mentor.id}`,
+    undefined,
+    mentor.token,
+  );
+  assert.equal(contextAgain.status, 200, contextAgain.text);
   assert.deepEqual(await profileRow(current, mentor.id), before, "the mentor profile row is untouched");
 
   // Removal is the anonymized account, and it is excluded the same way (D-149).
+  // The profile stays ACTIVE here on purpose: the condition must hold on its own.
   await setAccountStatus(current, "suspended-directory@example.com", "ANONYMIZED");
-  await current.client.query("UPDATE mentor_profiles SET status = 'REMOVED' WHERE id = $1", [mentor.id]);
   const removed = await apiRequest(current, "GET", "/v1/mentors");
   assert.deepEqual(directoryIds(removed.body), [], "an anonymized account is absent");
+  await current.client.query("UPDATE mentor_profiles SET status = 'REMOVED' WHERE id = $1", [mentor.id]);
+  const removedProfile = await apiRequest(current, "GET", "/v1/mentors");
+  assert.deepEqual(directoryIds(removedProfile.body), [], "a REMOVED profile is absent too");
 });
 
 test("an unknown field id is an empty page, not a 404", async (context) => {

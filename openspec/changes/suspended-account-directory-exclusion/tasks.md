@@ -11,10 +11,11 @@
 - [x] 1.2 Add the same condition to `readSuggestionPool`. Verify: the query carries both conditions and `pnpm --filter api typecheck` passes.
 - [x] 1.3 Add the same condition to `readMentorContext`'s predicate, keeping the in-code `null` guard. Verify: `GET /v1/mentors/{id}` is `404` for a suspended account and `200` for an active one.
 - [x] 1.4 Add an `innerJoin(users)` and the same condition to `impactForMentorProfile` in `services/api/src/reputation/drizzle-reputation.service.ts`, keeping the in-code guard. Verify: `GET /v1/mentors/{id}/impact` is `404` for a suspended account.
+- [x] 1.5 Apply the same condition to the `PROFILE` branch of the report-target check in `services/api/src/reports/drizzle-reports.service.ts` (found in review: a hidden profile that still accepted a report was a second existence oracle). Verify: `POST /v1/reports` with `target_kind: profile` is `404` once the account is suspended.
 
 ## 2. The request refusal
 
-- [x] 2.1 Select the mentor account's status in `create` (`services/api/src/requests/drizzle-requests.service.ts`) and refuse a non-`ACTIVE` account with `MENTOR_UNAVAILABLE` after the not-found check. Verify: the refusal is one branch, it writes nothing, and no new error code is introduced.
+- [x] 2.1 Pass the mentor account's status into `canCreateRequest` (`packages/domain/src/request.ts`) and extend its pause branch, so an inactive account answers `MENTOR_UNAVAILABLE` after the field, self-request and affiliation branches keep their own answers. Verify: no new error code, no early check in the service, and the group-office-hours probe answers alike for an active and an inactive account (found in review; an early service check was a suspension oracle).
 - [x] 2.2 Leave the pending and accept paths untouched, and record in the report that a request already sent to a mentor suspended afterwards keeps today's behaviour (`design.md` R4).
 
 ## 3. The conditional activation write
@@ -23,12 +24,13 @@
 
 ## 4. Tests
 
-- [x] 4.1 `services/api/test/profiles.integration.test.ts`: a suspended account is absent from the directory under every filter; a `REMOVED` profile with an `ANONYMIZED` account is absent; the mentor context read is `404`; setting the account back to `ACTIVE` restores both, and the `mentor_profiles` row is byte-identical across the flow.
-- [x] 4.2 `services/api/test/matching.integration.test.ts`: a suspended mentor is not suggested and the page still fills to five entries; an anonymized one is absent.
-- [x] 4.3 `services/api/test/requests.integration.test.ts`: a request to a suspended mentor is `409 MENTOR_UNAVAILABLE` with no request row and no queued mail; the request context read is `404` for that mentor.
+- [x] 4.1 `services/api/test/profiles.integration.test.ts`: a suspended account is absent from the directory under an access-state, a language and a primary-field filter; the mentor context read is `404`; setting the account back to `ACTIVE` restores both the card and the context read; then an `ANONYMIZED` account with the profile still `ACTIVE` is absent, and a `REMOVED` profile is absent too. The `mentor_profiles` row is byte-identical across the flow.
+- [x] 4.2 `services/api/test/matching.integration.test.ts`: a suspended mentor is not suggested while the other eligible mentor still is; the lift restores both; an `ANONYMIZED` account with an `ACTIVE` profile is absent.
+- [x] 4.3 `services/api/test/requests.integration.test.ts`: a request to a suspended mentor is `409 MENTOR_UNAVAILABLE` with no request row and no queued mail; the request context read is `404` for that mentor; a `GROUP_OFFICE_HOURS` body answers identically to an active and a suspended mentor, and a paused mentor answers exactly as the suspended one does.
 - [x] 4.4 `services/api/test/reputation.integration.test.ts`: the public impact read is `404` for a suspended account and unchanged after the account returns to `ACTIVE`.
 - [x] 4.5 `services/api/test/reports.integration.test.ts`: suspend through the route, lift through the route, suspend again with a passed end date and lift through the job; the directory query lists the mentor before and after, and the `mentor_profiles` row is byte-identical at every step.
 - [x] 4.6 `services/api/test/mentor-activation.test.ts`: the sync's write is skipped when the stored status differs from the one it read, and applies when it matches.
+- [x] 4.8 `packages/domain/test/request.test.ts`: every inactive account status is `MENTOR_UNAVAILABLE`, and the group-office-hours and below-Level-1 branches keep their own answers for a suspended account.
 - [x] 4.7 Mutation check: remove the `users.status` condition from `listMentors` and confirm the directory test fails for that reason; restore it. Remove the status condition from the activation `WHERE` and confirm 4.6 fails; restore it. Record both in the report.
 
 ## 5. Docs and register

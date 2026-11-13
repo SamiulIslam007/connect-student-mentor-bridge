@@ -70,6 +70,8 @@ export interface CanCreateRequestInput {
   mentor: {
     userId: string;
     status: string;
+    /** The account status, so a suspension is the same refusal as a pause (D-148). */
+    accountStatus: string;
     accessMode: "OPEN" | "APPLICATION_ONLY" | "PAUSED";
     level: AffiliationLevel | null;
   };
@@ -112,7 +114,11 @@ export function canCreateRequest(input: CanCreateRequestInput): CanCreateRequest
       message: "this mentor has no verified Level 1 affiliation",
     };
   }
-  if (input.mentor.accessMode === "PAUSED" || input.mentor.status !== "ACTIVE") {
+  if (
+    input.mentor.accessMode === "PAUSED" ||
+    input.mentor.status !== "ACTIVE" ||
+    input.mentor.accountStatus !== "ACTIVE"
+  ) {
     return {
       ok: false,
       code: "MENTOR_UNAVAILABLE",

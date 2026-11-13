@@ -372,6 +372,26 @@ test("a suspended account is refused as unavailable and writes nothing", async (
   const unknown = await createRequest(current, student, "11111111-1111-1111-1111-111111111111");
   assert.equal(unknown.status, 422, unknown.text);
   assert.match(String(unknown.body?.detail), /mentor_id/);
+
+  // The account check sits where the pause check sits, so a body the domain
+  // refuses for its own reason keeps that answer: no suspension oracle (D-148).
+  const active = await activeMentor(current, "active.group@example.edu.bd");
+  const groupToActive = await createRequest(current, student, active.profileId, {
+    interaction_type: "GROUP_OFFICE_HOURS",
+  });
+  const groupToSuspended = await createRequest(current, student, mentor.profileId, {
+    interaction_type: "GROUP_OFFICE_HOURS",
+  });
+  assert.equal(groupToSuspended.status, groupToActive.status, "the two accounts answer alike");
+  assert.equal(groupToSuspended.body?.code, groupToActive.body?.code);
+  assert.equal(groupToActive.status, 422, groupToActive.text);
+
+  // A paused mentor is the account's own comparison, and answers the same way.
+  const paused = await activeMentor(current, "paused.compare@example.edu.bd");
+  await apiRequest(current, "POST", "/v1/me/mentor-profile/pause", undefined, paused.token);
+  const pauseRefused = await createRequest(current, student, paused.profileId);
+  assert.equal(pauseRefused.status, refused.status);
+  assert.equal(pauseRefused.body?.code, refused.body?.code);
 });
 
 test("application-only needs a note, and with one the request is created", async (context) => {

@@ -219,11 +219,6 @@ export class DrizzleRequestsService implements RequestsService {
       if (!mentor) {
         throw new IdentityError("VALIDATION_ERROR", "mentor_id does not name a mentor profile");
       }
-      // The account condition is derived, like discovery: the same refusal a paused
-      // mentor gets, so a suspension is never disclosed (D-148).
-      if (mentor.accountStatus !== "ACTIVE") {
-        throw new IdentityError("MENTOR_UNAVAILABLE", "this mentor is not accepting requests right now");
-      }
 
       const [verified] = await tx
         .select({ level: affiliations.level })
@@ -285,6 +280,7 @@ export class DrizzleRequestsService implements RequestsService {
         mentor: {
           userId: mentor.userId,
           status: mentor.status,
+          accountStatus: mentor.accountStatus,
           accessMode: mentor.accessMode,
           level: (verified?.level ?? null) as AffiliationLevel | null,
         },

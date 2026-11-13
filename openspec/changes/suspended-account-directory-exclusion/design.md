@@ -13,7 +13,8 @@
   - `profiles/drizzle-profiles.service.ts` `readMentorContext` (line 305): `mentor_profiles.status = 'ACTIVE'` checked in code after the read, and it serves `GET /v1/mentors/{id}`.
   - `reputation/drizzle-reputation.service.ts` `impactForMentorProfile` (line 113): `mentor_profiles.status = 'ACTIVE'` checked in code after the read, and it serves `GET /v1/mentors/{id}/impact`.
   - `requests/drizzle-requests.service.ts` `create` (line 203): reads the mentor row under a lock and passes `mentor.status` to `canCreateRequest`.
-  - Not discovery, and deliberately unchanged: `impactForUser` (the mentor's own read; only an active account holds a session), `decide` (the accept path of an existing thread), `readParticipants` and `readRecord` (existing threads), `consent/drizzle-consent.service.ts` (the caller's own profile), `privacy/drizzle-privacy.service.ts` (the caller's own export and erasure), `reports/drizzle-reports.service.ts` (a report target the reporter can already see), `onboarding/mentor-activation.ts` (the sync itself).
+  - `reports/drizzle-reports.service.ts` `canReport` (PROFILE branch, line 96): authorizes a profile report on `mentor_profiles.status = 'ACTIVE'` alone. It is not discovery, but it is the same visibility rule: after this change a hidden profile that still accepts a report is a second way to prove the account exists, so the branch gains the account condition (found in review).
+  - Not discovery, and deliberately unchanged: `impactForUser` (the mentor's own read; only an active account holds a session), `decide` (the accept path of an existing thread), `readParticipants` and `readRecord` (existing threads), `consent/drizzle-consent.service.ts` (the caller's own profile), `privacy/drizzle-privacy.service.ts` (the caller's own export and erasure), `onboarding/mentor-activation.ts` (the sync itself).
 - `syncMentorActivation` (`services/api/src/onboarding/mentor-activation.ts` line 73) reads the row, computes the next status with the pure `mentorActivation`, and updates with `eq(mentorProfiles.userId, userId)` only.
 - The lift already exists twice and writes no profile column: `POST /v1/admin/accounts/{id}/reinstate` and the `account-sanction` queue (`services/api/src/reports/sanction-expiry.ts`) both call `liftSuspension`, one conditional update that sets `status = 'ACTIVE'` and clears `suspended_until`.
 
@@ -45,9 +46,9 @@ The four other statuses (`PENDING`, `SUSPENDED`, `DEACTIVATED`, `DELETION_PENDIN
 
 Both already returned `null` for a non-`ACTIVE` profile after reading the row. They gain the condition instead: one `and(...)` in the predicate for the context read, and an `innerJoin(users)` for the impact read. The in-code guard stays, because it also answers the non-uuid and not-found cases. Alternative rejected: reading `users.status` into the row and checking it in code, which keeps two places that must agree.
 
-### R3. The request refusal reuses `MENTOR_UNAVAILABLE`
+### R3. The request refusal is the pause branch of the domain predicate
 
-`canCreateRequest` already answers `MENTOR_UNAVAILABLE` ("this mentor is not accepting requests right now") for a paused or non-operating mentor. A suspended account gets the same code and title from the `create` path, so the student cannot distinguish a suspension from a pause, and no new error code, contract row, or string is needed. The check runs after the existing not-found check, so a genuinely unknown id still answers `VALIDATION_ERROR`. Alternative rejected: treating the account as absent, which would answer "mentor_id does not name a mentor profile" for an id that does name one.
+`canCreateRequest` already answers `MENTOR_UNAVAILABLE` for a paused or non-operating mentor, and that branch is where the account status belongs: the predicate's input gains `mentor.accountStatus` and the existing condition gains a third disjunct. Placing it in the service before the predicate was rejected after review, because the predicate's own branches run first for every account: a `GROUP_OFFICE_HOURS` body, a self-request, or a below-Level-1 affiliation answers `422` or `MENTOR_NOT_VERIFIED` for an active account, so an early account check would have answered `409` for a suspended one and turned the refusal into a suspension oracle. With the check inside the pause branch, every other refusal keeps its documented answer whatever the account state, and a genuinely unknown id still answers `VALIDATION_ERROR` at the not-found check. Alternative rejected: treating the account as absent, which would answer "mentor_id does not name a mentor profile" for an id that does name one.
 
 ### R4. A request already sent to a mentor who is suspended afterwards keeps today's behaviour
 
@@ -71,7 +72,8 @@ A deleted account is `ANONYMIZED` with `mentor_profiles.status = 'REMOVED'`, and
 
 1. A suspended mentor is absent from `GET /v1/mentors` (with and without filters), absent from `GET /v1/suggestions`, answers `404` on `GET /v1/mentors/{id}` and `GET /v1/mentors/{id}/impact`.
 2. `POST /v1/requests` to that mentor answers `409 MENTOR_UNAVAILABLE` and writes no `mentorship_requests` row.
-3. An account suspended through `POST /v1/admin/accounts/{id}/suspend` leaves the directory; `POST /v1/admin/accounts/{id}/reinstate` and `liftExpiredSuspensions` each bring it back, and the `mentor_profiles` row is byte-identical before the suspension and after each lift.
+3. An account suspended through `POST /v1/admin/accounts/{id}/suspend` leaves the directory; `POST /v1/admin/accounts/{id}/reinstate` and `liftExpiredSuspensions` each bring it back, and the `mentor_profiles` row is byte-identical before the suspension and after each lift. A profile report on that account answers `404`.
+7. A body the request validation refuses for its own reason (`GROUP_OFFICE_HOURS`, a self-request, a below-Level-1 affiliation) answers identically for an active and an inactive account, so the refusal order discloses nothing.
 4. An `ANONYMIZED` account with a `REMOVED` mentor profile is excluded by every discovery surface.
 5. With the `users.status` condition removed from `listMentors`, the directory test fails; with it removed from `syncMentorActivation`'s `WHERE`, the activation test fails, and each failure names the right test.
 6. Every existing test passes unchanged, including the paused-mentor, capacity, and pagination cases.

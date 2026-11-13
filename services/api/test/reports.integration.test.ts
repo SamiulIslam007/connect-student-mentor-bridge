@@ -171,6 +171,45 @@ test("a message the reporter cannot see is refused with 404 and writes nothing",
   assert.equal(rows.rowCount, 0);
 });
 
+test("a profile the caller cannot see is refused with 404, including a suspended account", async (context) => {
+  const current = requireStack(context);
+  if (!current) {
+    return;
+  }
+  const student = await signInToken(current, "student@example.com");
+  await signInToken(current, "mentor@example.com");
+  const seeded = await seedThread(current);
+  const [profile] = (
+    await current.client.query<{ id: string }>(
+      "SELECT id FROM mentor_profiles WHERE user_id = $1",
+      [seeded.mentorId],
+    )
+  ).rows;
+
+  const visible = await apiRequest(
+    current,
+    "POST",
+    "/v1/reports",
+    { target_kind: "profile", target_id: profile.id, reason: "spam" },
+    student,
+  );
+  assert.equal(visible.status, 201, visible.text);
+
+  // Discovery hides the profile for an inactive account, so a report must follow
+  // the same rule instead of becoming a second way to prove the account exists (D-147).
+  await current.client.query("UPDATE users SET status = 'SUSPENDED' WHERE id = $1", [seeded.mentorId]);
+  const hidden = await apiRequest(
+    current,
+    "POST",
+    "/v1/reports",
+    { target_kind: "profile", target_id: profile.id, reason: "spam" },
+    student,
+  );
+  assert.equal(hidden.status, 404, hidden.text);
+  const rows = await current.client.query("SELECT id FROM reports");
+  assert.equal(rows.rowCount, 1, "the refused report writes nothing");
+});
+
 test("a malformed target or reason is refused with 422", async (context) => {
   const current = requireStack(context);
   if (!current) {
