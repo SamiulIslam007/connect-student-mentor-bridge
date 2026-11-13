@@ -304,7 +304,7 @@ Written to the append-only `AuditLog` (who, role, action, object, result, time, 
 ```
 
 - **Activation:** opening the verification link moves `pending` to `active`, and only an `active` account can sign in. Registration writes the email as unverified, so "pending" and "unverified" are the same condition by construction (FR-AUTH-08). Google sign-in is not gated by the email/password verification rule, so the provider path in Sprint 2 activates through the same transition.
-- **Suspension:** every session is revoked in the same transaction, no new requests, sign-in refused. Reason and reviewer recorded (FR-AUTH-10; the sanction workflow itself is FR-ADM-05).
+- **Suspension:** every session is revoked in the same transaction, no new requests, sign-in refused. Reason and reviewer recorded (FR-AUTH-10; the sanction workflow itself is FR-ADM-05). Discovery is derived from the account status rather than stored on the profile: a suspended, self-deactivated or anonymized mentor is absent from the directory, the ranked suggestions, the mentor context read and the public impact read, a new request answers `409 MENTOR_UNAVAILABLE`, and either lift restores the listing with no profile write (D-147, D-148, D-149).
 - **Deactivation:** the user can pause their own account; sessions are revoked and the profile is hidden. Reversible by signing in again with the correct password (owner decision D-36; FR-AUTH-09).
 - **Deletion:** identifiers removed or pseudonymized, evidence files deleted, the ledger structure kept with pseudonymous references so counted outcomes remain auditable. This must be confirmed with counsel against the erasure right and its exceptions **[S1]** (see `docs/data-privacy-and-retention.md`).
 

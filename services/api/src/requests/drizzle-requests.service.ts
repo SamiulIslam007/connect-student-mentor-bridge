@@ -209,6 +209,7 @@ export class DrizzleRequestsService implements RequestsService {
           accessMode: mentorProfiles.accessMode,
           weeklyCapacity: mentorProfiles.weeklyCapacity,
           email: mentorUser.email,
+          accountStatus: mentorUser.status,
         })
         .from(mentorProfiles)
         .innerJoin(mentorUser, eq(mentorUser.id, mentorProfiles.userId))
@@ -279,6 +280,7 @@ export class DrizzleRequestsService implements RequestsService {
         mentor: {
           userId: mentor.userId,
           status: mentor.status,
+          accountStatus: mentor.accountStatus,
           accessMode: mentor.accessMode,
           level: (verified?.level ?? null) as AffiliationLevel | null,
         },

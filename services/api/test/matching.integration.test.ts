@@ -356,6 +356,46 @@ test("application-only, paused, non-active and unrelated mentors are all absent"
   assert.ok(visible.includes(unrelated.id), "an unrelated mentor stays in the directory");
 });
 
+test("a suspended account is absent from suggestions and eligible again after a lift", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const institution = await seedInstitution(current, "Suspension University");
+  const student = await seedStudent(current, "suggest-suspended@example.com", {
+    institutionId: institution,
+  });
+  const suspended = await seedMentor(current, "suspended-suggest@example.com", {
+    institutionId: institution,
+    department: "CSE",
+    batchYear: 2020,
+  });
+  const eligible = await seedMentor(current, "eligible-suggest@example.com", {
+    institutionId: institution,
+    department: "CSE",
+    batchYear: 2020,
+  });
+
+  await current.client.query("UPDATE users SET status = 'SUSPENDED' WHERE id = $1", [
+    suspended.userId,
+  ]);
+  const without = await apiRequest(current, "GET", "/v1/suggestions", undefined, student.token);
+  assert.equal(without.status, 200, without.text);
+  assert.deepEqual(suggestionIds(without.body), [eligible.id], "only the active account is suggested");
+
+  await current.client.query("UPDATE users SET status = 'ACTIVE' WHERE id = $1", [suspended.userId]);
+  const withBoth = await apiRequest(current, "GET", "/v1/suggestions", undefined, student.token);
+  assert.deepEqual(
+    suggestionIds(withBoth.body).sort(),
+    [eligible.id, suspended.id].sort(),
+    "the lift restores eligibility with no profile write",
+  );
+
+  // Anonymized is the removal case, and the profile stays ACTIVE so the account
+  // condition is what excludes it.
+  await current.client.query("UPDATE users SET status = 'ANONYMIZED' WHERE id = $1", [suspended.userId]);
+  const afterRemoval = await apiRequest(current, "GET", "/v1/suggestions", undefined, student.token);
+  assert.deepEqual(suggestionIds(afterRemoval.body), [eligible.id], "an anonymized account is absent");
+});
+
 test("a dual-role account never suggests its own mentor profile", async (context) => {
   const current = requireStack(context);
   if (!current) return;

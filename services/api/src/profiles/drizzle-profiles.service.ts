@@ -319,10 +319,12 @@ export class DrizzleProfilesService implements ProfilesService {
       .from(mentorProfiles)
       .innerJoin(users, eq(users.id, mentorProfiles.userId))
       .innerJoin(fields, eq(fields.id, mentorProfiles.primaryFieldId))
-      .where(eq(mentorProfiles.id, mentorProfileId))
+      .where(and(eq(mentorProfiles.id, mentorProfileId), eq(users.status, "ACTIVE")))
       .limit(1);
     if (!row || row.status !== "ACTIVE") {
-      // Draft and pending mentors are not requestable and stay invisible.
+      // Draft and pending mentors are not requestable and stay invisible, and so
+      // does an account that is not active: the card and the request form both
+      // answer 404 (D-147).
       return null;
     }
     return {
@@ -356,6 +358,9 @@ export class DrizzleProfilesService implements ProfilesService {
     for (let scan = 0; scan < DIRECTORY_SCAN_LIMIT; scan += 1) {
       const conditions: SQL[] = [
         eq(mentorProfiles.status, "ACTIVE"),
+        // Derived from the account, not stored on the profile: a suspension hides
+        // the card and a lift restores it with no profile write (D-147).
+        eq(users.status, "ACTIVE"),
         // A paused mentor is hidden from every filter (FR-PROF-02).
         ne(mentorProfiles.accessMode, "PAUSED"),
       ];
@@ -490,6 +495,8 @@ export class DrizzleProfilesService implements ProfilesService {
       .where(
         and(
           eq(mentorProfiles.status, "ACTIVE"),
+          // The account condition is derived, exactly as the directory does it (D-147).
+          eq(users.status, "ACTIVE"),
           ne(mentorProfiles.accessMode, "PAUSED"),
           ne(mentorProfiles.userId, userId),
         ),

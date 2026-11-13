@@ -37,6 +37,7 @@ function input(overrides: Partial<CanCreateRequestInput> = {}): CanCreateRequest
     mentor: {
       userId: "mentor-user",
       status: "ACTIVE",
+      accountStatus: "ACTIVE",
       accessMode: "OPEN",
       level: "LEVEL_1",
     },
@@ -93,6 +94,26 @@ test("a non-operating or paused mentor is unavailable", () => {
   assert.equal(
     refusal({ mentor: { ...input().mentor, accessMode: "PAUSED" } }),
     "MENTOR_UNAVAILABLE",
+  );
+});
+
+test("an inactive account is the same refusal as a pause, after the field checks", () => {
+  for (const accountStatus of ["PENDING", "SUSPENDED", "DEACTIVATED", "DELETION_PENDING", "ANONYMIZED"]) {
+    assert.equal(
+      refusal({ mentor: { ...input().mentor, accountStatus } }),
+      "MENTOR_UNAVAILABLE",
+      `account status ${accountStatus}`,
+    );
+  }
+  // The order matters: a body the domain refuses for its own reason keeps that
+  // answer, so the account state is not an oracle (D-148).
+  assert.equal(
+    refusal({ interactionType: "GROUP_OFFICE_HOURS", mentor: { ...input().mentor, accountStatus: "SUSPENDED" } }),
+    "VALIDATION_ERROR",
+  );
+  assert.equal(
+    refusal({ mentor: { ...input().mentor, accountStatus: "SUSPENDED", level: null } }),
+    "MENTOR_NOT_VERIFIED",
   );
 });
 

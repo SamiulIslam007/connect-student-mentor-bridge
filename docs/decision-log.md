@@ -1127,3 +1127,35 @@ date: 2026-10-29
 - Reason: the register is the gate's scoreboard, and it carried 29 unannotated rows and 9 contradictory ones, so the quoted number depended on who last edited the file. One marker in one place makes `grep -c "Status: DONE"` the score.
 - Status: Decided
 - Affects: `docs/functional-requirements.md` (section 0.1 legend, all 64 Must rows, section 2.16)
+
+### D-147: Discovery requires an active account, derived on every read
+
+- Date: 2026-11-13
+- Decision: every discovery query filters on `users.status = 'ACTIVE'` in addition to the profile's own operating status: the public directory, the ranked suggestions pool, the mentor context read (`GET /v1/mentors/{id}`) and the public impact read (`GET /v1/mentors/{id}/impact`). The condition is never stored on `mentor_profiles` and no suspension rewrites that column.
+- Reason: `suspendAccount` writes `users.status` only, so filtering on the profile status alone listed a suspended mentor and let a student send them new requests. Deriving the condition means one write hides the mentor and no write is needed to restore them.
+- Status: Decided
+- Affects: `profiles/mentor-directory`, `matching/mentor-suggestions`, `mentorship/reputation-ledger`, `services/api/src/profiles/drizzle-profiles.service.ts`, `services/api/src/reputation/drizzle-reputation.service.ts`
+
+### D-148: A request to an inactive account is refused as unavailable
+
+- Date: 2026-11-13
+- Decision: `POST /v1/requests` answers `409 MENTOR_UNAVAILABLE` when the mentor's account status is not `ACTIVE`, the same refusal a paused mentor returns, and writes no request row and no notification. An id that names no mentor profile keeps its `422 VALIDATION_FAILED`.
+- Reason: the student must not learn that a mentor was suspended, and one refusal code for every "cannot take requests now" case keeps the contract and the string catalogue unchanged.
+- Status: Decided
+- Affects: `mentorship/request-lifecycle`, `docs/api-contracts.md`, `services/api/src/requests/drizzle-requests.service.ts`
+
+### D-149: A suspended mentor's existing requests and threads stay as they are
+
+- Date: 2026-11-13
+- Decision: a suspension blocks new discovery and new requests only. A request already pending keeps its status, its 48-hour window and its accept and decline paths, and existing mentorships, sessions, agreements and outcomes stay readable to both sides. The gap is recorded as DEBT-59 rather than fixed here.
+- Reason: cancelling in-flight work on suspension is a policy about the 48-hour promise (`FR-REQ-04`) that the owner has not decided, and silently breaking it inside a discovery fix would be the larger change. Assertion, not preference: it is the behaviour the code has today.
+- Status: Decided
+- Affects: `docs/known-debt.md`, `mentorship/request-lifecycle`
+
+### D-150: The activation sync writes conditionally on the status it read
+
+- Date: 2026-11-13
+- Decision: `syncMentorActivation` adds the status it read to its update's `WHERE`, so a suspension, a removal or any other concurrent status write is not overwritten; a skipped write is left to the next trigger, which recomputes from the row as it then is.
+- Reason: the funnel read then wrote unconditionally, so an operator's suspension could be replaced by a computed `PENDING` in the window between the two statements. The condition costs nothing at the four call sites and needs no lock.
+- Status: Decided
+- Affects: `profiles/mentor-onboarding`, `services/api/src/onboarding/mentor-activation.ts`
