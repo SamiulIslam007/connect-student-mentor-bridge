@@ -468,3 +468,5 @@ AI-driven matching; embeddings; Mentor reputation as a factor; group office hour
 5. **Concierge coordinator:** will you do this yourself, or is a coordinator assigned (same staffing question as Trust-and-Safety, N7)?
 6. **Redirect depth:** how many times may a request be redirected before it ends?
 7. **Request limits:** are 3 pending requests per Student and a pending cap of 2 × weekly capacity per Mentor acceptable for the pilot?
+
+> **2026-11-13 (`discovery-availability-filter`, D-144):** the browse filter now converts both sides to UTC through `zonedWindowToUtc` in `@connect/domain` (mirrored by the SQL `AT TIME ZONE` predicate). The match factor itself is unchanged and still treats a zone difference as missing, so DEBT-43 is narrowed, not closed.

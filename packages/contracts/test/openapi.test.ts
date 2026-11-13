@@ -480,7 +480,17 @@ test("the public mentor directory is unauthenticated and keyset-paginated", () =
   assert.deepEqual(operation.security, [], "the directory must be readable without a session");
   assert.deepEqual(
     operation.parameters?.map((parameter) => parameter.name).sort(),
-    ["access_state", "cursor", "field", "language", "limit"],
+    [
+      "access_state",
+      "available_end",
+      "available_start",
+      "available_timezone",
+      "available_weekday",
+      "cursor",
+      "field",
+      "language",
+      "limit",
+    ],
   );
 
   const card = document.components.schemas.MentorDirectoryCard;

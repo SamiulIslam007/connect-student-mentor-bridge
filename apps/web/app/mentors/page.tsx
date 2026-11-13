@@ -4,9 +4,13 @@ import { useEffect, useState } from "react";
 
 import {
   accessStateLabel,
+  availabilityActive,
+  browserTimeZone,
   canRequest,
   directoryQuery,
+  emptyAvailability,
   mergeCards,
+  type AvailabilityFilter,
   type MentorCard,
   type MentorDirectoryPayload,
 } from "../../lib/mentor-directory";
@@ -20,10 +24,22 @@ interface FieldSummary {
 
 type PageState = "loading" | "ready" | "error";
 
+/** Monday-based, matching the API's `available_weekday`. */
+const WEEKDAY_OPTIONS = [
+  { value: "1", label: strings.mentors.weekdayMonday },
+  { value: "2", label: strings.mentors.weekdayTuesday },
+  { value: "3", label: strings.mentors.weekdayWednesday },
+  { value: "4", label: strings.mentors.weekdayThursday },
+  { value: "5", label: strings.mentors.weekdayFriday },
+  { value: "6", label: strings.mentors.weekdaySaturday },
+  { value: "7", label: strings.mentors.weekdaySunday },
+] as const;
+
 export default function MentorsPage() {
   const [fields, setFields] = useState<FieldSummary[]>([]);
   const [field, setField] = useState("");
   const [accessState, setAccessState] = useState("");
+  const [availability, setAvailability] = useState<AvailabilityFilter>(emptyAvailability());
   const [cards, setCards] = useState<MentorCard[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [state, setState] = useState<PageState>("loading");
@@ -33,6 +49,13 @@ export default function MentorsPage() {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [suggestedState, setSuggestedState] = useState<PageState>("loading");
 
+  // The zone defaults to the browser's once, after mount (design R6).
+  useEffect(() => {
+    setAvailability((current) =>
+      current.timezone === "" ? { ...current, timezone: browserTimeZone() } : current,
+    );
+  }, []);
+
   useEffect(() => {
     let active = true;
 
@@ -40,7 +63,9 @@ export default function MentorsPage() {
       setState("loading");
       setMoreError(null);
       try {
-        const response = await fetch(`/api/mentors${directoryQuery({ field, accessState })}`);
+        const response = await fetch(
+          `/api/mentors${directoryQuery({ field, accessState, availability })}`,
+        );
         if (!active) {
           return;
         }
@@ -63,7 +88,7 @@ export default function MentorsPage() {
     return () => {
       active = false;
     };
-  }, [field, accessState, reloadKey]);
+  }, [field, accessState, availability, reloadKey]);
 
   // The shortlist is a student-only read: a signed-out visitor or a mentor gets
   // a refusal, which reads as the empty state rather than an error.
@@ -214,6 +239,52 @@ export default function MentorsPage() {
         </label>
       </p>
 
+      <p>
+        <label>
+          {strings.mentors.availabilityWeekday}
+          <select
+            value={availability.weekday}
+            onChange={(event) => setAvailability({ ...availability, weekday: event.target.value })}
+          >
+            <option value="">{strings.mentors.availabilityAnyDay}</option>
+            {WEEKDAY_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>{" "}
+        <label>
+          {strings.mentors.availabilityFrom}
+          <input
+            type="time"
+            value={availability.start}
+            onChange={(event) => setAvailability({ ...availability, start: event.target.value })}
+          />
+        </label>{" "}
+        <label>
+          {strings.mentors.availabilityTo}
+          <input
+            type="time"
+            value={availability.end}
+            onChange={(event) => setAvailability({ ...availability, end: event.target.value })}
+          />
+        </label>{" "}
+        <label>
+          {strings.mentors.availabilityTimeZone}
+          <input
+            value={availability.timezone}
+            onChange={(event) => setAvailability({ ...availability, timezone: event.target.value })}
+          />
+        </label>{" "}
+        <button
+          type="button"
+          onClick={() => setAvailability({ ...emptyAvailability(), timezone: browserTimeZone() })}
+        >
+          {strings.mentors.availabilityClear}
+        </button>
+      </p>
+
       <p role="status">
         {state === "loading" ? strings.mentors.loading : state === "error" ? strings.mentors.loadError : null}
       </p>
@@ -223,7 +294,11 @@ export default function MentorsPage() {
         </button>
       ) : null}
 
-      {state === "ready" && cards.length === 0 ? <p>{strings.mentors.empty}</p> : null}
+      {state === "ready" && cards.length === 0 ? (
+        <p>
+          {availabilityActive(availability) ? strings.mentors.emptyFiltered : strings.mentors.empty}
+        </p>
+      ) : null}
 
       {state === "ready" && cards.length > 0 ? (
         <ul>

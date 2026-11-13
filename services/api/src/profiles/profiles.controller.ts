@@ -2,6 +2,9 @@ import { Body, Controller, Get, HttpCode, Inject, Param, Post, Put, Query, Req }
 
 import {
   IdentityError,
+  isKnownTimeZone,
+  weekAnchor,
+  zonedWindowToUtc,
   type AccountSummary,
   type IdentityService,
   type MentorAccessModeChoice,
@@ -93,12 +96,66 @@ const MENTOR_ACCESS_STATES: readonly MentorAccessState[] = [
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Every directory filter is validated here, so a bad value never reaches SQL (design D3). */
+/** The four availability parameters, all-or-nothing (design R1, D-143). */
+function availabilityFilter(
+  weekdayValue: unknown,
+  startValue: unknown,
+  endValue: unknown,
+  timezoneValue: unknown,
+  now: Date,
+): ListMentorsInput["availability"] {
+  const raw = [weekdayValue, startValue, endValue, timezoneValue].map((value) =>
+    firstQueryValue(value)?.trim(),
+  );
+  const given = raw.filter((value) => value !== undefined && value !== "");
+  if (given.length === 0) {
+    return undefined;
+  }
+  if (given.length !== 4) {
+    throw new IdentityError(
+      "VALIDATION_ERROR",
+      "available_weekday, available_start, available_end and available_timezone must be sent together",
+    );
+  }
+
+  const [weekdayRaw, startRaw, endRaw, timezone] = raw as [string, string, string, string];
+  if (!/^[1-7]$/.test(weekdayRaw)) {
+    throw new IdentityError("VALIDATION_ERROR", "available_weekday must be 1 to 7");
+  }
+  if (!/^\d+$/.test(startRaw) || Number(startRaw) > 1439) {
+    throw new IdentityError("VALIDATION_ERROR", "available_start must be 0 to 1439 minutes");
+  }
+  if (!/^\d+$/.test(endRaw) || Number(endRaw) < 1 || Number(endRaw) > 1440) {
+    throw new IdentityError("VALIDATION_ERROR", "available_end must be 1 to 1440 minutes");
+  }
+  const startMinute = Number(startRaw);
+  const endMinute = Number(endRaw);
+  if (endMinute <= startMinute) {
+    throw new IdentityError("VALIDATION_ERROR", "available_end must be later than available_start");
+  }
+  if (!isKnownTimeZone(timezone)) {
+    throw new IdentityError("VALIDATION_ERROR", "available_timezone is not a known IANA zone");
+  }
+
+  const viewer = zonedWindowToUtc(
+    { weekday: Number(weekdayRaw), startMinute, endMinute, timezone },
+    now,
+  );
+  return { start: viewer.start, end: viewer.end, monday: weekAnchor(now) };
+}
+
 function mentorDirectoryQuery(
   fieldValue: unknown,
   languageValue: unknown,
   accessStateValue: unknown,
   cursorValue: unknown,
   limitValue: unknown,
+  availabilityValue: {
+    weekday: unknown;
+    start: unknown;
+    end: unknown;
+    timezone: unknown;
+  },
 ): ListMentorsInput {
   const field = firstQueryValue(fieldValue)?.trim();
   if (field !== undefined && field !== "" && !UUID_PATTERN.test(field)) {
@@ -142,11 +199,20 @@ function mentorDirectoryQuery(
     }
   }
 
+  const availability = availabilityFilter(
+    availabilityValue.weekday,
+    availabilityValue.start,
+    availabilityValue.end,
+    availabilityValue.timezone,
+    new Date(),
+  );
+
   return {
     ...(field ? { field } : {}),
     ...(language ? { language } : {}),
     ...(accessState ? { accessState } : {}),
     ...(cursor ? { cursor } : {}),
+    ...(availability ? { availability } : {}),
     limit,
   };
 }
@@ -294,9 +360,18 @@ export class ProfilesController {
     @Query("access_state") accessState: unknown,
     @Query("cursor") cursor: unknown,
     @Query("limit") limit: unknown,
+    @Query("available_weekday") availableWeekday: unknown,
+    @Query("available_start") availableStart: unknown,
+    @Query("available_end") availableEnd: unknown,
+    @Query("available_timezone") availableTimezone: unknown,
   ): Promise<{ data: Record<string, unknown>[]; next_cursor: string | null }> {
     const page = await this.profiles.listMentors(
-      mentorDirectoryQuery(field, language, accessState, cursor, limit),
+      mentorDirectoryQuery(field, language, accessState, cursor, limit, {
+        weekday: availableWeekday,
+        start: availableStart,
+        end: availableEnd,
+        timezone: availableTimezone,
+      }),
     );
     return { data: page.cards.map(mentorDirectoryPayload), next_cursor: page.nextCursor };
   }
