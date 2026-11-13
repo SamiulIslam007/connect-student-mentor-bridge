@@ -40,7 +40,9 @@ export type AuditAction =
   | "CONSENT_WITHDRAWN"
   | "ORIENTATION_COMPLETED"
   | "ACCOUNT_WARNED"
-  | "ACCOUNT_REINSTATED";
+  | "ACCOUNT_REINSTATED"
+  | "DATA_EXPORTED"
+  | "PERMISSION_DENIED";
 
 export interface AuditEntry {
   action: AuditAction;

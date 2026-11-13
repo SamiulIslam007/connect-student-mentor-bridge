@@ -422,6 +422,54 @@ test("the export holds only the caller's rows and no secret", async (context) =>
     [seeded.studentId],
   );
   assert.deepEqual(tracking.rows, [{ kind: "EXPORT", status: "COMPLETED" }]);
+
+  // One DATA_EXPORTED row per export, correlated to the response, never inside the
+  // document it describes (D-151).
+  const entries = await current.client.query<{
+    actor_user_id: string;
+    object_id: string;
+    request_id: string;
+    metadata: Record<string, unknown>;
+  }>("SELECT actor_user_id, object_id, request_id, metadata FROM audit_logs WHERE action = 'DATA_EXPORTED'");
+  assert.equal(entries.rowCount, 1, "exactly one entry per export");
+  assert.equal(entries.rows[0].actor_user_id, seeded.studentId);
+  assert.equal(entries.rows[0].object_id, seeded.studentId);
+  assert.deepEqual(entries.rows[0].metadata, {}, "no personal data beyond the ids");
+  const documentAudits = document.audit_entries as { action: string }[];
+  assert.ok(
+    documentAudits.every((entry) => entry.action !== "DATA_EXPORTED"),
+    "the export does not contain its own entry",
+  );
+});
+
+test("a failed export audit rolls the whole export back", async (context) => {
+  const current = requireStack(context);
+  if (!current) {
+    return;
+  }
+  await signInToken(current, "rollback.export@example.com");
+  const user = await current.client.query<{ id: string }>(
+    "SELECT id FROM users WHERE email = $1",
+    ["rollback.export@example.com"],
+  );
+  const userId = user.rows[0].id;
+
+  // The seam the identity service also exposes: fail one action, prove the transaction.
+  const service = new DrizzlePrivacyService({
+    database: current.database.db,
+    secret: TEST_AUTH_SECRET,
+    auditWriter: async () => {
+      throw new Error("audit store unavailable");
+    },
+  });
+  await assert.rejects(() => service.exportAccount({ userId, requestId: "rollback-request-id" }));
+
+  const tracking = await current.client.query("SELECT id FROM privacy_requests WHERE user_id = $1", [
+    userId,
+  ]);
+  assert.equal(tracking.rowCount, 0, "no export is recorded");
+  const entries = await current.client.query("SELECT id FROM audit_logs WHERE action = 'DATA_EXPORTED'");
+  assert.equal(entries.rowCount, 0, "no export entry is recorded");
 });
 
 test("a suspended, anonymized, or deactivated account cannot export", async (context) => {

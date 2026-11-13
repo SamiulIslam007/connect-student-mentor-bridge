@@ -27,7 +27,7 @@ import {
   users,
   verificationRecords,
 } from "../db/schema/index.js";
-import { appendAuditEntry } from "../identity/audit-log.js";
+import { appendAuditEntry, type AuditEntry } from "../identity/audit-log.js";
 import { hashEmail } from "../identity/email-hash.js";
 import {
   DELETED_DISPLAY_NAME,
@@ -40,11 +40,15 @@ import {
   type PrivacyService,
 } from "./privacy.service.js";
 
+type AuditWriter = (database: Pick<Database, "insert">, entry: AuditEntry) => Promise<void>;
+
 interface PrivacyOptions {
   database: Database;
   /** `BETTER_AUTH_SECRET`: the same key the signup block hashes with (D4). */
   secret: string;
   now?: () => Date;
+  /** Fault-injection seam, as the identity service has (design R2, D-151). */
+  auditWriter?: AuditWriter;
 }
 
 /**
@@ -56,11 +60,13 @@ export class DrizzlePrivacyService implements PrivacyService {
   private readonly database: Database;
   private readonly secret: string;
   private readonly now: () => Date;
+  private readonly auditWriter: AuditWriter;
 
   constructor(options: PrivacyOptions) {
     this.database = options.database;
     this.secret = options.secret;
     this.now = options.now ?? (() => new Date());
+    this.auditWriter = options.auditWriter ?? appendAuditEntry;
   }
 
   async exportAccount(input: ExportAccountInput): Promise<PrivacyExportDocument> {
@@ -221,6 +227,18 @@ export class DrizzlePrivacyService implements PrivacyService {
         completedAt: generatedAt,
       });
 
+      // One row per export, in the same transaction and after the document's own
+      // audit section was read, so it is never inside the document it describes (D-151).
+      await this.auditWriter(tx, {
+        action: "DATA_EXPORTED",
+        actorUserId: input.userId,
+        // The same convention as the ACCOUNT_DELETED row: the caller is a user.
+        actorRole: "USER",
+        objectType: "users",
+        objectId: input.userId,
+        requestId: input.requestId,
+      });
+
       return {
         export_version: PRIVACY_EXPORT_VERSION,
         generated_at: generatedAt.toISOString(),
@@ -336,7 +354,7 @@ export class DrizzlePrivacyService implements PrivacyService {
         completedAt: now,
       });
 
-      await appendAuditEntry(tx, {
+      await this.auditWriter(tx, {
         action: "ACCOUNT_DELETED",
         actorUserId: input.userId,
         actorRole: "USER",

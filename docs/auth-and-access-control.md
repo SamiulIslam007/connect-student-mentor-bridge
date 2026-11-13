@@ -279,6 +279,10 @@ Written to the append-only `AuditLog` (who, role, action, object, result, time, 
 | Admin | Break-glass access, suspension, removal, configuration change |
 | Data access | Evidence file viewed by a reviewer; student-level data viewed by an institution admin |
 
+Written today: every action in the table above that a code path produces appends one row in the transaction of the fact it records, or — for a refusal — from the exception filter. A permission denied on a platform-admin or institution-admin route is one `PERMISSION_DENIED` row naming the caller, the route and the required role; a refusal on an ordinary role route writes nothing. A data export is one `DATA_EXPORTED` row inside the export's own transaction (D-151, D-152).
+
+**Documented but not applicable yet**, because no code path exists to audit; each line names what will build it: password change (no change-password route), lockout (throttling only), role revoked (no revocation route), affiliation overridden (no override route), admin removal (out of the MVP, D-142), configuration change (`FR-ADM-07`), evidence file viewed (`DEBT-22`), and student-level data viewed by an institution admin (no such route). `FR-AUD-01` reads Done on that basis: every documented action with a code path writes its row (D-153).
+
 ## 13. Account lifecycle
 
 `pending` -> `active` -> (`suspended` | `deactivated`) -> `deletion_pending` -> `anonymized`, using the `account_status` enum.

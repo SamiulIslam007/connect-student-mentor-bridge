@@ -42,6 +42,10 @@ export const AUDIT_ACTIONS = [
   "CONSENT_GRANTED",
   "CONSENT_WITHDRAWN",
   "ORIENTATION_COMPLETED",
+  "ACCOUNT_WARNED",
+  "ACCOUNT_REINSTATED",
+  "DATA_EXPORTED",
+  "PERMISSION_DENIED",
 ] as const satisfies readonly AuditAction[];
 
 /**

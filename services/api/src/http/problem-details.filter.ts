@@ -8,6 +8,11 @@ import type { Request, Response } from "express";
 
 import { IdentityError, type IdentityErrorCode } from "@connect/domain";
 
+import type { Database } from "../db/database.js";
+import { appendAuditEntry, type AuditEntry } from "../identity/audit-log.js";
+import type { RequestWithId } from "./request-id.middleware.js";
+
+
 interface ProblemMapping {
   status: number;
   code: string;
@@ -54,13 +59,18 @@ const PROBLEM_BASE = "https://docs.connect.example/problems/";
  */
 @Catch()
 export class ProblemDetailsFilter implements ExceptionFilter {
-  catch(exception: unknown, host: ArgumentsHost): void {
+  constructor(private readonly database?: Database) {}
+
+  async catch(exception: unknown, host: ArgumentsHost): Promise<void> {
     const context = host.switchToHttp();
     const response = context.getResponse<Response>();
     const request = context.getRequest<Request & { requestId?: string }>();
     const requestId = request.requestId ?? "unattributed";
 
     if (exception instanceof IdentityError) {
+      // Awaited before the response so a caller that retries immediately cannot
+      // outrun the row (design R3).
+      await this.recordDenial(exception, request as RequestWithId, requestId);
       const problem = PROBLEMS[exception.code];
       response
         .status(problem.status)
@@ -163,5 +173,52 @@ export class ProblemDetailsFilter implements ExceptionFilter {
         code: "INTERNAL_ERROR",
         request_id: requestId,
       });
+  }
+
+  /**
+   * One row for a refusal on a sensitive action (D-152). The response is already
+   * decided, so a failure here is logged and never surfaced: turning a 403 into a
+   * 500 because the log could not be written would be the worse trade (design R5).
+   */
+  private async recordDenial(
+    exception: IdentityError,
+    request: RequestWithId,
+    requestId: string,
+  ): Promise<void> {
+    if (exception.code !== "ROLE_REQUIRED" && exception.code !== "MFA_REQUIRED") {
+      return;
+    }
+    const denial = request.sensitiveDenial;
+    const acting = request.actingAccount;
+    if (!denial || !acting || !this.database) {
+      return;
+    }
+    const entry: AuditEntry = {
+      action: "PERMISSION_DENIED",
+      actorUserId: acting.userId,
+      actorRole: acting.roles[0] ?? "ANONYMOUS",
+      objectType: "users",
+      objectId: acting.userId,
+      requestId,
+      metadata: {
+        method: request.method,
+        // The route without its query string, bounded: a caller controls the query
+        // and this column is append-only (design R4).
+        path: String(request.path).slice(0, 200),
+        required_role: denial.requiredRole,
+      },
+    };
+    try {
+      await appendAuditEntry(this.database, entry);
+    } catch (error) {
+      // The refusal is already decided; a log failure must not become an outage (R5).
+      console.error(
+        JSON.stringify({
+          event: "audit.denial_failed",
+          request_id: requestId,
+          message: error instanceof Error ? error.message : "unknown error",
+        }),
+      );
+    }
   }
 }

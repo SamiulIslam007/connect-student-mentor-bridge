@@ -8,7 +8,8 @@ import { AvailabilityController } from "./availability/availability.controller.j
 import { AvailabilityModule } from "./availability/availability.module.js";
 import { AffiliationsController } from "./affiliations/affiliations.controller.js";
 import { AffiliationsModule } from "./affiliations/affiliations.module.js";
-import { DatabaseModule } from "./db/database.module.js";
+import { DATABASE, DatabaseModule } from "./db/database.module.js";
+import type { Database } from "./db/database.js";
 import { DATABASE_PROBE, defaultProbe, HealthController } from "./health/health.controller.js";
 import { accountTracker } from "./http/account-throttler.js";
 import { RequestIdMiddleware } from "./http/request-id.middleware.js";
@@ -79,7 +80,13 @@ import { RequestsModule } from "./requests/requests.module.js";
   controllers: [HealthController],
   providers: [
     { provide: DATABASE_PROBE, useValue: defaultProbe },
-    { provide: APP_FILTER, useClass: ProblemDetailsFilter },
+    {
+      provide: APP_FILTER,
+      inject: [DATABASE],
+      // The filter records a refusal on a sensitive action, so it needs the log's
+      // database; a bare instance writes nothing (D-152).
+      useFactory: (database: Database) => new ProblemDetailsFilter(database),
+    },
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_INTERCEPTOR, useClass: BodyAllowlistInterceptor },
   ],

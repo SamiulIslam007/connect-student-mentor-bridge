@@ -156,7 +156,7 @@ Each requirement has an ID, a priority (**Must**, **Should**, **Could**), and th
 
 | ID | Requirement | Priority | Verification |
 |---|---|---|---|
-| SEC-LOG-1 | Audit events listed in `docs/auth-and-access-control.md` section 12 are written for every occurrence. The outcome events `OUTCOME_REPORTED`, `OUTCOME_CONFIRMED`, `OUTCOME_DISPUTED`, `OUTCOME_COI_DECLARED`, `OUTCOME_ESCALATED`, and `OUTCOME_WITHDRAWN` are written in the same transaction as their `outcome_events` row (built by #9) | Must | Test |
+| SEC-LOG-1 | Audit events listed in `docs/auth-and-access-control.md` section 12 are written for every occurrence; that section names the documented events that have no code path yet, so the control is measured against the actions the product can perform (2026-11-14). The outcome events `OUTCOME_REPORTED`, `OUTCOME_CONFIRMED`, `OUTCOME_DISPUTED`, `OUTCOME_COI_DECLARED`, `OUTCOME_ESCALATED`, and `OUTCOME_WITHDRAWN` are written in the same transaction as their `outcome_events` row (built by #9) | Must | Test |
 | SEC-LOG-2 | Every request carries a request ID that appears in logs, errors, and audit entries | Must | Test |
 | SEC-LOG-3 | Audit entries are searchable by actor, object, and time, and are retained for a defined period (**Open decision**, counsel to advise) | Must | Review |
 | SEC-LOG-4 | Alerts fire on repeated failed sign-ins, break-glass use, role changes, and bulk exports | Should | Alert test |

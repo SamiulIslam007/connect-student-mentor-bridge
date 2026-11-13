@@ -568,6 +568,55 @@ test("a warning refuses a missing reason and a non-admin caller", async (context
   assert.equal(audit.rowCount, 0, "a refused warning writes nothing");
 });
 
+test("a refused admin call is audited and an ordinary role refusal is not", async (context) => {
+  const current = requireStack(context);
+  if (!current) {
+    return;
+  }
+  const noFactor = await signInToken(current, "no-factor-admin@example.com");
+  const admin = await current.client.query<{ id: string }>(
+    "SELECT id FROM users WHERE email = $1",
+    ["no-factor-admin@example.com"],
+  );
+  await current.client.query(
+    "INSERT INTO role_assignments (user_id, role) VALUES ($1, 'PLATFORM_ADMIN')",
+    [admin.rows[0].id],
+  );
+
+  const refused = await apiRequest(
+    current,
+    "POST",
+    `/v1/admin/accounts/${admin.rows[0].id}/reinstate`,
+    { reason: "No second factor." },
+    noFactor,
+  );
+  assert.equal(refused.status, 403, refused.text);
+  assert.equal(refused.body?.code, "MFA_REQUIRED");
+
+  const rows = await current.client.query<{ actor_user_id: string; metadata: Record<string, unknown> }>(
+    "SELECT actor_user_id, metadata FROM audit_logs WHERE action = 'PERMISSION_DENIED'",
+  );
+  assert.equal(rows.rowCount, 1, "one row per refused sensitive action");
+  assert.equal(rows.rows[0].actor_user_id, admin.rows[0].id);
+  assert.equal(rows.rows[0].metadata.required_role, "PLATFORM_ADMIN");
+  assert.equal(rows.rows[0].metadata.method, "POST");
+  assert.match(String(rows.rows[0].metadata.path), /^\/v1\/admin\/accounts\//);
+
+  // A caller with no admin role is refused before the second factor, and is recorded too.
+  const mentor = await signInToken(current, "mentor@example.com");
+  const noRole = await apiRequest(
+    current,
+    "POST",
+    `/v1/admin/accounts/${admin.rows[0].id}/reinstate`,
+    { reason: "Not an admin." },
+    mentor,
+  );
+  assert.equal(noRole.status, 403, noRole.text);
+  assert.equal(noRole.body?.code, "ROLE_REQUIRED");
+  const after = await current.client.query("SELECT id FROM audit_logs WHERE action = 'PERMISSION_DENIED'");
+  assert.equal(after.rowCount, 2, "the second refusal appends its own row");
+});
+
 test("a lift returns a suspended account to active and clears the end date", async (context) => {
   const current = requireStack(context);
   if (!current) {
