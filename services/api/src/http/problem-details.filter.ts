@@ -59,7 +59,11 @@ const PROBLEM_BASE = "https://docs.connect.example/problems/";
  */
 @Catch()
 export class ProblemDetailsFilter implements ExceptionFilter {
-  constructor(private readonly database?: Database) {}
+  constructor(
+    private readonly database?: Database,
+    /** Fault-injection seam, the same shape the privacy service uses (design R5). */
+    private readonly auditWriter: (database: Pick<Database, "insert">, entry: AuditEntry) => Promise<void> = appendAuditEntry,
+  ) {}
 
   async catch(exception: unknown, host: ArgumentsHost): Promise<void> {
     const context = host.switchToHttp();
@@ -193,10 +197,16 @@ export class ProblemDetailsFilter implements ExceptionFilter {
     if (!denial || !acting || !this.database) {
       return;
     }
+    // `listRoles` returns the canonical order and every account holds STUDENT, so
+    // the first role is never the interesting one: name the role the refusal is
+    // about when the caller holds it, else the highest role they do hold.
+    const actorRole = acting.roles.includes(denial.requiredRole)
+      ? denial.requiredRole
+      : acting.roles[acting.roles.length - 1] ?? "ANONYMOUS";
     const entry: AuditEntry = {
       action: "PERMISSION_DENIED",
       actorUserId: acting.userId,
-      actorRole: acting.roles[0] ?? "ANONYMOUS",
+      actorRole,
       objectType: "users",
       objectId: acting.userId,
       requestId,
@@ -209,7 +219,9 @@ export class ProblemDetailsFilter implements ExceptionFilter {
       },
     };
     try {
-      await appendAuditEntry(this.database, entry);
+      // The pool's connectionTimeoutMillis bounds this wait (2 s), so a saturated
+      // pool delays the refusal rather than hanging it (design R5).
+      await this.auditWriter(this.database, entry);
     } catch (error) {
       // The refusal is already decided; a log failure must not become an outage (R5).
       console.error(

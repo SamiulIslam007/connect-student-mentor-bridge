@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { after, before, beforeEach, test, type TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { AUDIT_ACTIONS } from "../src/audit/audit.service.js";
 import { AUDIT_SERVICE } from "../src/audit/audit.tokens.js";
 import { AuditController } from "../src/audit/audit.controller.js";
 import { DrizzleAuditService } from "../src/audit/drizzle-audit.service.js";
@@ -373,12 +374,12 @@ test("every action a writer emits is a filter value", async (context) => {
   if (!current) return;
   const admin = await adminToken(current);
 
-  // The list is closed, so an action with no writer is a typo; these four have
-  // writers and were missing from it (D-153).
-  for (const action of ["ACCOUNT_WARNED", "ACCOUNT_REINSTATED", "DATA_EXPORTED", "PERMISSION_DENIED"]) {
+  // Every action the writers can emit is a value the filter accepts (D-153); the
+  // list is derived from the source, so a new action is covered without editing
+  // the test.
+  for (const action of AUDIT_ACTIONS) {
     const page = await apiRequest(current, "GET", `/v1/admin/audit?action=${action}`, undefined, admin);
     assert.equal(page.status, 200, `${action}: ${page.text}`);
-    assert.deepEqual(page.body?.data, [], `${action} has no rows yet and is still accepted`);
   }
 });
 

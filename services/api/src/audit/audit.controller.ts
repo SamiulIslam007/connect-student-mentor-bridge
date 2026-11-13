@@ -71,7 +71,8 @@ function payload(row: {
 /**
  * `GET /v1/admin/audit` (docs/api-contracts.md §5.10): the reviewer's read over
  * the append-only log. `PLATFORM_ADMIN` plus an enrolled second factor, keyset
- * paginated, and the read itself writes nothing (design R4).
+ * paginated, and an authorized read writes nothing (design R4; a refusal on this
+ * route is recorded as a denied sensitive action, D-152).
  */
 @Controller("v1/admin")
 export class AuditController {
