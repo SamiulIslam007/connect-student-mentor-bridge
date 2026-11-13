@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 
 import {
   INSTITUTION_KIND_OPTIONS,
+  adminAssignmentError,
+  adminAssignmentPayload,
   createInstitutionBody,
   institutionRows,
   institutionSummary,
@@ -28,6 +30,10 @@ export default function AdminInstitutionsPage() {
   const [draft, setDraft] = useState<InstitutionDraft>(EMPTY_DRAFT);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [adminFor, setAdminFor] = useState<string | null>(null);
+  const [adminEmail, setAdminEmail] = useState("");
+  const [adminBusy, setAdminBusy] = useState(false);
+  const [adminNotice, setAdminNotice] = useState<Record<string, string>>({});
 
   useEffect(() => {
     let active = true;
@@ -104,6 +110,43 @@ export default function AdminInstitutionsPage() {
     }
   }
 
+  async function assignAdmin(institutionId: string): Promise<void> {
+    const payload = adminAssignmentPayload(adminEmail);
+    if (!payload.valid) {
+      setAdminNotice((current) => ({ ...current, [institutionId]: strings.adminInstitutions.adminInvalid }));
+      return;
+    }
+    setAdminBusy(true);
+    try {
+      const response = await fetch(`/api/institutions/${institutionId}/admins`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload.body),
+      });
+      if (response.ok) {
+        const body = (await response.json().catch(() => ({}))) as { roles?: string[] };
+        const roles = Array.isArray(body.roles) ? body.roles.join(", ") : "";
+        setAdminNotice((current) => ({
+          ...current,
+          [institutionId]: `${strings.adminInstitutions.adminAdded} ${roles}`.trim(),
+        }));
+        setAdminFor(null);
+        setAdminEmail("");
+      } else {
+        const problem = (await response.json().catch(() => ({}))) as { detail?: string };
+        setAdminNotice((current) => ({
+          ...current,
+          [institutionId]: adminAssignmentError(response.status, problem.detail),
+        }));
+      }
+    } catch {
+      // A failed assignment never renders a success notice.
+      setAdminNotice((current) => ({ ...current, [institutionId]: strings.adminInstitutions.adminFailure }));
+    } finally {
+      setAdminBusy(false);
+    }
+  }
+
   return (
     <main>
       <h1>{strings.adminInstitutions.title}</h1>
@@ -132,6 +175,40 @@ export default function AdminInstitutionsPage() {
               </p>
               <p>{institutionSummary(row)}</p>
               <p>{row.mou_signed_on ? `MoU ${row.mou_signed_on}` : null}</p>
+              <button
+                type="button"
+                aria-expanded={adminFor === row.id}
+                onClick={() => {
+                  setAdminFor(adminFor === row.id ? null : row.id);
+                  setAdminEmail("");
+                }}
+              >
+                {adminFor === row.id
+                  ? strings.adminInstitutions.adminToggleClose
+                  : strings.adminInstitutions.adminToggle}
+              </button>
+              {adminFor === row.id ? (
+                <div>
+                  <p>{strings.adminInstitutions.adminHelp}</p>
+                  <label>
+                    {strings.adminInstitutions.adminEmailLabel}
+                    <input
+                      name="admin_email"
+                      type="email"
+                      value={adminEmail}
+                      onChange={(event) => setAdminEmail(event.target.value)}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    disabled={adminBusy}
+                    onClick={() => void assignAdmin(row.id)}
+                  >
+                    {strings.adminInstitutions.adminSubmit}
+                  </button>
+                </div>
+              ) : null}
+              {adminNotice[row.id] ? <p role="status">{adminNotice[row.id]}</p> : null}
             </li>
           ))}
         </ul>

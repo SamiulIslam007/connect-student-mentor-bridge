@@ -107,3 +107,32 @@ export function institutionSummary(row: InstitutionRow): string {
   const domains = row.domains.length > 0 ? row.domains.join(", ") : strings.adminInstitutions.noDomains;
   return `${row.status} · ${row.country_code} · ${domains}`;
 }
+
+/** The API's refusal when the email has no account (drizzle-attestation resolveGrantTarget). */
+const NO_ACCOUNT_DETAIL = "email must belong to an existing account";
+
+/**
+ * The grant body, and whether it is worth sending: an empty or malformed email
+ * is refused here so the page does not spend a request on it.
+ */
+export function adminAssignmentPayload(input: string): {
+  body: { email: string };
+  valid: boolean;
+} {
+  const email = input.trim().toLowerCase();
+  return { body: { email }, valid: /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) };
+}
+
+/** One line under the row: the specific refusal, or the generic one. */
+export function adminAssignmentError(status: number, detail: string | undefined): string {
+  if (status === 403) {
+    return strings.adminInstitutions.adminForbidden;
+  }
+  if (status === 404) {
+    return strings.adminInstitutions.adminNotFound;
+  }
+  if (status === 422 && detail === NO_ACCOUNT_DETAIL) {
+    return strings.adminInstitutions.adminNoAccount;
+  }
+  return strings.adminInstitutions.adminFailure;
+}
