@@ -347,6 +347,7 @@ export class DrizzleProfilesService implements ProfilesService {
     accessState,
     cursor,
     limit,
+    availability,
   }: ListMentorsInput): Promise<MentorDirectoryPage> {
     const collected: MentorDirectoryCard[] = [];
     let after = cursor;
@@ -374,6 +375,19 @@ export class DrizzleProfilesService implements ProfilesService {
         conditions.push(sql`EXISTS (
           SELECT 1 FROM unnest(${mentorProfiles.languages}) AS stored
           WHERE lower(stored) = lower(${language})
+        )`);
+      }
+      if (availability) {
+        // Each stored window is converted on the same week anchor the pure helper
+        // uses, then compared as UTC instants; a window that is free for part of
+        // the requested time still matches (D-143).
+        const monday = availability.monday.toISOString();
+        conditions.push(sql`EXISTS (
+          SELECT 1 FROM availability_windows aw
+          WHERE aw.user_id = ${mentorProfiles.userId}
+            AND aw.context = 'MENTOR'
+            AND ((${monday}::timestamp + make_interval(days => aw.weekday - 1, mins => aw.start_minute)) AT TIME ZONE aw.timezone) < ${availability.end}
+            AND ${availability.start} < ((${monday}::timestamp + make_interval(days => aw.weekday - 1, mins => aw.end_minute)) AT TIME ZONE aw.timezone)
         )`);
       }
 

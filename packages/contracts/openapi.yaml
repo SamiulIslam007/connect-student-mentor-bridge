@@ -720,6 +720,41 @@ paths:
             minimum: 1
             maximum: 50
             default: 20
+        - name: available_weekday
+          in: query
+          required: false
+          description: >-
+            Monday-based weekday, 1 to 7. Must be sent with the other three
+            availability parameters or the request is `422` (D-143).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 7
+        - name: available_start
+          in: query
+          required: false
+          description: Minute of day, 0 to 1439, in `available_timezone`.
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 1439
+        - name: available_end
+          in: query
+          required: false
+          description: Minute of day, 1 to 1440, later than `available_start`.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1440
+        - name: available_timezone
+          in: query
+          required: false
+          description: >-
+            An IANA zone. The window is converted to UTC against the request's own
+            week and compared with each mentor's stored windows as instants; a
+            zone the runtime cannot resolve is `422`.
+          schema:
+            type: string
       responses:
         "200":
           description: One page of the public directory

@@ -1095,3 +1095,27 @@ date: 2026-10-29
 - Reason: removal has no consumer in a one-partner pilot, and an irreversible account action needs a written policy and an appeal path the MVP does not have.
 - Status: Decided
 - Affects: `docs/functional-requirements.md`, `docs/known-debt.md`
+
+### D-143: The availability filter compares UTC instants on the request's own week
+
+- Date: 2026-11-13
+- Decision: `GET /v1/mentors` takes `available_weekday` (1 to 7, Monday-based), `available_start` and `available_end` (minute of day) and `available_timezone` (an IANA zone), all four together or none. Both sides are converted to UTC on the ISO week that contains the request instant, and a mentor matches when its stored window overlaps the requested one as instants.
+- Reason: comparing wall-clock minutes across zones is the bug DEBT-43 records; converting both sides is the only comparison that answers "who is free at that time". All-or-nothing keeps a partial filter from silently returning the whole directory.
+- Status: Decided
+- Affects: `profiles/mentor-directory`, `packages/contracts/openapi.yaml`, `docs/api-contracts.md`
+
+### D-144: One pure conversion in the domain package mirrors the SQL
+
+- Date: 2026-11-13
+- Decision: `packages/domain/src/availability.ts` exports `zonedWindowToUtc`, `weekAnchor`, `overlaps` and `isKnownTimeZone`, using only `Intl`; the SQL predicate converts each stored row with `... AT TIME ZONE aw.timezone` on the same Monday anchor. The viewer's interval is computed once in the controller from the same helper, so the two cannot drift.
+- Reason: a fixed-offset table breaks on any zone with daylight saving, and two independent implementations would disagree at a transition. A DST week is a test case, not an assumption.
+- Status: Decided
+- Affects: `profiles/mentor-directory`, `packages/domain/src/availability.ts`, `services/api/src/profiles/drizzle-profiles.service.ts`
+
+### D-145: Overlap matches, and a zone whose offset shifts mid-week is a recorded limit
+
+- Date: 2026-11-13
+- Decision: Overlap, not containment, decides a match. A window whose UTC interval straddles midnight is one interval, not two. The residual error — a zone whose offset changes inside the reference week — is a `shortcut:` comment beside the helper and narrows DEBT-43 rather than closing it.
+- Reason: a mentor free for part of the requested time is still requestable, and interval comparison already handles a straddling window without a duplicated adjacent weekday.
+- Status: Decided
+- Affects: `docs/known-debt.md`, `docs/matching-algorithm-spec.md`

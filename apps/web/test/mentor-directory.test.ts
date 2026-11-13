@@ -5,9 +5,12 @@ import { fileURLToPath } from "node:url";
 
 import {
   accessStateLabel,
+  availabilityActive,
   canRequest,
   directoryQuery,
+  emptyAvailability,
   mergeCards,
+  minuteOfDay,
   type MentorCard,
 } from "../lib/mentor-directory.js";
 import { strings } from "../lib/strings.js";
@@ -66,4 +69,55 @@ test("every directory card carries the verified-badge disclaimer", () => {
     "utf8",
   );
   assert.match(source, /strings\.disclaimer\.verified/);
+});
+
+test("the availability parameters travel only when a day is chosen, and always all four", () => {
+  const unset = emptyAvailability();
+  assert.equal(directoryQuery({ availability: { ...unset, start: "20:00", end: "21:00", timezone: "Asia/Dhaka" } }), "");
+
+  const filter = { weekday: "1", start: "20:00", end: "21:00", timezone: "Asia/Dhaka" };
+  assert.equal(
+    directoryQuery({ availability: filter }),
+    "?available_weekday=1&available_start=1200&available_end=1260&available_timezone=Asia%2FDhaka",
+  );
+
+  // A half-filled window is forwarded so the API's own 422 explains it.
+  assert.equal(
+    directoryQuery({ availability: { ...filter, start: "", end: "" } }),
+    "?available_weekday=1&available_start=&available_end=&available_timezone=Asia%2FDhaka",
+  );
+
+  // Clearing returns to the bare list.
+  assert.equal(directoryQuery({ availability: emptyAvailability() }), "");
+  assert.equal(availabilityActive(filter), true);
+  assert.equal(availabilityActive(unset), false);
+});
+
+test("a time is minutes of day, and anything else is not a time", () => {
+  assert.equal(minuteOfDay("00:00"), 0);
+  assert.equal(minuteOfDay("20:30"), 1230);
+  assert.equal(minuteOfDay("24:00"), null);
+  assert.equal(minuteOfDay("9:00"), null);
+  assert.equal(minuteOfDay(""), null);
+});
+
+test("the directory page offers the day, the window, the zone and a clear control", () => {
+  const page = readFileSync(
+    fileURLToPath(new URL("../app/mentors/page.tsx", import.meta.url)),
+    "utf8",
+  );
+  for (const token of [
+    'strings.mentors.availabilityWeekday',
+    'strings.mentors.availabilityFrom',
+    'strings.mentors.availabilityTo',
+    'strings.mentors.availabilityTimeZone',
+    'strings.mentors.availabilityClear',
+    'type="time"',
+    "WEEKDAY_OPTIONS",
+    "browserTimeZone()",
+    "strings.mentors.emptyFiltered",
+    "availabilityActive(availability)",
+  ]) {
+    assert.ok(page.includes(token), `the page must contain ${token}`);
+  }
 });

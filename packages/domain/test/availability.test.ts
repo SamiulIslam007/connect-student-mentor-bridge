@@ -3,9 +3,13 @@ import { test } from "node:test";
 
 import {
   isDiscoverable,
+  isKnownTimeZone,
   MAX_AVAILABILITY_WINDOWS_PER_CONTEXT,
+  overlaps,
   sortWindows,
   validateAvailabilityWindows,
+  weekAnchor,
+  zonedWindowToUtc,
   type AvailabilityWindow,
   type AvailabilityWindowDraft,
   type MentorAccessMode,
@@ -134,4 +138,97 @@ test("discoverability covers the whole access-mode by status product", () => {
   assert.equal(answers["APPLICATION_ONLY/ACTIVE"], true);
   assert.equal(answers["PAUSED/ACTIVE"], false);
   assert.equal(answers["OPEN/DRAFT"], false);
+});
+
+test("a window is converted on the ISO week of the reference date", () => {
+  // 2026-11-13 is a Friday; that week's Monday is 2026-11-09.
+  const reference = new Date("2026-11-13T10:00:00.000Z");
+
+  // Dhaka is UTC+6 all year: Monday 20:00-21:00 is 14:00-15:00 UTC.
+  const dhaka = zonedWindowToUtc(
+    { weekday: 1, startMinute: 1200, endMinute: 1260, timezone: "Asia/Dhaka" },
+    reference,
+  );
+  assert.equal(dhaka.start.toISOString(), "2026-11-09T14:00:00.000Z");
+  assert.equal(dhaka.end.toISOString(), "2026-11-09T15:00:00.000Z");
+
+  // London in November is UTC+0: the same wall clock stays 20:00-21:00 UTC.
+  const london = zonedWindowToUtc(
+    { weekday: 1, startMinute: 1200, endMinute: 1260, timezone: "Europe/London" },
+    reference,
+  );
+  assert.equal(london.start.toISOString(), "2026-11-09T20:00:00.000Z");
+  assert.equal(london.end.toISOString(), "2026-11-09T21:00:00.000Z");
+
+  assert.ok(!overlaps(dhaka, london), "six hours apart never overlaps");
+});
+
+test("the same wall clock in a summer week uses the summer offset", () => {
+  const reference = new Date("2026-07-01T00:00:00.000Z");
+  const london = zonedWindowToUtc(
+    { weekday: 1, startMinute: 1200, endMinute: 1260, timezone: "Europe/London" },
+    reference,
+  );
+  assert.equal(london.start.toISOString(), "2026-06-29T19:00:00.000Z");
+  assert.equal(london.end.toISOString(), "2026-06-29T20:00:00.000Z");
+});
+
+test("a window may straddle UTC midnight and is still one interval", () => {
+  const reference = new Date("2026-11-13T10:00:00.000Z");
+  const early = zonedWindowToUtc(
+    { weekday: 1, startMinute: 300, endMinute: 390, timezone: "Asia/Dhaka" },
+    reference,
+  );
+  assert.equal(early.start.toISOString(), "2026-11-08T23:00:00.000Z");
+  assert.equal(early.end.toISOString(), "2026-11-09T00:30:00.000Z");
+  assert.ok(early.start.getUTCDate() !== early.end.getUTCDate(), "the interval crosses a UTC day");
+});
+
+test("a daylight-saving transition inside the week keeps real elapsed time", () => {
+  // The EU transition is 2026-03-29 (Sunday): 01:30 GMT to 03:30 BST is one hour.
+  const reference = new Date("2026-03-25T00:00:00.000Z");
+  const crossed = zonedWindowToUtc(
+    { weekday: 7, startMinute: 90, endMinute: 210, timezone: "Europe/London" },
+    reference,
+  );
+  assert.equal(crossed.start.toISOString(), "2026-03-29T01:30:00.000Z");
+  assert.equal(crossed.end.toISOString(), "2026-03-29T02:30:00.000Z");
+
+  // A week later the same wall clock is two hours wide.
+  const later = zonedWindowToUtc(
+    { weekday: 7, startMinute: 90, endMinute: 210, timezone: "Europe/London" },
+    new Date("2026-04-01T00:00:00.000Z"),
+  );
+  assert.equal(later.start.toISOString(), "2026-04-05T00:30:00.000Z");
+  assert.equal(later.end.toISOString(), "2026-04-05T02:30:00.000Z");
+});
+
+test("overlap is half-open and a half-hour zone converts exactly", () => {
+  const reference = new Date("2026-11-13T10:00:00.000Z");
+  const kolkata = zonedWindowToUtc(
+    { weekday: 3, startMinute: 540, endMinute: 600, timezone: "Asia/Kolkata" },
+    reference,
+  );
+  assert.equal(kolkata.start.toISOString(), "2026-11-11T03:30:00.000Z");
+  assert.equal(kolkata.end.toISOString(), "2026-11-11T04:30:00.000Z");
+
+  const touching = { start: kolkata.end, end: new Date(kolkata.end.getTime() + 3_600_000) };
+  assert.ok(!overlaps(kolkata, touching), "touching intervals do not overlap");
+  const inside = {
+    start: new Date(kolkata.start.getTime() + 60_000),
+    end: new Date(kolkata.end.getTime() - 60_000),
+  };
+  assert.ok(overlaps(kolkata, inside), "containment is overlap");
+});
+
+test("an unknown zone is refused and a real one is accepted", () => {
+  assert.equal(isKnownTimeZone("Asia/Dhaka"), true);
+  assert.equal(isKnownTimeZone("Mars/Olympus"), false);
+  assert.equal(isKnownTimeZone(""), false);
+});
+
+test("the week anchor is the Monday of the reference week", () => {
+  assert.equal(weekAnchor(new Date("2026-11-13T23:59:00.000Z")).toISOString(), "2026-11-09T00:00:00.000Z");
+  assert.equal(weekAnchor(new Date("2026-11-09T00:00:00.000Z")).toISOString(), "2026-11-09T00:00:00.000Z");
+  assert.equal(weekAnchor(new Date("2026-11-15T12:00:00.000Z")).toISOString(), "2026-11-09T00:00:00.000Z");
 });

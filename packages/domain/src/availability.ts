@@ -131,3 +131,112 @@ export function isDiscoverable(input: {
 }): boolean {
   return input.accessMode !== "PAUSED" && input.status === "ACTIVE";
 }
+
+/**
+ * A stored window converted to UTC instants on the week that contains
+ * `referenceDate` (FR-DISC-01, D-143).
+ *
+ * The week is the ISO week of `referenceDate` in UTC and every conversion is
+ * anchored to that week's Monday, which is the same anchor the SQL predicate
+ * uses, so the pure helper and the query cannot disagree.
+ *
+ * shortcut: a zone whose offset changes inside the reference week is converted
+ * at the window's own wall clock, so the two ends may use different offsets
+ * across a transition; the browse filter narrows for one week, and the match
+ * factor still treats a zone difference as missing (DEBT-43).
+ */
+export interface ZonedWindow {
+  weekday: number;
+  startMinute: number;
+  endMinute: number;
+  timezone: string;
+}
+
+export interface UtcInterval {
+  start: Date;
+  end: Date;
+}
+
+/** Minutes the zone is ahead of UTC at that instant. */
+function offsetMinutes(instant: Date, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(instant);
+  const value = (type: string): number =>
+    Number(parts.find((part) => part.type === type)?.value ?? "0");
+  const asUtc = Date.UTC(
+    value("year"),
+    value("month") - 1,
+    value("day"),
+    value("hour"),
+    value("minute"),
+    value("second"),
+  );
+  return (asUtc - instant.getTime()) / 60_000;
+}
+
+/** A wall-clock minute of a UTC calendar date, read in `timeZone`. */
+function wallClockToUtc(
+  year: number,
+  month: number,
+  day: number,
+  minuteOfDay: number,
+  timeZone: string,
+): Date {
+  const naive = Date.UTC(year, month - 1, day, 0, 0, 0) + minuteOfDay * 60_000;
+  // Two passes settle the offset when the date sits across a DST boundary.
+  const first = naive - offsetMinutes(new Date(naive), timeZone) * 60_000;
+  const second = naive - offsetMinutes(new Date(first), timeZone) * 60_000;
+  return new Date(second);
+}
+
+/** Monday 00:00 UTC of the ISO week that contains `referenceDate`. */
+export function weekAnchor(referenceDate: Date): Date {
+  const back = (referenceDate.getUTCDay() + 6) % 7;
+  return new Date(
+    Date.UTC(
+      referenceDate.getUTCFullYear(),
+      referenceDate.getUTCMonth(),
+      referenceDate.getUTCDate() - back,
+    ),
+  );
+}
+
+/**
+ * One UTC interval for a weekday window. The interval may straddle UTC midnight;
+ * overlap is decided on the instants, so no adjacent-weekday duplication is
+ * needed.
+ */
+export function zonedWindowToUtc(window: ZonedWindow, referenceDate: Date): UtcInterval {
+  const anchor = weekAnchor(referenceDate);
+  const dayStart = new Date(anchor.getTime() + (window.weekday - 1) * 86_400_000);
+  const year = dayStart.getUTCFullYear();
+  const month = dayStart.getUTCMonth() + 1;
+  const day = dayStart.getUTCDate();
+  return {
+    start: wallClockToUtc(year, month, day, window.startMinute, window.timezone),
+    end: wallClockToUtc(year, month, day, window.endMinute, window.timezone),
+  };
+}
+
+/** Half-open overlap: a window ending exactly when the other starts does not match. */
+export function overlaps(left: UtcInterval, right: UtcInterval): boolean {
+  return left.start.getTime() < right.end.getTime() && right.start.getTime() < left.end.getTime();
+}
+
+/** True when the runtime resolves the zone; the API turns false into a `422`. */
+export function isKnownTimeZone(timeZone: string): boolean {
+  try {
+    new Intl.DateTimeFormat("en-GB", { timeZone });
+    return timeZone.trim().length > 0;
+  } catch {
+    return false;
+  }
+}

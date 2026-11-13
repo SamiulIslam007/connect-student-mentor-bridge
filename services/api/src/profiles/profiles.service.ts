@@ -77,6 +77,11 @@ export interface ListMentorsInput {
   cursor?: string;
   /** 1 to 50, defaulting to 20. */
   limit: number;
+  /**
+   * The viewer's window in UTC plus the week anchor every row is converted on
+   * (FR-DISC-01, D-143). Present only when the caller sent all four parameters.
+   */
+  availability?: { start: Date; end: Date; monday: Date };
 }
 
 export interface MentorDirectoryPage {
