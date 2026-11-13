@@ -56,9 +56,9 @@
 
 ## 5. Gates, review and handoff
 
-- [ ] 5.1 `pnpm lint`, `pnpm typecheck`, `pnpm build`, `pnpm exec openspec validate --all --strict`, and `CI=true pnpm test` (background, polled), each with its exit code. Record per-package totals including skipped.
+- [x] 5.1 `pnpm lint`, `pnpm typecheck`, `pnpm build`, `pnpm exec openspec validate --all --strict`, and `CI=true pnpm test` (background, polled), each with its exit code. Record per-package totals including skipped.
 - [x] 5.2 Mutation check: remove the `DATA_EXPORTED` write and confirm the export test fails; remove the denial branch and confirm the denial test fails. Restore both.
-- [ ] 5.3 Review gate: line-by-line pass on the diff, then an independent adversarial pass (a filter that writes on a refusal path is the specific risk).
+- [x] 5.3 Review gate: line-by-line pass on the diff, then an independent adversarial pass (a filter that writes on a refusal path is the specific risk).
 
 ## Decision rows to add at apply
 
