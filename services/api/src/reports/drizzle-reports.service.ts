@@ -1,9 +1,10 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, count, eq, inArray, isNotNull, lte, sql } from "drizzle-orm";
 
 import { IdentityError } from "@connect/domain";
 
 import type { Database } from "../db/database.js";
 import {
+  auditLogs,
   mentorProfiles,
   mentorships,
   outcomes,
@@ -16,11 +17,15 @@ import { appendAuditEntry } from "../identity/audit-log.js";
 import { enqueueOutboxEvent } from "../platform/outbox/outbox.js";
 import type {
   CreateReportInput,
+  LiftSuspensionInput,
+  LiftSuspensionResult,
   ListReportsInput,
   ReportPage,
   ReportRecord,
   ReportsService,
   ResolveReportInput,
+  WarnAccountInput,
+  WarnAccountResult,
 } from "./reports.service.js";
 
 function toRecord(row: typeof reports.$inferSelect): ReportRecord {
@@ -38,6 +43,7 @@ function toRecord(row: typeof reports.$inferSelect): ReportRecord {
     resolvedAt: row.resolvedAt,
     createdAt: row.createdAt,
     mentorshipId: null,
+    warningCount: 0,
   };
 }
 
@@ -161,6 +167,7 @@ export class DrizzleReportsService implements ReportsService {
 
     const page = rows.slice(0, input.limit).map(toRecord);
     await this.attachMentorshipIds(page);
+    await this.attachWarningCounts(page);
     return {
       reports: page,
       nextCursor: rows.length > input.limit ? page[page.length - 1].id : null,
@@ -249,6 +256,142 @@ export class DrizzleReportsService implements ReportsService {
       }
 
       return toRecord(resolved);
+    });
+  }
+
+  /**
+   * One grouped count for the page: a reported account's warnings are derived
+   * from the append-only rows, never stored twice (D-139).
+   */
+  private async attachWarningCounts(page: ReportRecord[]): Promise<void> {
+    const accountIds = page
+      .filter((report) => report.targetKind === "USER")
+      .map((report) => report.targetId);
+    if (accountIds.length === 0) {
+      return;
+    }
+    const counted = await this.database
+      .select({ objectId: auditLogs.objectId, total: count() })
+      .from(auditLogs)
+      .where(and(eq(auditLogs.action, "ACCOUNT_WARNED"), inArray(auditLogs.objectId, accountIds)))
+      .groupBy(auditLogs.objectId);
+    const byAccount = new Map(counted.map((row) => [row.objectId, Number(row.total)]));
+    for (const report of page) {
+      if (report.targetKind === "USER") {
+        report.warningCount = byAccount.get(report.targetId) ?? 0;
+      }
+    }
+  }
+
+  /**
+   * A warning is a fact on the record and nothing else: no status change, no
+   * session touched, no end date written (D-139).
+   */
+  async warnAccount(input: WarnAccountInput): Promise<WarnAccountResult> {
+    return this.database.transaction(async (tx) => {
+      const [account] = await tx
+        .select({ id: users.id, email: users.email, status: users.status })
+        .from(users)
+        .where(eq(users.id, input.accountId))
+        .limit(1);
+      if (!account) {
+        throw new IdentityError("VALIDATION_ERROR", "the account does not exist");
+      }
+
+      await appendAuditEntry(tx, {
+        action: "ACCOUNT_WARNED",
+        actorUserId: input.adminUserId,
+        actorRole: "PLATFORM_ADMIN",
+        objectType: "users",
+        objectId: account.id,
+        requestId: input.requestId,
+        reason: input.reason,
+      });
+
+      // The notice carries the reason and names nobody else (R6).
+      await enqueueOutboxEvent(tx, {
+        aggregateType: "USER",
+        aggregateId: account.id,
+        eventType: "EmailRequested",
+        dedupeKey: `email:account-warned:${account.id}:${input.requestId}`,
+        payload: {
+          to: account.email,
+          template: "account-warned",
+          subject: "A warning about your connect account",
+          text: [
+            "A moderator has reviewed your activity and issued a warning.",
+            "",
+            `Reason: ${input.reason}`,
+            "",
+            "This warning does not change your account status. Further reports may lead to a suspension.",
+          ].join("\n"),
+        },
+      });
+
+      const warnings = await tx
+        .select({ total: count() })
+        .from(auditLogs)
+        .where(and(eq(auditLogs.action, "ACCOUNT_WARNED"), eq(auditLogs.objectId, account.id)));
+      return { status: account.status, warningCount: Number(warnings[0]?.total ?? 0) };
+    });
+  }
+
+  /**
+   * One conditional update, so a concurrent suspension wins instead of being
+   * overwritten (D-140). The route lifts any suspended account; the job only one
+   * whose stored end date has passed, and never one with no end date (D-141).
+   */
+  async liftSuspension(input: LiftSuspensionInput): Promise<LiftSuspensionResult> {
+    return this.database.transaction(async (tx) => {
+      const conditions = [eq(users.id, input.accountId), eq(users.status, "SUSPENDED")];
+      if (input.source === "job") {
+        conditions.push(isNotNull(users.suspendedUntil));
+        conditions.push(lte(users.suspendedUntil, input.asOf ?? new Date()));
+      }
+
+      const [lifted] = await tx
+        .update(users)
+        .set({ status: "ACTIVE", suspendedUntil: null })
+        .where(and(...conditions))
+        .returning({ id: users.id, email: users.email });
+      if (!lifted) {
+        if (input.source === "job") {
+          return { lifted: false, status: null };
+        }
+        throw new IdentityError("ACCOUNT_NOT_SUSPENDED", "this account is not suspended");
+      }
+
+      await appendAuditEntry(tx, {
+        action: "ACCOUNT_REINSTATED",
+        actorUserId: input.actorUserId,
+        actorRole: input.actorUserId === null ? "SYSTEM" : "PLATFORM_ADMIN",
+        objectType: "users",
+        objectId: lifted.id,
+        requestId: input.requestId,
+        reason: input.reason,
+        metadata: { source: input.source },
+      });
+
+      await enqueueOutboxEvent(tx, {
+        aggregateType: "USER",
+        aggregateId: lifted.id,
+        eventType: "EmailRequested",
+        dedupeKey: `email:account-reinstated:${lifted.id}:${input.requestId}`,
+        payload: {
+          to: lifted.email,
+          template: "account-reinstated",
+          subject: "Your connect account is active again",
+          text: [
+            "Your connect account is active again.",
+            "",
+            `Reason: ${input.reason}`,
+            "",
+            "Sign in with your own password; no session was created for you.",
+          ].join("\n"),
+        },
+      });
+
+      return { lifted: true, status: "ACTIVE" };
     });
   }
 }

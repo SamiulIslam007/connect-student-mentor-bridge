@@ -43,6 +43,7 @@ const PROBLEMS: Record<IdentityErrorCode, ProblemMapping> = {
   STUDENT_PROFILE_REQUIRED: { status: 422, code: "STUDENT_PROFILE_REQUIRED", title: "Save a student profile before asking for suggestions" },
   CLAIM_ALREADY_DECIDED: { status: 409, code: "CLAIM_ALREADY_DECIDED", title: "This claim has already been decided" },
   INSTITUTION_DOMAIN_TAKEN: { status: 409, code: "INSTITUTION_DOMAIN_TAKEN", title: "This domain already belongs to an institution" },
+  ACCOUNT_NOT_SUSPENDED: { status: 409, code: "ACCOUNT_NOT_SUSPENDED", title: "This account is not suspended" },
 };
 
 const PROBLEM_BASE = "https://docs.connect.example/problems/";

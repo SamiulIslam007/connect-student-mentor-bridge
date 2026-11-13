@@ -1063,3 +1063,35 @@ date: 2026-10-29
 - Reason: the filter is used in incident review, not on a hot path, and an extra index on an insert-only table costs every write; the pilot's table holds thousands of rows.
 - Status: Decided
 - Affects: `docs/known-debt.md`, `services/api/src/audit/drizzle-audit.service.ts`
+
+### D-139: A warning is an audit fact, and its count is derived
+
+- Date: 2026-11-13
+- Decision: `POST /v1/admin/accounts/{id}/warn` appends one `ACCOUNT_WARNED` audit entry (the admin, the account, the reason) and queues one `account-warned` notice in the same transaction; it changes no status, no end date and no session. The warning count is a grouped count over those rows, exposed to the admin queue as `warning_count` and to the warned account nowhere.
+- Reason: a `users.warning_count` column would be a second source of truth for a number the append-only log already holds, and it would need a migration and a backfill. Keeping the count off the account's own reads is deliberate: the spec warns the account without telling it how many times it has been warned, which is a moderation detail.
+- Status: Decided
+- Affects: `trust/abuse-reports-and-sanctions`, `docs/api-contracts.md`, `services/api/src/reports/drizzle-reports.service.ts`
+
+### D-140: One `liftSuspension` serves the route and the job
+
+- Date: 2026-11-13
+- Decision: `POST /v1/admin/accounts/{id}/reinstate` and the scheduled sweep both call one service method that performs a single conditional `UPDATE users ... WHERE id = $1 AND status = 'SUSPENDED'`, clears `suspended_until`, appends one `ACCOUNT_REINSTATED` row and queues one `account-reinstated` notice in one transaction. A zero-row update is `409 ACCOUNT_NOT_SUSPENDED` on the route and a no-op in the job.
+- Reason: two implementations is how a route and a job drift until one of them skips the notice, and a read-then-write loses to a concurrent suspension. The conditional update makes exactly one of the two writes apply.
+- Status: Decided
+- Affects: `trust/abuse-reports-and-sanctions`, `docs/api-contracts.md`, `services/api/src/reports/drizzle-reports.service.ts`
+
+### D-141: The route lifts an indefinite suspension; the job never does
+
+- Date: 2026-11-13
+- Decision: The route lifts any `SUSPENDED` account with a reason. The sweep selects only rows whose `suspended_until` is set and at or before its own instant, so a suspension with no end date is permanent until an admin lifts it, and a suspension re-set with a later date survives the run.
+- Reason: an admin lifting a sanction by mistake is the case the route exists for; a job that ended a permanent sanction would silently reverse an operator decision. `FR-ADM-05` is amended to warn, suspend and lift, and removal is out of the MVP by this decision.
+- Status: Decided
+- Affects: `trust/abuse-reports-and-sanctions`, `docs/functional-requirements.md`, `services/api/src/reports/sanction-expiry.ts`
+
+### D-142: Removal is out of the MVP
+
+- Date: 2026-11-13
+- Decision: No `REMOVED` account status, no removal route and no removal job in the MVP. `FR-ADM-05` reads "warn, suspend, lift".
+- Reason: removal has no consumer in a one-partner pilot, and an irreversible account action needs a written policy and an appeal path the MVP does not have.
+- Status: Decided
+- Affects: `docs/functional-requirements.md`, `docs/known-debt.md`

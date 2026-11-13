@@ -138,3 +138,20 @@ test("the page offers the read only for a message target and requires a reason",
   assert.match(page, /strings\.adminReports\.readThreadError/);
   assert.match(page, /strings\.adminReports\.readThread/);
 });
+
+test("the page offers warn and lift on the same account control the suspension uses", () => {
+  const page = readFileSync(
+    fileURLToPath(new URL("../app/admin/reports/page.tsx", import.meta.url)),
+    "utf8",
+  );
+  assert.match(page, /fetch\(`\/api\/admin\/accounts\/\$\{encodeURIComponent\(id\)\}\/warn`/);
+  assert.match(page, /fetch\(`\/api\/admin\/accounts\/\$\{encodeURIComponent\(id\)\}\/reinstate`/);
+  assert.match(page, /strings\.adminReports\.warnSubmit/);
+  assert.match(page, /strings\.adminReports\.reinstateSubmit/);
+  // A lift that finds nothing suspended is its own line, not a generic failure.
+  assert.match(page, /response\.status === 409/);
+  assert.match(page, /strings\.adminReports\.notSuspended/);
+  // The count appears only on a reported account, never on another target kind.
+  assert.match(page, /report\.target_kind === "user" && report\.warning_count !== undefined/);
+  assert.match(page, /strings\.adminReports\.warningCount/);
+});

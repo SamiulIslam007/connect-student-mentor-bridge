@@ -167,6 +167,20 @@ const MATRIX: Requirement[] = [
   { route: /^GET \/v1\/reports$/, access: "PLATFORM_ADMIN" },
   { route: /^POST \/v1\/reports\/:id\/resolve$/, access: "PLATFORM_ADMIN", mutating: true },
   { route: /^POST \/v1\/admin\/accounts\/:id\/suspend$/, access: "PLATFORM_ADMIN", mutating: true },
+  {
+    // A warning is a fact on the record, and the lift undoes a suspension; both
+    // are platform-admin writes with a required reason (D-139, D-140).
+    route: /^POST \/v1\/admin\/accounts\/:id\/warn$/,
+    access: "PLATFORM_ADMIN",
+    mutating: true,
+    body: { reason: "two hostile replies in the thread" },
+  },
+  {
+    route: /^POST \/v1\/admin\/accounts\/:id\/reinstate$/,
+    access: "PLATFORM_ADMIN",
+    mutating: true,
+    body: { reason: "the suspension was a mistake" },
+  },
   // Institution attestation: the queue and the decision need an institution
   // scope and an enrolled second factor; the grant is platform-admin only.
   { route: /^GET \/v1\/institution\/affiliations$/, access: "INSTITUTION_ADMIN" },

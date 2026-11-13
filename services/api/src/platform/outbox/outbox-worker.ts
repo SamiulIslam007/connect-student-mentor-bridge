@@ -25,6 +25,11 @@ import {
   REPUTATION_COUNT_CRON,
   REPUTATION_COUNT_QUEUE,
 } from "../../reputation/counting-job.js";
+import {
+  ACCOUNT_SANCTION_CRON,
+  ACCOUNT_SANCTION_QUEUE,
+  liftExpiredSuspensions,
+} from "../../reports/sanction-expiry.js";
 
 const log = (event: string, detail: Record<string, unknown> = {}): void => {
   console.log(JSON.stringify({ event, ...detail }));
@@ -61,6 +66,7 @@ export class OutboxWorker implements OnApplicationBootstrap, OnApplicationShutdo
     await boss.createQueue(OUTBOX_QUEUE);
     await boss.createQueue(REQUEST_SWEEP_QUEUE);
     await boss.createQueue(REPUTATION_COUNT_QUEUE);
+    await boss.createQueue(ACCOUNT_SANCTION_QUEUE);
     await boss.work(REQUEST_SWEEP_QUEUE, { batchSize: 1 }, async () => {
       const result = await sweepRequests(this.database);
       if (result.reminded > 0 || result.expired > 0) {
@@ -81,6 +87,13 @@ export class OutboxWorker implements OnApplicationBootstrap, OnApplicationShutdo
       }
     });
     await boss.schedule(REPUTATION_COUNT_QUEUE, REPUTATION_COUNT_CRON);
+    await boss.work(ACCOUNT_SANCTION_QUEUE, { batchSize: 1 }, async () => {
+      const result = await liftExpiredSuspensions(this.database);
+      if (result.lifted > 0 || result.failed > 0) {
+        log("sanctions.swept", { ...result });
+      }
+    });
+    await boss.schedule(ACCOUNT_SANCTION_QUEUE, ACCOUNT_SANCTION_CRON);
     await boss.work(
       OUTBOX_QUEUE,
       { batchSize: 1, pollingIntervalSeconds: 2 },

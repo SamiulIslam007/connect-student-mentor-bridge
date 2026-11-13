@@ -22,6 +22,8 @@ interface ReportRow {
   status: string;
   created_at: string;
   mentorship_id: string | null;
+  /** Derived from the account's `ACCOUNT_WARNED` rows; 0 for a non-account target. */
+  warning_count?: number;
 }
 
 export default function AdminReportsPage() {
@@ -177,6 +179,60 @@ export default function AdminReportsPage() {
     }
   }
 
+  async function warn(): Promise<void> {
+    const id = suspendId.trim();
+    if (!id || !suspendReason.trim()) {
+      setMessage(strings.adminReports.warnError);
+      return;
+    }
+    setBusy("warn");
+    try {
+      const response = await fetch(`/api/admin/accounts/${encodeURIComponent(id)}/warn`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ reason: suspendReason.trim() }),
+      });
+      if (!response.ok) {
+        setMessage(strings.adminReports.warnError);
+        return;
+      }
+      setMessage(strings.adminReports.warned);
+    } catch {
+      setMessage(strings.adminReports.warnError);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function reinstate(): Promise<void> {
+    const id = suspendId.trim();
+    if (!id || !suspendReason.trim()) {
+      setMessage(strings.adminReports.reinstateError);
+      return;
+    }
+    setBusy("reinstate");
+    try {
+      const response = await fetch(`/api/admin/accounts/${encodeURIComponent(id)}/reinstate`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ reason: suspendReason.trim() }),
+      });
+      if (response.status === 409) {
+        setMessage(strings.adminReports.notSuspended);
+        return;
+      }
+      if (!response.ok) {
+        setMessage(strings.adminReports.reinstateError);
+        return;
+      }
+      setMessage(strings.adminReports.reinstated);
+    } catch {
+      setMessage(strings.adminReports.reinstateError);
+    } finally {
+      setBusy(null);
+    }
+  }
+
   return (
     <main>
       <h1>{strings.adminReports.title}</h1>
@@ -204,7 +260,15 @@ export default function AdminReportsPage() {
                 <strong>{targetKindLabel(report.target_kind)}</strong> · {report.reason} ·{" "}
                 {report.created_at.slice(0, 16).replace("T", " ")}
               </p>
-              <p>{report.target_id}</p>
+              <p>
+                {report.target_id}
+                {report.target_kind === "user" && report.warning_count !== undefined ? (
+                  <>
+                    {" "}
+                    · {strings.adminReports.warningCount}: {report.warning_count}
+                  </>
+                ) : null}
+              </p>
               {report.details ? <p>{report.details}</p> : null}
               <p>
                 <label>
@@ -355,6 +419,12 @@ export default function AdminReportsPage() {
         </p>
         <button type="button" disabled={busy === "suspend"} onClick={() => void suspend()}>
           {strings.adminReports.suspendSubmit}
+        </button>{" "}
+        <button type="button" disabled={busy === "warn"} onClick={() => void warn()}>
+          {strings.adminReports.warnSubmit}
+        </button>{" "}
+        <button type="button" disabled={busy === "reinstate"} onClick={() => void reinstate()}>
+          {strings.adminReports.reinstateSubmit}
         </button>
       </section>
 

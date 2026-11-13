@@ -1355,6 +1355,108 @@ paths:
           $ref: "#/components/responses/Problem"
         "429":
           $ref: "#/components/responses/Problem"
+  /v1/admin/accounts/{id}/warn:
+    post:
+      operationId: warnAccount
+      summary: Warn an account, on the record and with no status change
+      description: >-
+        Platform-admin write with an enrolled second factor (D-139). One
+        `ACCOUNT_WARNED` audit entry carrying the admin, the account and the
+        reason, and one queued notice carrying the reason only. The account's
+        status, end date and sessions are untouched, and the wanted count is
+        derived from the audit rows rather than stored, so it cannot drift.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The account id.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+                  minLength: 1
+                  maxLength: 1000
+      responses:
+        "200":
+          description: The account's unchanged status and its warning count
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WarnAccountResponse"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "413":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        "429":
+          $ref: "#/components/responses/Problem"
+  /v1/admin/accounts/{id}/reinstate:
+    post:
+      operationId: reinstateAccount
+      summary: Lift a suspension with a reason
+      description: >-
+        Platform-admin write with an enrolled second factor (D-140). One
+        conditional update from `SUSPENDED` to `ACTIVE` that also clears the end
+        date, with one audit entry and one queued notice in the same transaction.
+        An account that is not suspended is `409 ACCOUNT_NOT_SUSPENDED` and
+        nothing is written. The route may lift an indefinite suspension; the
+        scheduled job may not (D-141). No session is created: the account signs in
+        with its own password.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The account id.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+                  minLength: 1
+                  maxLength: 1000
+      responses:
+        "200":
+          description: The account is active and its end date is cleared
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReinstateAccountResponse"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+        "413":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        "429":
+          $ref: "#/components/responses/Problem"
   /v1/admin/institutions/{id}/admins:
     post:
       operationId: grantInstitutionAdmin
@@ -2536,6 +2638,12 @@ components:
           description: >-
             The mentorship a reported message belongs to, for the admin page's
             break-glass route. Null for every other target kind.
+        warning_count:
+          type: integer
+          minimum: 0
+          description: >-
+            `ACCOUNT_WARNED` audit rows for a reported account, derived on read
+            (D-139). Zero when the target is not an account.
     ReportQueuePage:
       type: object
       properties:
@@ -2552,6 +2660,26 @@ components:
           type: string
         suspended_until:
           type: [string, "null"]
+    WarnAccountResponse:
+      type: object
+      additionalProperties: false
+      required: [status, warning_count]
+      properties:
+        status:
+          type: string
+        warning_count:
+          type: integer
+          minimum: 1
+    ReinstateAccountResponse:
+      type: object
+      additionalProperties: false
+      required: [status, suspended_until]
+      properties:
+        status:
+          type: string
+          enum: [active]
+        suspended_until:
+          type: "null"
     InstitutionClaim:
       type: object
       additionalProperties: false
