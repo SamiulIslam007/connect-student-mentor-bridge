@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { stateKey } from "../../../lib/page-state";
 import {
   DRAFT_DEBOUNCE_MS,
   clearDraft,
@@ -26,6 +27,7 @@ interface Problem {
 
 export default function NewRequestPage() {
   const [mentor, setMentor] = useState<MentorContext | null>(null);
+  const [mentorLoading, setMentorLoading] = useState(true);
   const [mentorError, setMentorError] = useState<string | null>(null);
   const [question, setQuestion] = useState("");
   const [contextSummary, setContextSummary] = useState("");
@@ -44,6 +46,7 @@ export default function NewRequestPage() {
     const requestedMentorId = new URLSearchParams(window.location.search).get("mentor");
     if (!requestedMentorId) {
       setMentorError(strings.requestNew.mentorMissing);
+      setMentorLoading(false);
       return;
     }
     setMentorId(requestedMentorId);
@@ -68,6 +71,10 @@ export default function NewRequestPage() {
         );
         if (active) {
           setMentorError(strings.requestNew.mentorLoadError);
+        }
+      } finally {
+        if (active) {
+          setMentorLoading(false);
         }
       }
     })();
@@ -193,6 +200,7 @@ export default function NewRequestPage() {
       <h1>{strings.requestNew.title}</h1>
       <p>{strings.requestNew.intro}</p>
 
+      {mentorLoading ? <p role="status">{stateKey("loading", "requestNew")}</p> : null}
       {mentor ? (
         <p>
           <strong>{mentor.display_name}</strong> · {mentor.headline}
@@ -264,9 +272,9 @@ export default function NewRequestPage() {
               : strings.requestNew.applicationNoteHint}
           </p>
           <button type="submit" disabled={sending}>
-            {sending ? strings.requestNew.sending : strings.requestNew.submit}
+            {sending ? strings.requestNew.loading : strings.requestNew.submit}
           </button>
-          <p role="status">{status}</p>
+          {status ? <p role="alert">{status}</p> : null}
         </form>
       ) : null}
 

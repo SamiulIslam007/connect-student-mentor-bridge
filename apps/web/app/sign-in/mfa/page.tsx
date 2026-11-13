@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 
+import { stateKey } from "../../../lib/page-state";
 import { strings } from "../../../lib/strings";
 
 const FORM_ID = "mfa-form";
@@ -44,10 +45,10 @@ export default function MfaPage() {
         <label htmlFor="code">{strings.mfa.code}</label>
         <input id="code" name="code" inputMode="numeric" autoComplete="one-time-code" required />
         <button type="submit" disabled={submitting}>
-          {strings.mfa.submit}
+          {submitting ? stateKey("loading", "mfa") : strings.mfa.submit}
         </button>
       </form>
-      {message ? <p role="status">{message}</p> : null}
+      {message ? <p role="alert">{message}</p> : null}
       <a href="/sign-in">{strings.mfa.backToSignIn}</a>
     </main>
   );
