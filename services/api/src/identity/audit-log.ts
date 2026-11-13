@@ -35,7 +35,10 @@ export type AuditAction =
   | "REPORT_RESOLVED"
   | "INSTITUTION_CREATED"
   | "INSTITUTION_DOMAIN_REGISTERED"
-  | "THREAD_BREAK_GLASS_READ";
+  | "THREAD_BREAK_GLASS_READ"
+  | "CONSENT_GRANTED"
+  | "CONSENT_WITHDRAWN"
+  | "ORIENTATION_COMPLETED";
 
 export interface AuditEntry {
   action: AuditAction;

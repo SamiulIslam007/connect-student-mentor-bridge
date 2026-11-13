@@ -1,10 +1,13 @@
 import { randomUUID } from "node:crypto";
 
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
+
+import { CONSENT_DOCUMENT_VERSION } from "@connect/config";
 
 import type { Database } from "../database.js";
 import {
   affiliations,
+  consentRecords,
   fields,
   institutions,
   institutionDomains,
@@ -116,6 +119,29 @@ async function demoFieldId(
   return created.id;
 }
 
+/** Idempotent: writes the two agreements and the orientation only where absent. */
+async function grantDemoAgreements(
+  tx: Parameters<Parameters<Database["transaction"]>[0]>[0],
+  userId: string,
+): Promise<void> {
+  const [granted] = await tx
+    .select({ id: consentRecords.id })
+    .from(consentRecords)
+    .where(and(eq(consentRecords.userId, userId), eq(consentRecords.purpose, "VOLUNTEER_AGREEMENT")))
+    .limit(1);
+  if (!granted) {
+    await tx.insert(consentRecords).values([
+      { userId, purpose: "VOLUNTEER_AGREEMENT", action: "GRANTED", documentVersion: CONSENT_DOCUMENT_VERSION },
+      { userId, purpose: "COMMUNITY_GUIDELINES", action: "GRANTED", documentVersion: CONSENT_DOCUMENT_VERSION },
+    ]);
+  }
+  await tx
+    .update(mentorProfiles)
+    .set({ orientationCompletedAt: new Date(), updatedAt: new Date() })
+    .where(and(eq(mentorProfiles.userId, userId), isNull(mentorProfiles.orientationCompletedAt)));
+}
+
+
 /** Idempotent by email: a second run inserts nothing. */
 export async function seedDemoMentors(
   db: Database,
@@ -133,6 +159,10 @@ export async function seedDemoMentors(
         .where(eq(users.email, mentor.email))
         .limit(1);
       if (existing) {
+        // A demo mentor seeded before the agreements existed still has to hold
+        // them, or its next re-evaluation drops it to PENDING (D-127). Demo data
+        // only: no migration writes a consent row for a real account (D-130).
+        await grantDemoAgreements(tx, existing.id);
         skipped.push(mentor.email);
         continue;
       }
@@ -171,6 +201,9 @@ export async function seedDemoMentors(
         status: "ACTIVE",
         onboardingStatus: "AFFILIATION_VERIFIED",
         activatedAt: new Date(),
+        // The agreements and the orientation are the activation inputs (D-127),
+        // so the demo mentor holds them and a later re-evaluation keeps it ACTIVE.
+        orientationCompletedAt: new Date(),
         headline: mentor.headline,
         bio: mentor.bio,
         expertiseSummary: mentor.expertiseSummary,
@@ -178,6 +211,20 @@ export async function seedDemoMentors(
         languages: mentor.languages,
         weeklyCapacity: mentor.weeklyCapacity,
       });
+      await tx.insert(consentRecords).values([
+        {
+          userId,
+          purpose: "VOLUNTEER_AGREEMENT",
+          action: "GRANTED",
+          documentVersion: CONSENT_DOCUMENT_VERSION,
+        },
+        {
+          userId,
+          purpose: "COMMUNITY_GUIDELINES",
+          action: "GRANTED",
+          documentVersion: CONSENT_DOCUMENT_VERSION,
+        },
+      ]);
       inserted.push(mentor.email);
     }
   });

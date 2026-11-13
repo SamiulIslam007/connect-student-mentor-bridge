@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from "react";
 
+import { stalePurposes, type ConsentState } from "../lib/consents";
 import { isSignedIn, navLinks } from "../lib/navigation";
 import { clearAllDrafts } from "../lib/request-draft";
+import { strings } from "../lib/strings";
 
 /**
  * The app header (design D1). One probe of `GET /api/me` per full page load;
@@ -13,6 +15,7 @@ import { clearAllDrafts } from "../lib/request-draft";
 export function SessionNav() {
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
   const [roles, setRoles] = useState<string[]>([]);
+  const [staleConsent, setStaleConsent] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -27,6 +30,15 @@ export function SessionNav() {
           const payload = (await response.json().catch(() => ({}))) as { roles?: string[] };
           if (active) {
             setRoles(payload.roles ?? []);
+          }
+          // A published document this caller has not accepted is a banner, never
+          // a refusal on any other route (design R3).
+          const consent = await fetch("/api/me/consents").catch(() => null);
+          if (active && consent?.ok) {
+            const consents = (await consent.json().catch(() => ({}))) as {
+              purposes?: ConsentState[];
+            };
+            setStaleConsent(stalePurposes(consents.purposes ?? []).length > 0);
           }
         }
       })
@@ -56,6 +68,11 @@ export function SessionNav() {
   return (
     <header>
       <a href="/">{nav.appName}</a>
+      {staleConsent ? (
+        <p role="status">
+          <a href="/consent">{strings.consent.banner}</a>
+        </p>
+      ) : null}
       {signedIn === null ? null : (
         <nav aria-label="Main">
           <ul>

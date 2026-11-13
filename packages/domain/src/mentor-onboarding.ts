@@ -28,6 +28,10 @@ export interface MentorActivationInput {
   emailVerified: boolean;
   mfaEnrolled: boolean;
   level: AffiliationLevel | null;
+  /** FR-PROF-03: the volunteer agreement, the guidelines and the orientation (D-127). */
+  hasVolunteerAgreement: boolean;
+  hasCommunityGuidelines: boolean;
+  orientationCompleted: boolean;
   activatedAt: Date | null;
   now: Date;
 }
@@ -55,7 +59,12 @@ export function mentorActivation(input: MentorActivationInput): MentorActivation
     return { status: input.current, onboardingStatus, activatedAt: input.activatedAt };
   }
 
-  if (levelOne && input.mfaEnrolled) {
+  // The agreements are part of the gate, not a separate check: a mentor reaches
+  // ACTIVE only with both documents accepted and the orientation acknowledged.
+  const agreementsAccepted =
+    input.hasVolunteerAgreement && input.hasCommunityGuidelines && input.orientationCompleted;
+
+  if (levelOne && input.mfaEnrolled && agreementsAccepted) {
     return {
       status: "ACTIVE",
       onboardingStatus,
@@ -63,8 +72,8 @@ export function mentorActivation(input: MentorActivationInput): MentorActivation
     };
   }
 
-  // A fresh profile that has met neither condition is still an application;
-  // meeting one of them (but not both) moves it into the pending queue.
+  // A fresh profile that has met none of the conditions is still an application;
+  // meeting some of them (but not all) moves it into the pending queue.
   const status: MentorOperatingStatus =
     input.current === "DRAFT" && !levelOne && !input.mfaEnrolled ? "DRAFT" : "PENDING";
   return { status, onboardingStatus, activatedAt: input.activatedAt };

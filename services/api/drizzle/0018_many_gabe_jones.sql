@@ -1,0 +1,1 @@
+ALTER TABLE "mentor_profiles" ADD COLUMN "orientation_completed_at" timestamp with time zone;

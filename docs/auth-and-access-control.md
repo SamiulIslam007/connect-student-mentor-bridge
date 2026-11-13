@@ -177,6 +177,7 @@ Only `active` mentors may receive requests. A `suspended` mentor receives no new
 | Policy | Rule |
 |---|---|
 | `canSendRequest` | Actor is a verified student; target mentor is Level 1 or above, not suspended, and has capacity; actor is not the mentor |
+| `mentorActivation` | A mentor profile reaches `ACTIVE` only with a verified Level 1 affiliation, an enrolled second factor, `VOLUNTEER_AGREEMENT` and `COMMUNITY_GUIDELINES` accepted and the orientation stamped; losing any of them returns it to `PENDING` and keeps `activated_at` (D-127). Every trigger calls the one `syncMentorActivation` funnel, which reads the two consents and the orientation column itself |
 | `canDecideRequest` | Actor is the mentor the request is addressed to; request is `pending` |
 | `canReadThread` | Actor is a participant of that mentorship |
 | `canReportOutcome` | Actor is the student of that mentorship |

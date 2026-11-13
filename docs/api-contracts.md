@@ -419,7 +419,16 @@ Terminal states: `counted`, `rejected`, `reversed`, `withdrawn`. Every transitio
 
 There is no export-request id, no `202`, and no completion email: the export is the response (D-84). The statutory time limit for completing requests remains an **Open decision** for counsel.
 
-### 5.9 Platform admin and trust and safety
+### 5.9 Consent and agreements
+
+| Method and path | Roles | Idem | Purpose |
+|---|---|---|---|
+| `GET /v1/me/consents` | all (own) | yes | **Built** by `consent-purposes-and-mentor-agreements`: the five `consent_purposes` with `current_version` (the published `CONSENT_DOCUMENT_VERSION`), `accepted_version` (null when nothing is accepted or the latest action was a withdrawal), `action`, `institution_id`, plus an `institutions` array of the caller's own affiliations so the sharing section can name them |
+| `POST /v1/me/consents` | all (own) | no | **Built**: body `purpose`, `action` (`GRANTED` or `WITHDRAWN`), `document_version` (1 to 32 characters) and optional `institution_id`. Appends one `consent_records` row and one audit row (`CONSENT_GRANTED` or `CONSENT_WITHDRAWN`) in one transaction. `institution_id` is required for `INSTITUTION_DATA_SHARING` and resolved to an institution the caller is affiliated with — an unaffiliated one is `404` and writes nothing — and is refused (`422`) on any other purpose. An unknown purpose, a bad action, a missing or over-long version is `422`. A `VOLUNTEER_AGREEMENT` grant also stamps `mentor_profiles.orientation_completed_at` once and writes one `ORIENTATION_COMPLETED` audit row, and re-runs the activation funnel in the same transaction (D-127, D-130) |
+
+No route refuses a request because an accepted document version is stale: the mismatch is reported by the read above and rendered as a header banner (D-129). There is no consent report and no institution read of a student's consent state.
+
+### 5.10 Platform admin and trust and safety
 
 | Method and path | Roles | Idem | Purpose |
 |---|---|---|---|
@@ -440,7 +449,7 @@ There is no export-request id, no `202`, and no completion email: the export is 
 
 Only the rows marked **Built** exist in this release. The `admin/disputes`, `admin/outcomes/{id}/audit`, break-glass, audit-log search, reinstate, and config rows are deferred (Phase 1b or the hardening work); they are not served by the API today.
 
-### 5.10 AI assist (**Later**)
+### 5.11 AI assist (**Later**)
 
 Not in the MVP. AI features and AI models are **Deferred (owner decision)** and return no endpoint until that phase starts. The shape below is kept as a design note; nothing here may be required by a Phase 1 or Phase 1b requirement.
 

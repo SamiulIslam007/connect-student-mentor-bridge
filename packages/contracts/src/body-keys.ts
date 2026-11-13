@@ -15,6 +15,7 @@ export const ROUTE_BODY_KEYS: Readonly<Record<string, readonly string[]>> = {
     "account_status",
   ],
   "POST /v1/auth/sign-in": ["email", "password"],
+  "POST /v1/me/consents": ["purpose", "action", "document_version", "institution_id"],
   "POST /v1/auth/mfa/enroll": ["password"],
   "POST /v1/auth/mfa/verify": ["code", "mfa_challenge", "method"],
   "POST /v1/auth/mfa/disable": ["password"],

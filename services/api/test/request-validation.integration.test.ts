@@ -33,6 +33,9 @@ import { ReportsAdminController } from "../src/reports/admin.controller.js";
 import { DrizzleReportsService } from "../src/reports/drizzle-reports.service.js";
 import { ReportsController } from "../src/reports/reports.controller.js";
 import { REPORTS_SERVICE } from "../src/reports/reports.tokens.js";
+import { ConsentController } from "../src/consent/consent.controller.js";
+import { DrizzleConsentService } from "../src/consent/drizzle-consent.service.js";
+import { CONSENT_SERVICE } from "../src/consent/consent.tokens.js";
 import { PrivacyController } from "../src/privacy/privacy.controller.js";
 import { PRIVACY_SERVICE } from "../src/privacy/privacy.tokens.js";
 import { DrizzleProfilesService } from "../src/profiles/drizzle-profiles.service.js";
@@ -62,6 +65,7 @@ const CONTROLLERS = [
   AdminThreadController,
   SessionsController,
   OutcomesController,
+  ConsentController,
   PrivacyController,
   ReportsController,
   ReportsAdminController,
@@ -79,6 +83,10 @@ before(async () => {
     requestIdRoutes: CONTROLLERS,
     providers: (database) => [
       { provide: PROFILES_SERVICE, useValue: new DrizzleProfilesService(database) },
+      {
+        provide: CONSENT_SERVICE,
+        useValue: new DrizzleConsentService(database),
+      },
       {
         provide: PRIVACY_SERVICE,
         useValue: new DrizzlePrivacyService({ database, secret: "x".repeat(32) }),

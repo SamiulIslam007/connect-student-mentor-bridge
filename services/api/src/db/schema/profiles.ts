@@ -63,6 +63,8 @@ export const mentorProfiles = pgTable(
     onboardingStatus: mentorOnboardingStatus("onboarding_status").default("APPLIED").notNull(),
     /** Set once when the mentor first becomes ACTIVE; never cleared. */
     activatedAt: timestamp("activated_at", { withTimezone: true }),
+    /** Set once when the mentor accepts the volunteer agreement (D-127); never cleared. */
+    orientationCompletedAt: timestamp("orientation_completed_at", { withTimezone: true }),
     headline: text("headline").notNull(),
     bio: text("bio").notNull(),
     expertiseSummary: text("expertise_summary").notNull(),

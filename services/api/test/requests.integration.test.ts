@@ -23,6 +23,7 @@ import {
   TEST_PASSWORD,
   type TestApiStack,
 } from "./support/api-stack.js";
+import { grantMentorAgreements } from "./support/agreements.js";
 import { truncateAll } from "./support/database.js";
 
 let stack: TestApiStack | undefined;
@@ -153,6 +154,7 @@ async function activeMentor(
     (await apiRequest(current, "POST", "/v1/me/affiliations", { kind: "ALUMNUS" }, token)).status,
     200,
   );
+  await grantMentorAgreements(current.client, email);
   const enrollment = await apiRequest(
     current,
     "POST",
