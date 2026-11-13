@@ -737,3 +737,5 @@ The glossary should adopt these names. Use **Student** and **Mentor** everywhere
 4. **Reporting window:** for how long after a mentorship ends may a student still report an outcome?
 5. **Appeal window:** is 7 days acceptable, and who is the second reviewer when only one exists?
 6. **Row-level security:** do you want it as a second layer from the start, or only application-layer checks for the pilot?
+
+> The warning count is **not** a column: `ACCOUNT_WARNED` rows in `audit_logs` are the record, and the report queue derives the count on read (`sanction-lifecycle-warn-and-lift`, D-139). `users.suspended_until` is cleared when a suspension is lifted by the route or the scheduled job (D-140).

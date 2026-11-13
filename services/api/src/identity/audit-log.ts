@@ -38,7 +38,9 @@ export type AuditAction =
   | "THREAD_BREAK_GLASS_READ"
   | "CONSENT_GRANTED"
   | "CONSENT_WITHDRAWN"
-  | "ORIENTATION_COMPLETED";
+  | "ORIENTATION_COMPLETED"
+  | "ACCOUNT_WARNED"
+  | "ACCOUNT_REINSTATED";
 
 export interface AuditEntry {
   action: AuditAction;

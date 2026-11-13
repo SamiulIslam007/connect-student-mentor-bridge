@@ -43,6 +43,7 @@ function adminPayload(report: ReportRecord): Record<string, unknown> {
     resolved_at: report.resolvedAt?.toISOString() ?? null,
     created_at: report.createdAt.toISOString(),
     mentorship_id: report.mentorshipId,
+    warning_count: report.warningCount,
   };
 }
 
@@ -135,5 +136,47 @@ export class ReportsAdminController {
       requestId: request.requestId,
     });
     return { status: account.accountStatus.toLowerCase(), suspended_until: rawEndDate ?? null };
+  }
+
+  @Throttle({ default: RATE_LIMITS.write })
+  @Post("admin/accounts/:id/warn")
+  @HttpCode(200)
+  async warn(
+    @Param("id") id: string,
+    @Body() body: unknown,
+    @Req() request: RequestWithId,
+  ): Promise<{ status: string; warning_count: number }> {
+    const acting = await requireRole(this.identity, request, "PLATFORM_ADMIN", { requiresMfa: true });
+    const reason = requiredText(body, "reason", 1000);
+
+    const result = await this.reports.warnAccount({
+      accountId: id,
+      adminUserId: acting.account.id,
+      reason,
+      requestId: request.requestId,
+    });
+    return { status: result.status.toLowerCase(), warning_count: result.warningCount };
+  }
+
+  @Throttle({ default: RATE_LIMITS.write })
+  @Post("admin/accounts/:id/reinstate")
+  @HttpCode(200)
+  async reinstate(
+    @Param("id") id: string,
+    @Body() body: unknown,
+    @Req() request: RequestWithId,
+  ): Promise<{ status: string; suspended_until: null }> {
+    const acting = await requireRole(this.identity, request, "PLATFORM_ADMIN", { requiresMfa: true });
+    const reason = requiredText(body, "reason", 1000);
+
+    // The route may lift an indefinite suspension; only the job checks the date.
+    await this.reports.liftSuspension({
+      accountId: id,
+      actorUserId: acting.account.id,
+      reason,
+      requestId: request.requestId,
+      source: "admin",
+    });
+    return { status: "active", suspended_until: null };
   }
 }

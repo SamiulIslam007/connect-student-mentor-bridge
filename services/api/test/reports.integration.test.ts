@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { after, before, beforeEach, test, type TestContext } from "node:test";
+import { fileURLToPath } from "node:url";
 
 import { AuthController } from "../src/identity/auth.controller.js";
 import { DrizzleReportsService } from "../src/reports/drizzle-reports.service.js";
 import { ReportsAdminController } from "../src/reports/admin.controller.js";
 import { ReportsController } from "../src/reports/reports.controller.js";
 import { REPORTS_SERVICE } from "../src/reports/reports.tokens.js";
+import { liftExpiredSuspensions } from "../src/reports/sanction-expiry.js";
 import {
   apiRequest,
   registerAndVerify,
@@ -254,6 +257,7 @@ test("a report is resolved once, the reporter is emailed, and no sanction leaks"
     "status",
     "target_id",
     "target_kind",
+    "warning_count",
   ]);
 
   const resolved = await apiRequest(
@@ -393,4 +397,308 @@ test("a report on a user carries no mentorship id", async (context) => {
   const row = (queue.body?.data as Record<string, unknown>[])[0];
   assert.equal(row.target_kind, "user");
   assert.equal(row.mentorship_id, null, "a user target has no mentorship");
+});
+
+test("a warning is on the record, changes no status, and leaves the sessions alone", async (context) => {
+  const current = requireStack(context);
+  if (!current) {
+    return;
+  }
+  const token = await signInToken(current, "warned@example.com");
+  const admin = await adminToken(current);
+  const accountId = (
+    await current.client.query<{ id: string }>("SELECT id FROM users WHERE email = $1", [
+      "warned@example.com",
+    ])
+  ).rows[0].id;
+
+  const sessionsBefore = await current.client.query("SELECT id FROM sessions WHERE user_id = $1", [
+    accountId,
+  ]);
+
+  const warned = await apiRequest(
+    current,
+    "POST",
+    `/v1/admin/accounts/${accountId}/warn`,
+    { reason: "Two hostile replies in the thread." },
+    admin,
+  );
+  assert.equal(warned.status, 200, warned.text);
+  assert.equal(warned.body?.status, "active", "a warning changes no status");
+  assert.equal(warned.body?.warning_count, 1);
+
+  const user = await current.client.query<{ status: string; suspended_until: Date | null }>(
+    "SELECT status, suspended_until FROM users WHERE id = $1",
+    [accountId],
+  );
+  assert.equal(user.rows[0].status, "ACTIVE");
+  assert.equal(user.rows[0].suspended_until, null);
+
+  const sessionsAfter = await current.client.query("SELECT id FROM sessions WHERE user_id = $1", [
+    accountId,
+  ]);
+  assert.equal(sessionsAfter.rowCount, sessionsBefore.rowCount, "no session is touched");
+
+  const audits = await current.client.query<{ reason: string; actor_user_id: string }>(
+    "SELECT reason, actor_user_id FROM audit_logs WHERE action = 'ACCOUNT_WARNED' AND object_id = $1",
+    [accountId],
+  );
+  assert.equal(audits.rowCount, 1);
+  assert.equal(audits.rows[0].reason, "Two hostile replies in the thread.");
+
+  const emails = await current.client.query<{ payload: Record<string, unknown> }>(
+    "SELECT payload FROM outbox_events WHERE dedupe_key LIKE $1",
+    [`email:account-warned:${accountId}:%`],
+  );
+  assert.equal(emails.rowCount, 1, "one notice is queued");
+  const payload = emails.rows[0].payload as { template: string; text: string };
+  assert.equal(payload.template, "account-warned");
+  assert.ok(String(payload.text).includes("Two hostile replies in the thread."));
+  assert.ok(!String(payload.text).includes("warned@example.com"), "the notice names no other account");
+
+  // The warned account has no surface that reports the count: the contract's own
+  // account read carries no warning property, and the account projection never
+  // adds one (D-139).
+  const meContract = readFileSync(
+    fileURLToPath(new URL("../../../packages/contracts/openapi.yaml", import.meta.url)),
+    "utf8",
+  );
+  const meStart = meContract.indexOf("    MeResponse:");
+  assert.ok(meStart > 0, "MeResponse is in the contract");
+  const meEnd = meContract.indexOf("\n    ", meStart + 20);
+  const meBlock = meContract.slice(meStart, meEnd);
+  assert.ok(!meBlock.includes("warning"), "the account read exposes no warning count");
+  assert.ok(token.length > 0);
+
+  const twice = await apiRequest(
+    current,
+    "POST",
+    `/v1/admin/accounts/${accountId}/warn`,
+    { reason: "A third hostile reply." },
+    admin,
+  );
+  assert.equal(twice.body?.warning_count, 2, "warnings accumulate");
+});
+
+test("a warning refuses a missing reason and a non-admin caller", async (context) => {
+  const current = requireStack(context);
+  if (!current) {
+    return;
+  }
+  const mentor = await signInToken(current, "mentor@example.com");
+  await current.client.query(
+    "INSERT INTO role_assignments (user_id, role) VALUES ($1, 'MENTOR')",
+    [
+      (
+        await current.client.query<{ id: string }>("SELECT id FROM users WHERE email = $1", [
+          "mentor@example.com",
+        ])
+      ).rows[0].id,
+    ],
+  );
+  const admin = await adminToken(current);
+  const target = (
+    await current.client.query<{ id: string }>("SELECT id FROM users WHERE email = $1", [
+      "mentor@example.com",
+    ])
+  ).rows[0].id;
+
+  const empty = await apiRequest(
+    current,
+    "POST",
+    `/v1/admin/accounts/${target}/warn`,
+    { reason: "   " },
+    admin,
+  );
+  assert.equal(empty.status, 422, empty.text);
+  assert.match(String(empty.body?.detail ?? ""), /reason/);
+
+  const asMentor = await apiRequest(
+    current,
+    "POST",
+    `/v1/admin/accounts/${target}/warn`,
+    { reason: "Not an admin." },
+    mentor,
+  );
+  assert.equal(asMentor.status, 403, asMentor.text);
+
+  const audit = await current.client.query(
+    "SELECT id FROM audit_logs WHERE action = 'ACCOUNT_WARNED'",
+  );
+  assert.equal(audit.rowCount, 0, "a refused warning writes nothing");
+});
+
+test("a lift returns a suspended account to active and clears the end date", async (context) => {
+  const current = requireStack(context);
+  if (!current) {
+    return;
+  }
+  await signInToken(current, "student@example.com");
+  await signInToken(current, "mentor@example.com");
+  const admin = await adminToken(current);
+  const seeded = await seedThread(current);
+
+  const suspended = await apiRequest(
+    current,
+    "POST",
+    `/v1/admin/accounts/${seeded.studentId}/suspend`,
+    { reason: "Abusive messages." },
+    admin,
+  );
+  assert.equal(suspended.status, 200, suspended.text);
+
+  const lifted = await apiRequest(
+    current,
+    "POST",
+    `/v1/admin/accounts/${seeded.studentId}/reinstate`,
+    { reason: "The report was withdrawn." },
+    admin,
+  );
+  assert.equal(lifted.status, 200, lifted.text);
+  assert.equal(lifted.body?.status, "active");
+  assert.equal(lifted.body?.suspended_until, null);
+
+  const user = await current.client.query<{ status: string; suspended_until: Date | null }>(
+    "SELECT status, suspended_until FROM users WHERE id = $1",
+    [seeded.studentId],
+  );
+  assert.equal(user.rows[0].status, "ACTIVE");
+  assert.equal(user.rows[0].suspended_until, null);
+
+  const audit = await current.client.query<{ actor_user_id: string; reason: string }>(
+    "SELECT actor_user_id, reason FROM audit_logs WHERE action = 'ACCOUNT_REINSTATED'",
+  );
+  assert.equal(audit.rowCount, 1);
+  assert.equal(audit.rows[0].reason, "The report was withdrawn.");
+
+  const sessions = await current.client.query("SELECT id FROM sessions WHERE user_id = $1", [
+    seeded.studentId,
+  ]);
+  assert.equal(sessions.rowCount, 0, "a lift creates no session");
+
+  const again = await apiRequest(
+    current,
+    "POST",
+    `/v1/admin/accounts/${seeded.studentId}/reinstate`,
+    { reason: "Nothing to lift." },
+    admin,
+  );
+  assert.equal(again.status, 409, again.text);
+  assert.equal(again.body?.code, "ACCOUNT_NOT_SUSPENDED");
+  const after = await current.client.query(
+    "SELECT id FROM audit_logs WHERE action = 'ACCOUNT_REINSTATED'",
+  );
+  assert.equal(after.rowCount, 1, "a refused lift writes no audit row");
+});
+
+test("the job lifts a passed end date and never an indefinite suspension", async (context) => {
+  const current = requireStack(context);
+  if (!current) {
+    return;
+  }
+  const admin = await adminToken(current);
+  await signInToken(current, "passed@example.com");
+  await signInToken(current, "indefinite@example.com");
+  await signInToken(current, "future@example.com");
+
+  const id = async (email: string): Promise<string> =>
+    (
+      await current.client.query<{ id: string }>("SELECT id FROM users WHERE email = $1", [email])
+    ).rows[0].id;
+
+  await apiRequest(
+    current,
+    "POST",
+    `/v1/admin/accounts/${await id("passed@example.com")}/suspend`,
+    { reason: "Expired sanction.", end_date: "2026-01-05" },
+    admin,
+  );
+  await apiRequest(
+    current,
+    "POST",
+    `/v1/admin/accounts/${await id("indefinite@example.com")}/suspend`,
+    { reason: "Indefinite sanction." },
+    admin,
+  );
+  await apiRequest(
+    current,
+    "POST",
+    `/v1/admin/accounts/${await id("future@example.com")}/suspend`,
+    { reason: "Later sanction.", end_date: "2030-01-05" },
+    admin,
+  );
+
+  const first = await liftExpiredSuspensions(current.database.db, new Date("2026-11-13T00:00:00.000Z"));
+  assert.equal(first.lifted, 1, "only the passed end date is lifted");
+  assert.equal(first.failed, 0);
+
+  const rows = await current.client.query<{ email: string; status: string; suspended_until: Date | null }>(
+    "SELECT email, status, suspended_until FROM users WHERE email IN ($1, $2, $3) ORDER BY email",
+    ["passed@example.com", "indefinite@example.com", "future@example.com"],
+  );
+  const byEmail = new Map(rows.rows.map((row) => [row.email, row]));
+  assert.equal(byEmail.get("passed@example.com")?.status, "ACTIVE");
+  assert.equal(byEmail.get("passed@example.com")?.suspended_until, null);
+  assert.equal(byEmail.get("indefinite@example.com")?.status, "SUSPENDED", "no end date is never lifted");
+  assert.equal(byEmail.get("future@example.com")?.status, "SUSPENDED", "a future end date waits");
+
+  const reinstated = await current.client.query<{ actor_user_id: string | null; actor_role: string }>(
+    "SELECT actor_user_id, actor_role FROM audit_logs WHERE action = 'ACCOUNT_REINSTATED'",
+  );
+  assert.equal(reinstated.rowCount, 1);
+  assert.equal(reinstated.rows[0].actor_user_id, null, "the job is not a person");
+  assert.equal(reinstated.rows[0].actor_role, "SYSTEM");
+
+  const notices = await current.client.query(
+    "SELECT id FROM outbox_events WHERE dedupe_key LIKE $1",
+    [`email:account-reinstated:${await id("passed@example.com")}:%`],
+  );
+  assert.equal(notices.rowCount, 1, "one notice per lifted account");
+
+  // A second run over the same data changes nothing (idempotent).
+  const second = await liftExpiredSuspensions(current.database.db, new Date("2026-11-13T00:00:00.000Z"));
+  assert.equal(second.lifted, 0);
+  const auditsAfter = await current.client.query(
+    "SELECT id FROM audit_logs WHERE action = 'ACCOUNT_REINSTATED'",
+  );
+  assert.equal(auditsAfter.rowCount, 1, "the second run writes no audit row");
+  const noticesAfter = await current.client.query(
+    "SELECT id FROM outbox_events WHERE dedupe_key LIKE $1",
+    [`email:account-reinstated:${await id("passed@example.com")}:%`],
+  );
+  assert.equal(noticesAfter.rowCount, 1, "the second run queues no notice");
+});
+
+test("a suspension set again after the job's instant is not lifted", async (context) => {
+  const current = requireStack(context);
+  if (!current) {
+    return;
+  }
+  await signInToken(current, "student@example.com");
+  await signInToken(current, "mentor@example.com");
+  const admin = await adminToken(current);
+  const seeded = await seedThread(current);
+
+  // Suspended with an end date the job's instant is past, then re-suspended with
+  // a later date before the lift runs: the conditional update must lose.
+  await apiRequest(
+    current,
+    "POST",
+    `/v1/admin/accounts/${seeded.studentId}/suspend`,
+    { reason: "First sanction.", end_date: "2026-01-05" },
+    admin,
+  );
+  await current.client.query(
+    "UPDATE users SET suspended_until = '2030-01-05T00:00:00.000Z' WHERE id = $1",
+    [seeded.studentId],
+  );
+
+  const result = await liftExpiredSuspensions(current.database.db, new Date("2026-11-13T00:00:00.000Z"));
+  assert.equal(result.lifted, 0, "the later end date is not in the past");
+
+  const user = await current.client.query<{ status: string }>(
+    "SELECT status FROM users WHERE id = $1",
+    [seeded.studentId],
+  );
+  assert.equal(user.rows[0].status, "SUSPENDED");
 });

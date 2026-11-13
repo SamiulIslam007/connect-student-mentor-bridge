@@ -15,6 +15,8 @@ export type EmailTemplate =
   | "outcome-reviewed"
   | "outcome-reversed"
   | "account-suspended"
+  | "account-warned"
+  | "account-reinstated"
   | "report-resolved"
   | "affiliation-decided";
 
