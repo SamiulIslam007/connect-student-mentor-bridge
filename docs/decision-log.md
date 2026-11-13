@@ -1119,3 +1119,11 @@ date: 2026-10-29
 - Reason: a mentor free for part of the requested time is still requestable, and interval comparison already handles a straddling window without a duplicated adjacent weekday.
 - Status: Decided
 - Affects: `docs/known-debt.md`, `docs/matching-algorithm-spec.md`
+
+### D-146: One status marker per Must row, and a score anyone can recompute
+
+- Date: 2026-11-13
+- Decision: every Must row in `docs/functional-requirements.md` ends its feedback cell with exactly one `**Status: DONE**`, `**Status: PARTIAL**` or `**Status: NOT STARTED**` marker, followed by a code path (Done) or a one-line gap (Partial). The score is DONE 1.0, PARTIAL 0.5, NOT STARTED 0.0 over the 64 rows; the code-only figure scores at 0.0 any row that reached Done only through an amendment to the register, which today is `FR-ADM-05` alone.
+- Reason: the register is the gate's scoreboard, and it carried 29 unannotated rows and 9 contradictory ones, so the quoted number depended on who last edited the file. One marker in one place makes `grep -c "Status: DONE"` the score.
+- Status: Decided
+- Affects: `docs/functional-requirements.md` (section 0.1 legend, all 64 Must rows, section 2.16)
