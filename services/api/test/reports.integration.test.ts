@@ -4,6 +4,7 @@ import { after, before, beforeEach, test, type TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { AuthController } from "../src/identity/auth.controller.js";
+import { DrizzleProfilesService } from "../src/profiles/drizzle-profiles.service.js";
 import { DrizzleReportsService } from "../src/reports/drizzle-reports.service.js";
 import { ReportsAdminController } from "../src/reports/admin.controller.js";
 import { ReportsController } from "../src/reports/reports.controller.js";
@@ -589,6 +590,83 @@ test("a lift returns a suspended account to active and clears the end date", asy
     "SELECT id FROM audit_logs WHERE action = 'ACCOUNT_REINSTATED'",
   );
   assert.equal(after.rowCount, 1, "a refused lift writes no audit row");
+});
+
+test("a suspension hides the mentor from the directory and both lifts restore it with no profile write", async (context) => {
+  const current = requireStack(context);
+  if (!current) {
+    return;
+  }
+  await signInToken(current, "student@example.com");
+  await signInToken(current, "mentor@example.com");
+  const admin = await adminToken(current);
+  const seeded = await seedThread(current);
+
+  const directory = new DrizzleProfilesService(current.database.db);
+  const listedIds = async (): Promise<string[]> =>
+    (await directory.listMentors({ limit: 20 })).cards.map((card) => card.id);
+
+  const [profile] = (
+    await current.client.query<{ id: string; row: Record<string, unknown> }>(
+      "SELECT id, to_jsonb(t) AS row FROM mentor_profiles t WHERE user_id = $1",
+      [seeded.mentorId],
+    )
+  ).rows;
+  assert.ok(profile, "the mentor profile exists");
+  const before = profile.row;
+
+  assert.deepEqual(await listedIds(), [profile.id], "an active account is listed");
+
+  const suspended = await apiRequest(
+    current,
+    "POST",
+    `/v1/admin/accounts/${seeded.mentorId}/suspend`,
+    { reason: "Abusive messages." },
+    admin,
+  );
+  assert.equal(suspended.status, 200, suspended.text);
+  assert.deepEqual(await listedIds(), [], "the suspend route hides the card");
+
+  const lifted = await apiRequest(
+    current,
+    "POST",
+    `/v1/admin/accounts/${seeded.mentorId}/reinstate`,
+    { reason: "The report was withdrawn." },
+    admin,
+  );
+  assert.equal(lifted.status, 200, lifted.text);
+  assert.deepEqual(await listedIds(), [profile.id], "the reinstate route restores the card");
+
+  const [afterRoute] = (
+    await current.client.query<{ row: Record<string, unknown> }>(
+      "SELECT to_jsonb(t) AS row FROM mentor_profiles t WHERE id = $1",
+      [profile.id],
+    )
+  ).rows;
+  assert.deepEqual(afterRoute.row, before, "the route lift writes no profile column");
+
+  // The job's own lift, for the scheduled half of the same rule (D-141).
+  const resuspended = await apiRequest(
+    current,
+    "POST",
+    `/v1/admin/accounts/${seeded.mentorId}/suspend`,
+    { reason: "Second look.", end_date: "2026-01-05" },
+    admin,
+  );
+  assert.equal(resuspended.status, 200, resuspended.text);
+  assert.deepEqual(await listedIds(), [], "the second suspension hides the card again");
+
+  const swept = await liftExpiredSuspensions(current.database.db, new Date("2026-11-13T00:00:00.000Z"));
+  assert.equal(swept.lifted, 1, "the passed end date is lifted by the job");
+  assert.deepEqual(await listedIds(), [profile.id], "the job's lift restores the card");
+
+  const [afterJob] = (
+    await current.client.query<{ row: Record<string, unknown> }>(
+      "SELECT to_jsonb(t) AS row FROM mentor_profiles t WHERE id = $1",
+      [profile.id],
+    )
+  ).rows;
+  assert.deepEqual(afterJob.row, before, "the job's lift writes no profile column either");
 });
 
 test("the job lifts a passed end date and never an indefinite suspension", async (context) => {

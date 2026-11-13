@@ -953,6 +953,69 @@ test("the directory lists only ACTIVE mentors and hides a paused one", async (co
   assert.deepEqual(directoryIds(applicationOnly.body), []);
 });
 
+/** The whole profile row, for the byte-identical assertion. */
+async function profileRow(current: TestApiStack, id: string): Promise<Record<string, unknown>> {
+  const row = await current.client.query<{ row: Record<string, unknown> }>(
+    "SELECT to_jsonb(t) AS row FROM mentor_profiles t WHERE t.id = $1",
+    [id],
+  );
+  return row.rows[0].row;
+}
+
+async function setAccountStatus(
+  current: TestApiStack,
+  email: string,
+  status: string,
+): Promise<void> {
+  await current.client.query("UPDATE users SET status = $2::account_status WHERE email = $1", [
+    email,
+    status,
+  ]);
+}
+
+test("a suspended account leaves the directory and returns with no profile write", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+
+  const mentor = await activeMentor(current, "suspended-directory@example.com");
+  const before = await profileRow(current, mentor.id);
+
+  const listed = await apiRequest(current, "GET", "/v1/mentors");
+  assert.deepEqual(directoryIds(listed.body), [mentor.id], "an active account is listed");
+
+  await setAccountStatus(current, "suspended-directory@example.com", "SUSPENDED");
+  for (const query of ["", "?access_state=available", "?access_state=full", "?language=EN"]) {
+    const page = await apiRequest(current, "GET", `/v1/mentors${query}`);
+    assert.equal(page.status, 200, page.text);
+    assert.deepEqual(
+      directoryIds(page.body),
+      [],
+      `a suspended account is absent (${query === "" ? "no filter" : query})`,
+    );
+  }
+  // The request form's read follows the directory (D-147).
+  const context404 = await apiRequest(
+    current,
+    "GET",
+    `/v1/mentors/${mentor.id}`,
+    undefined,
+    mentor.token,
+  );
+  assert.equal(context404.status, 404, context404.text);
+
+  // A lift is one row on `users`; the directory derives the card from it again.
+  await setAccountStatus(current, "suspended-directory@example.com", "ACTIVE");
+  const again = await apiRequest(current, "GET", "/v1/mentors");
+  assert.deepEqual(directoryIds(again.body), [mentor.id], "the card returns with no profile write");
+  assert.deepEqual(await profileRow(current, mentor.id), before, "the mentor profile row is untouched");
+
+  // Removal is the anonymized account, and it is excluded the same way (D-149).
+  await setAccountStatus(current, "suspended-directory@example.com", "ANONYMIZED");
+  await current.client.query("UPDATE mentor_profiles SET status = 'REMOVED' WHERE id = $1", [mentor.id]);
+  const removed = await apiRequest(current, "GET", "/v1/mentors");
+  assert.deepEqual(directoryIds(removed.body), [], "an anonymized account is absent");
+});
+
 test("an unknown field id is an empty page, not a 404", async (context) => {
   const current = requireStack(context);
   if (!current) return;

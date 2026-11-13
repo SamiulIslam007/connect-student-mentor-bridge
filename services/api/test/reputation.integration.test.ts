@@ -583,6 +583,38 @@ test("the impact read returns counts only and excludes every uncounted state", a
     pair.studentToken,
   );
   assert.equal(inactive.status, 404, "a non-active mentor is not found");
+
+  // The account condition is separate from the profile one (D-147): an ACTIVE
+  // profile on a suspended account has no public impact, and a lift restores it.
+  await current.client.query("UPDATE mentor_profiles SET status = 'ACTIVE' WHERE id = $1", [
+    pair.mentorProfileId,
+  ]);
+  await current.client.query(
+    "UPDATE users SET status = 'SUSPENDED' WHERE id = (SELECT user_id FROM mentor_profiles WHERE id = $1)",
+    [pair.mentorProfileId],
+  );
+  const suspendedAccount = await apiRequest(
+    current,
+    "GET",
+    `/v1/mentors/${pair.mentorProfileId}/impact`,
+    undefined,
+    pair.studentToken,
+  );
+  assert.equal(suspendedAccount.status, 404, "a suspended account is not found");
+
+  await current.client.query(
+    "UPDATE users SET status = 'ACTIVE' WHERE id = (SELECT user_id FROM mentor_profiles WHERE id = $1)",
+    [pair.mentorProfileId],
+  );
+  const restored = await apiRequest(
+    current,
+    "GET",
+    `/v1/mentors/${pair.mentorProfileId}/impact`,
+    undefined,
+    pair.studentToken,
+  );
+  assert.equal(restored.status, 200, restored.text);
+  assert.equal(restored.body?.counted_outcomes, 1, "the counts are unchanged after the lift");
 });
 
 /** Copies the pair's existing request shape with a chosen status and timing. */

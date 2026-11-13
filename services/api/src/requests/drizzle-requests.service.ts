@@ -209,6 +209,7 @@ export class DrizzleRequestsService implements RequestsService {
           accessMode: mentorProfiles.accessMode,
           weeklyCapacity: mentorProfiles.weeklyCapacity,
           email: mentorUser.email,
+          accountStatus: mentorUser.status,
         })
         .from(mentorProfiles)
         .innerJoin(mentorUser, eq(mentorUser.id, mentorProfiles.userId))
@@ -217,6 +218,11 @@ export class DrizzleRequestsService implements RequestsService {
         .limit(1);
       if (!mentor) {
         throw new IdentityError("VALIDATION_ERROR", "mentor_id does not name a mentor profile");
+      }
+      // The account condition is derived, like discovery: the same refusal a paused
+      // mentor gets, so a suspension is never disclosed (D-148).
+      if (mentor.accountStatus !== "ACTIVE") {
+        throw new IdentityError("MENTOR_UNAVAILABLE", "this mentor is not accepting requests right now");
       }
 
       const [verified] = await tx

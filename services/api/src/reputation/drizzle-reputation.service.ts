@@ -11,6 +11,7 @@ import {
   mentorProfiles,
   mentorshipRequests,
   reputationEvents,
+  users,
 } from "../db/schema/index.js";
 import { REQUEST_TTL_MS } from "../requests/drizzle-requests.service.js";
 
@@ -117,9 +118,12 @@ export class DrizzleReputationService implements ReputationService {
     const [mentor] = await this.db
       .select({ id: mentorProfiles.id, status: mentorProfiles.status })
       .from(mentorProfiles)
-      .where(eq(mentorProfiles.id, mentorProfileId))
+      .innerJoin(users, eq(users.id, mentorProfiles.userId))
+      .where(and(eq(mentorProfiles.id, mentorProfileId), eq(users.status, "ACTIVE")))
       .limit(1);
     if (!mentor || mentor.status !== "ACTIVE") {
+      // The public read follows the directory: an account that is not active has
+      // no public impact, and a lift restores it with no write (D-147).
       return null;
     }
 

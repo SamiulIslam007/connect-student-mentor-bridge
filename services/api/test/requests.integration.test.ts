@@ -341,6 +341,39 @@ test("a paused mentor is unavailable", async (context) => {
   assert.equal(response.body?.code, "MENTOR_UNAVAILABLE");
 });
 
+test("a suspended account is refused as unavailable and writes nothing", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const student = await studentWithProfile(current, "suspended.student@example.com");
+  const mentor = await activeMentor(current, "suspended.mentor@example.edu.bd");
+
+  // The account status is the only change: the mentor profile stays ACTIVE (D-148).
+  await current.client.query("UPDATE users SET status = 'SUSPENDED' WHERE email = $1", [
+    "suspended.mentor@example.edu.bd",
+  ]);
+
+  const refused = await createRequest(current, student, mentor.profileId);
+  assert.equal(refused.status, 409, refused.text);
+  assert.equal(refused.body?.code, "MENTOR_UNAVAILABLE", "the answer names no cause");
+  assert.equal((await current.client.query("SELECT id FROM mentorship_requests")).rowCount, 0);
+  assert.equal((await current.client.query("SELECT id FROM outbox_events")).rowCount, 0);
+
+  // The request form's own read answers as absent, so the form cannot be opened.
+  const form = await apiRequest(
+    current,
+    "GET",
+    `/v1/mentors/${mentor.profileId}`,
+    undefined,
+    student,
+  );
+  assert.equal(form.status, 404, form.text);
+
+  // An unknown id keeps its own refusal, so the two cases stay distinguishable.
+  const unknown = await createRequest(current, student, "11111111-1111-1111-1111-111111111111");
+  assert.equal(unknown.status, 422, unknown.text);
+  assert.match(String(unknown.body?.detail), /mentor_id/);
+});
+
 test("application-only needs a note, and with one the request is created", async (context) => {
   const current = requireStack(context);
   if (!current) return;

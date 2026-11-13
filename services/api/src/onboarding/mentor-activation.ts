@@ -78,5 +78,7 @@ export async function syncMentorActivation(database: Executor, userId: string): 
       activatedAt: next.activatedAt,
       updatedAt: now,
     })
-    .where(eq(mentorProfiles.userId, userId));
+    // Conditional on the status read above: a suspension, removal, or any other
+    // concurrent write wins, and the next trigger recomputes from the row (D-150).
+    .where(and(eq(mentorProfiles.userId, userId), eq(mentorProfiles.status, profile.status)));
 }
