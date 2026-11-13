@@ -5,11 +5,14 @@ import type { NestExpressApplication } from "@nestjs/platform-express";
 
 import { AppModule } from "./app.module.js";
 import { API_MAX_BODY_BYTES } from "./http/request-body.js";
+import { apiSecurityHeaders } from "./http/security-headers.js";
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     bodyParser: false,
   });
+  // Before the body parser: a refused body still carries the security headers.
+  app.use(apiSecurityHeaders);
   app.useBodyParser("json", { limit: API_MAX_BODY_BYTES, strict: false });
   app.enableShutdownHooks();
 

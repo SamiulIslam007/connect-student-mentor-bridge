@@ -96,6 +96,14 @@ Content type `application/problem+json`. Every error has the same shape:
 
 Malformed JSON returns `400 VALIDATION_FAILED`; an oversized body returns `413 VALIDATION_FAILED`. Both are produced before `RequestIdMiddleware` runs, so their problem body can carry `request_id: "unattributed"`. That is documented behaviour, not a correlation guarantee.
 
+### 1.5 Response headers and the CORS rule
+
+Every API response carries the same set: `Content-Security-Policy` (`default-src 'none'`, with script, frame, form, base and object sources forbidden), `Strict-Transport-Security` (one year, subdomains), `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY`, `Cross-Origin-Resource-Policy: same-origin` and `Cross-Origin-Opener-Policy: same-origin`. `X-Powered-By` is not sent. The set is applied before the body parser, so a refused body carries it too (D-131).
+
+There is no CORS allowlist: the browser never calls this origin, because every browser request goes through the web BFF and the BFF calls the API server-side. A response therefore carries no `Access-Control-Allow-Origin`, `-Methods` or `-Credentials` header, and a test fails if CORS is enabled without a new decision (D-132, SEC-API-5).
+
+The web app sends its own set — `Content-Security-Policy-Report-Only` with eight directives, nosniff, `no-referrer`, `DENY` and a `Permissions-Policy` — and enforcement is DEBT-56 (D-133).
+
 ## 2. Authentication endpoints
 
 Identity is implemented with better-auth behind `IdentityService` (ADR-003) and exposed as NestJS endpoints under `/v1/auth`. The browser reaches them only through the `apps/web` route handlers, which keep the session token in an httpOnly, SameSite=Lax cookie (Secure outside development); the API accepts `Authorization: Bearer <session token>` from the BFF.

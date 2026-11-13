@@ -999,3 +999,35 @@ date: 2026-10-29
 - Reason: a backfill would write consent records nobody gave, which is the one thing an append-only consent table must never contain; without the funnel call an accepted agreement would wait for an unrelated trigger before it could activate the profile.
 - Status: Decided
 - Affects: `trust/consent-purposes`, `services/api/drizzle/0018_many_gabe_jones.sql`, `services/api/src/consent/drizzle-consent.service.ts`
+
+### D-131: The API sends a strict header set through helmet, one module, every environment
+
+- Date: 2026-11-13
+- Decision: `services/api/src/http/security-headers.ts` exports the helmet options and `main.ts` applies them before the body parser. The policy is `default-src 'none'` with script, frame, form, base and object sources forbidden; HSTS, nosniff, `no-referrer`, `DENY`, CORP and COOP are on and `X-Powered-By` is off. The set is the same in every environment.
+- Reason: the API serves JSON to the BFF and never a document, so it needs no script, frame or form source at all; one module keeps the tests reading the same values the app sends, and applying it before the body parser is what makes a refused body carry the headers too.
+- Status: Decided
+- Affects: `platform/http-security-controls`, `services/api/src/http/security-headers.ts`, `docs/security-requirements.md`
+
+### D-132: No CORS allowlist, because the browser never calls the API
+
+- Date: 2026-11-13
+- Decision: `enableCors` is not called. Every browser request goes through the web BFF, which calls the API server-side, so the absence of a cross-origin allow header is the restriction rather than a missing feature.
+- Reason: an allowlist with no legitimate origin in it is a fiction that reads as protection; an empty one states the truth and fails the build if someone enables CORS without a decision.
+- Status: Decided
+- Affects: `platform/http-security-controls`, `services/api/src/main.ts`, `docs/api-contracts.md`
+
+### D-133: The web CSP ships report-only, enforcement is its own change
+
+- Date: 2026-11-13
+- Decision: `apps/web/lib/security-headers.ts` sends `Content-Security-Policy-Report-Only` on every path, with the eight directives the app actually uses; no enforcing policy header is sent.
+- Reason: Next injects an inline bootstrap and the Google callback relay is a redirect chain nobody has exercised against a policy; enforcing it without reading real violations first would be a guess with a sign-in outage behind it. DEBT-56 holds the step.
+- Status: Decided
+- Affects: `platform/http-security-controls`, `apps/web/next.config.ts`, `apps/web/lib/security-headers.ts`
+
+### D-134: No CSRF token this round; DEBT-03 stays open
+
+- Date: 2026-11-13
+- Decision: `SameSite=Lax` remains the pilot boundary for cookie-authenticated writes. No token, no double-submit cookie, no origin check is added.
+- Reason: the pilot has one first-party client and the cookie is `Lax` on every write route; a token needs a page-side change on eleven forms and a decision about the API's own clients, and neither exists yet.
+- Status: Decided
+- Affects: `platform/http-security-controls`, `docs/known-debt.md`
