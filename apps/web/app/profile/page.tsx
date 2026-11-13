@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { beginLoad, settleFailure, settleSuccess, stateKey, type PageStatus } from "../../lib/page-state";
 import { strings } from "../../lib/strings";
 import { ImpactSection } from "./impact-section";
 
@@ -138,6 +139,9 @@ function savedMessage(ok: boolean, payload: Problem | undefined): string | null 
 export default function ProfilePage() {
   const [fields, setFields] = useState<FieldSummary[]>([]);
   const [message, setMessage] = useState<string | null>(null);
+  const [read, setRead] = useState<PageStatus>({ state: "idle", message: null });
+  const [saving, setSaving] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const [signedOut, setSignedOut] = useState(false);
   const [mentorRole, setMentorRole] = useState(false);
   const [studentZone, setStudentZone] = useState("Asia/Dhaka");
@@ -179,6 +183,7 @@ export default function ProfilePage() {
     let active = true;
 
     async function load(): Promise<void> {
+      setRead(beginLoad());
       try {
         const [meResponse, fieldsResponse] = await Promise.all([
           fetch("/api/me"),
@@ -189,11 +194,11 @@ export default function ProfilePage() {
         }
         if (meResponse.status === 401) {
           setSignedOut(true);
-          setMessage(strings.profile.signedOut);
+          setRead(settleFailure(strings.profile.signedOut));
           return;
         }
         if (!meResponse.ok) {
-          setMessage(strings.profile.loadError);
+          setRead(settleFailure(stateKey("error", "profile")));
           return;
         }
 
@@ -252,7 +257,13 @@ export default function ProfilePage() {
       } catch (error) {
         logFailure("web.profile_load_failed", error);
         if (active) {
-          setMessage(strings.profile.loadError);
+          setRead(settleFailure(stateKey("error", "profile")));
+        }
+      } finally {
+        if (active) {
+          setRead((current) =>
+            current.state === "loading" ? settleSuccess(false) : current,
+          );
         }
       }
     }
@@ -261,11 +272,12 @@ export default function ProfilePage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [reloadKey]);
 
   async function saveStudent(event: React.FormEvent): Promise<void> {
     event.preventDefault();
     setStudentStatus(null);
+    setSaving("student");
     try {
       const response = await fetch("/api/me/student-profile", {
         method: "PUT",
@@ -280,18 +292,23 @@ export default function ProfilePage() {
         }),
       });
       const payload = (await response.json().catch(() => ({}))) as Problem;
-      setStudentStatus(
-        response.ok ? strings.profile.studentSaved : savedMessage(false, payload),
-      );
+      if (response.ok) {
+        setStudentStatus(strings.profile.studentSaved);
+        return;
+      }
+      setRead(settleFailure(savedMessage(false, payload)));
     } catch (error) {
       logFailure("web.student_profile_save_failed", error);
-      setStudentStatus(strings.profile.saveError);
+      setRead(settleFailure(strings.profile.saveError));
+    } finally {
+      setSaving(null);
     }
   }
 
   async function saveMentor(event: React.FormEvent): Promise<void> {
     event.preventDefault();
     setMentorStatus(null);
+    setSaving("mentor");
     try {
       const response = await fetch("/api/me/mentor-profile", {
         method: "PUT",
@@ -323,11 +340,15 @@ export default function ProfilePage() {
       if (response.ok) {
         setMentorProfileStatus(payload.status ?? mentorProfileStatus);
         setMentorOnboarding(payload.onboarding_status ?? mentorOnboarding);
+        setMentorStatus(strings.profile.mentorSaved);
+        return;
       }
-      setMentorStatus(response.ok ? strings.profile.mentorSaved : savedMessage(false, payload));
+      setRead(settleFailure(savedMessage(false, payload)));
     } catch (error) {
       logFailure("web.mentor_profile_save_failed", error);
-      setMentorStatus(strings.profile.saveError);
+      setRead(settleFailure(strings.profile.saveError));
+    } finally {
+      setSaving(null);
     }
   }
 
@@ -349,6 +370,7 @@ export default function ProfilePage() {
     }
 
     setStatus(null);
+    setSaving(`availability:${kind}`);
     try {
       const response = await fetch("/api/me/availability", {
         method: "PUT",
@@ -365,11 +387,14 @@ export default function ProfilePage() {
     } catch (error) {
       logFailure("web.availability_save_failed", error);
       setStatus(strings.profile.availabilityError);
+    } finally {
+      setSaving(null);
     }
   }
 
   async function changeAccessMode(path: "pause" | "resume"): Promise<void> {
     setAccessStatus(null);
+    setSaving("access");
     try {
       const response = await fetch(`/api/me/mentor-profile/${path}`, {
         method: "POST",
@@ -386,12 +411,15 @@ export default function ProfilePage() {
     } catch (error) {
       logFailure("web.access_mode_failed", error);
       setAccessStatus(strings.profile.accessModeError);
+    } finally {
+      setSaving(null);
     }
   }
 
   async function claimAffiliation(event: React.FormEvent): Promise<void> {
     event.preventDefault();
     setAffiliationStatus(null);
+    setSaving("affiliation");
     try {
       const response = await fetch("/api/me/affiliations", {
         method: "POST",
@@ -431,11 +459,14 @@ export default function ProfilePage() {
     } catch (error) {
       logFailure("web.affiliation_claim_failed", error);
       setAffiliationStatus(strings.profile.affiliationError);
+    } finally {
+      setSaving(null);
     }
   }
 
   async function becomeMentor(): Promise<void> {
     setMentorStatus(null);
+    setSaving("mentorRole");
     try {
       const response = await fetch("/api/me/roles/mentor", { method: "POST" });
       if (!response.ok) {
@@ -447,6 +478,8 @@ export default function ProfilePage() {
     } catch (error) {
       logFailure("web.mentor_role_grant_failed", error);
       setMentorStatus(strings.profile.mentorRoleError);
+    } finally {
+      setSaving(null);
     }
   }
 
@@ -462,6 +495,16 @@ export default function ProfilePage() {
       </datalist>
 
       <p role="status">{message}</p>
+      {read.state === "loading" ? <p role="status">{stateKey("loading", "profile")}</p> : null}
+      {read.state === "error" ? (
+        <>
+          <p role="alert">{read.message}</p>
+          <button type="button" onClick={() => setReloadKey((value) => value + 1)}>
+            {strings.profile.retry}
+          </button>
+        </>
+      ) : null}
+      {saving ? <p role="status">{strings.profile.saving}</p> : null}
 
       {signedOut ? null : (
         <>
@@ -519,7 +562,9 @@ export default function ProfilePage() {
                   onChange={(event) => setAffiliationBatchYear(event.target.value)}
                 />
               </label>
-              <button type="submit">{strings.profile.claimAffiliation}</button>
+              <button type="submit" disabled={saving !== null}>
+                {strings.profile.claimAffiliation}
+              </button>
             </form>
             <p role="status">{affiliationStatus}</p>
           </section>
@@ -567,13 +612,16 @@ export default function ProfilePage() {
                   onChange={(event) => setStudentLanguages(event.target.value)}
                 />
               </label>
-              <button type="submit">{strings.profile.saveStudent}</button>
+              <button type="submit" disabled={saving !== null}>
+                {strings.profile.saveStudent}
+              </button>
             </form>
             <p role="status">{studentStatus}</p>
             <AvailabilityEditor
               windows={studentWindows}
               timezone={studentZone}
               status={studentAvailabilityStatus}
+              busy={saving !== null}
               onChange={setStudentWindows}
               onTimezone={setStudentZone}
               onSave={() => void saveAvailability("STUDENT")}
@@ -594,7 +642,7 @@ export default function ProfilePage() {
             {mentorRole ? null : (
               <div>
                 <p>{strings.profile.becomeMentorIntro}</p>
-                <button type="button" onClick={() => void becomeMentor()}>
+                <button type="button" disabled={saving !== null} onClick={() => void becomeMentor()}>
                   {strings.profile.becomeMentor}
                 </button>
               </div>
@@ -670,7 +718,9 @@ export default function ProfilePage() {
                   required
                 />
               </label>
-              <button type="submit">{strings.profile.saveMentor}</button>
+              <button type="submit" disabled={saving !== null}>
+                {strings.profile.saveMentor}
+              </button>
               </fieldset>
             </form>
             <p role="status">{mentorStatus}</p>
@@ -678,6 +728,7 @@ export default function ProfilePage() {
               windows={mentorWindows}
               timezone={mentorZone}
               status={mentorAvailabilityStatus}
+              busy={saving !== null}
               onChange={setMentorWindows}
               onTimezone={setMentorZone}
               onSave={() => void saveAvailability("MENTOR")}
@@ -710,11 +761,11 @@ export default function ProfilePage() {
                 </label>
                 <p>{strings.profile.applicationsNotBuilt}</p>
                 {accessMode === "PAUSED" ? (
-                  <button type="button" onClick={() => void changeAccessMode("resume")}>
+                  <button type="button" disabled={saving !== null} onClick={() => void changeAccessMode("resume")}>
                     {strings.profile.resume}
                   </button>
                 ) : (
-                  <button type="button" onClick={() => void changeAccessMode("pause")}>
+                  <button type="button" disabled={saving !== null} onClick={() => void changeAccessMode("pause")}>
                     {strings.profile.pause}
                   </button>
                 )}
@@ -743,6 +794,7 @@ function AvailabilityEditor({
   windows,
   timezone,
   status,
+  busy,
   onChange,
   onTimezone,
   onSave,
@@ -750,6 +802,7 @@ function AvailabilityEditor({
   windows: DraftWindow[];
   timezone: string;
   status: string | null;
+  busy: boolean;
   onChange: (windows: DraftWindow[]) => void;
   onTimezone: (timezone: string) => void;
   onSave: () => void;
@@ -820,7 +873,7 @@ function AvailabilityEditor({
         >
           {strings.profile.addWindow}
         </button>
-        <button type="button" onClick={onSave}>
+        <button type="button" disabled={busy} onClick={onSave}>
           {strings.profile.saveAvailability}
         </button>
       </p>

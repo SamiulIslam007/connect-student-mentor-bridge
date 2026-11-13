@@ -1,7 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
+import {
+  beginLoad,
+  settleFailure,
+  settleSuccess,
+  stateKey,
+  type PageStatus,
+} from "../../../lib/page-state";
 import { clearAllDrafts } from "../../../lib/request-draft";
 import { strings } from "../../../lib/strings";
 
@@ -13,69 +20,110 @@ interface Session {
 }
 
 export default function SessionsPage() {
-  const [sessions, setSessions] = useState<Session[] | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [status, setStatus] = useState<PageStatus>({ state: "idle", message: null });
+  const [notice, setNotice] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
 
-  async function load(): Promise<void> {
-    const response = await fetch("/api/me/sessions");
-    if (response.ok) {
+  const load = useCallback(async (): Promise<void> => {
+    setStatus(beginLoad());
+    try {
+      const response = await fetch("/api/me/sessions");
+      if (response.status === 401) {
+        setStatus(settleFailure(strings.sessions.signedOut));
+        return;
+      }
+      if (!response.ok) {
+        setStatus(settleFailure(stateKey("error", "sessions")));
+        return;
+      }
       const body = (await response.json()) as { data: Session[] };
       setSessions(body.data);
-      return;
+      setStatus(settleSuccess(body.data.length === 0));
+    } catch {
+      setStatus(settleFailure(stateKey("error", "sessions")));
     }
-    setMessage(response.status === 401 ? strings.sessions.signedOut : strings.sessions.loadError);
-  }
+  }, []);
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [load]);
 
   async function revoke(id: string): Promise<void> {
-    const response = await fetch(`/api/me/sessions/${encodeURIComponent(id)}`, { method: "DELETE" });
-    if (!response.ok) {
-      setMessage(strings.sessions.loadError);
-      return;
+    setBusy(true);
+    setNotice(null);
+    try {
+      const response = await fetch(`/api/me/sessions/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        setStatus(settleFailure(stateKey("error", "sessions")));
+        return;
+      }
+      await load();
+      setNotice(strings.sessions.revoked);
+    } catch {
+      setStatus(settleFailure(stateKey("error", "sessions")));
+    } finally {
+      setBusy(false);
     }
-    setMessage(strings.sessions.revoked);
-    await load();
   }
 
   async function signOutEverywhere(): Promise<void> {
     setConfirming(false);
-    const response = await fetch("/api/auth/sign-out-everywhere", { method: "POST" });
-    // `401` means the session is already gone; the BFF clears the cookie either way.
-    if (response.ok || response.status === 401) {
-      // Every draft goes with the session, on both success and an already-dead one.
-      clearAllDrafts();
-      window.location.assign("/");
-      return;
+    setBusy(true);
+    try {
+      const response = await fetch("/api/auth/sign-out-everywhere", { method: "POST" });
+      // `401` means the session is already gone; the BFF clears the cookie either way.
+      if (response.ok || response.status === 401) {
+        // Every draft goes with the session, on both success and an already-dead one.
+        clearAllDrafts();
+        window.location.assign("/");
+        return;
+      }
+      setStatus(settleFailure(strings.sessions.signOutError));
+    } catch {
+      setStatus(settleFailure(strings.sessions.signOutError));
+    } finally {
+      setBusy(false);
     }
-    setMessage(strings.sessions.signOutError);
   }
 
   return (
     <main>
       <h1>{strings.sessions.title}</h1>
       <p>{strings.sessions.intro}</p>
-      {sessions === null ? null : (
+
+      {status.state === "loading" ? <p role="status">{stateKey("loading", "sessions")}</p> : null}
+      {status.state === "error" ? (
+        <>
+          <p role="alert">{status.message}</p>
+          <button type="button" onClick={() => void load()}>
+            {strings.sessions.retry}
+          </button>
+        </>
+      ) : null}
+      {status.state === "empty" ? <p>{stateKey("empty", "sessions")}</p> : null}
+      {status.state === "ready" ? (
         <ul>
           {sessions.map((session) => (
             <li key={session.id}>
               <span>{new Date(session.created_at).toISOString()}</span>
               {session.current ? <strong>{strings.sessions.current}</strong> : null}
-              <button type="button" onClick={() => void revoke(session.id)}>
+              <button type="button" disabled={busy} onClick={() => void revoke(session.id)}>
                 {strings.sessions.revoke}
               </button>
             </li>
           ))}
         </ul>
-      )}
-      {message ? <p role="status">{message}</p> : null}
+      ) : null}
+
+      {notice ? <p role="status">{notice}</p> : null}
       {confirming ? (
         <div>
           <p>{strings.sessions.signOutPrompt}</p>
-          <button type="button" onClick={() => void signOutEverywhere()}>
+          <button type="button" disabled={busy} onClick={() => void signOutEverywhere()}>
             {strings.session.signOutEverywhere}
           </button>
           <button type="button" onClick={() => setConfirming(false)}>
@@ -83,7 +131,7 @@ export default function SessionsPage() {
           </button>
         </div>
       ) : (
-        <button type="button" onClick={() => setConfirming(true)}>
+        <button type="button" disabled={busy} onClick={() => setConfirming(true)}>
           {strings.session.signOutEverywhere}
         </button>
       )}

@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 
+import { stateKey } from "../../lib/page-state";
 import { strings } from "../../lib/strings";
 
 /**
@@ -68,12 +69,14 @@ export default function ForgotPasswordPage() {
           />
         </p>
         <button type="submit" disabled={pending}>
-          {pending ? strings.forgotPassword.sending : strings.forgotPassword.submit}
+          {pending ? stateKey("loading", "forgotPassword") : strings.forgotPassword.submit}
         </button>
       </form>
-      <p role="status" id={invalidEmail ? "forgot-password-error" : undefined}>
-        {message}
-      </p>
+      {message ? (
+        <p role={sent ? "status" : "alert"} id={invalidEmail ? "forgot-password-error" : undefined}>
+          {message}
+        </p>
+      ) : null}
       {sent ? null : (
         <p>
           <a href="/sign-in">{strings.forgotPassword.backToSignIn}</a>
