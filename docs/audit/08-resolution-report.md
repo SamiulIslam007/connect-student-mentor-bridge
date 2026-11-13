@@ -1,4 +1,5 @@
 ---
+note: Historical document - a Gate-0-era resolution report, kept as history. Current requirement status lives in docs/functional-requirements.md.
 title: Resolution Report (contradiction fixes and MVP baseline)
 status: Approved (MVP baseline, owner decision)
 owner: Founder / CTO

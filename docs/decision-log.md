@@ -959,3 +959,11 @@ date: 2026-10-29
 - Reason: a separate reads table would duplicate what the audit log already records, and a column that exists does not need creating.
 - Status: Decided
 - Affects: `services/api/src/identity/audit-log.ts`, `docs/data-model.md`
+
+### D-126: The register is harmonised with the decisions already recorded
+
+- Date: 2026-11-12
+- Decision: The register is harmonised with recorded decisions: `FR-OUT-07` becomes Tier 0 only (DEBT-22), `FR-PRIV-01` becomes the synchronous JSON export (D-84), `FR-REP-02` becomes counts plus response reliability with the confidence tier deferred (D-67, DEBT-24); `FR-OUT-09`, `FR-OUT-10`, `FR-NOT-01` and `FR-AUD-01` are annotated as built where the code exists, and `FR-PRIV-03` is left untouched. `docs/mvp-build-plan.md` section 1.1 now lists the register's Must ids one per area, and section 1.2 drops `FR-PRIV-03` and `FR-INST-01`, which the register marks Must.
+- Reason: the register is the pilot gate's scoreboard; five rows no longer described what the owner decided or what the code does, two status blocks contradicted themselves and the build plan carried a different Must set. The register may not be lowered to reach a number, so every amendment names the decision that narrowed it and every annotation names the symbol that proves it.
+- Status: Decided
+- Affects: `docs/functional-requirements.md`, `docs/mvp-build-plan.md`, `docs/milestones-and-phases.md`, `docs/audit/08-resolution-report.md`
