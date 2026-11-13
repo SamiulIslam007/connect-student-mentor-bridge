@@ -2,23 +2,34 @@
 
 import { useState, type FormEvent } from "react";
 
+import { stateKey } from "../../lib/page-state";
 import { strings } from "../../lib/strings";
 
 export function ResetForm({ token }: { token: string }) {
   const [message, setMessage] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
   const [success, setSuccess] = useState(false);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const response = await fetch("/api/auth/reset-password", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ token, new_password: form.get("new_password") }),
-    });
+    setPending(true);
+    setMessage(null);
+    try {
+      const response = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ token, new_password: form.get("new_password") }),
+      });
 
-    setSuccess(response.ok);
-    setMessage(response.ok ? strings.reset.success : strings.reset.invalid);
+      setSuccess(response.ok);
+      setMessage(response.ok ? strings.reset.success : strings.reset.error);
+    } catch {
+      setSuccess(false);
+      setMessage(strings.reset.error);
+    } finally {
+      setPending(false);
+    }
   }
 
   return (
@@ -37,9 +48,11 @@ export function ResetForm({ token }: { token: string }) {
             autoComplete="new-password"
           />
         </p>
-        <button type="submit">{strings.reset.submit}</button>
+        <button type="submit" disabled={pending}>
+          {pending ? stateKey("loading", "reset") : strings.reset.submit}
+        </button>
       </form>
-      <p role="status">{message}</p>
+      {message ? <p role={success ? "status" : "alert"}>{message}</p> : null}
       {success ? (
         <p>
           <a href="/sign-in">{strings.signIn.title}</a>

@@ -40,6 +40,7 @@ export const strings = {
     invalid: "Some of those details are not valid. Check each field and try again.",
     error: "Registration failed. Check the fields and try again.",
     network: "The form could not be sent. Check your connection and try again.",
+    loading: "Creating your account…",
   },
   signIn: {
     title: "Sign in",
@@ -54,6 +55,7 @@ export const strings = {
     forbidden: "This account cannot sign in.",
     google: "Sign in with Google",
     googleError: "Google sign-in could not be started. It may not be enabled here.",
+    loading: "Signing you in…",
   },
   consent: {
     title: "Consents and agreements",
@@ -146,6 +148,9 @@ export const strings = {
     noStudent: "No student profile yet.",
     noMentor: "No mentor profile yet.",
     loadError: "Your profiles could not be loaded. Try again in a moment.",
+    loading: "Loading your profiles.",
+    saving: "Saving…",
+    retry: "Try again",
     fieldsUnavailable: "The field list could not be loaded. Type a field name or try again.",
     signedOut: "Sign in to edit your profiles.",
     saveError: "The profile could not be saved.",
@@ -215,6 +220,7 @@ export const strings = {
     verified: "Your email address is verified. You can sign in now.",
     invalid: "That verification link is invalid or has expired.",
     error: "Verification could not be completed. Try again in a moment.",
+    loading: "Checking your verification link…",
   },
   reset: {
     title: "Choose a new password",
@@ -222,6 +228,9 @@ export const strings = {
     submit: "Set new password",
     success: "Your password has been changed. Sign in with the new password.",
     invalid: "That reset link is invalid or has expired.",
+    error: "Your password could not be changed. Try again in a moment.",
+    loading: "Saving your new password…",
+    retry: "Try again",
   },
   forgotPassword: {
     title: "Reset your password",
@@ -237,6 +246,7 @@ export const strings = {
     error: "The reset link could not be requested. Try again in a moment.",
     network: "The request could not be sent. Check your connection and try again.",
     backToSignIn: "Back to sign in",
+    loading: "Sending the reset link…",
   },
   session: {
     signOutEverywhere: "Sign out of all sessions",
@@ -296,7 +306,9 @@ export const strings = {
       "Required for an application-only mentor; otherwise optional.",
     submit: "Send request",
     sending: "Sending…",
+    loading: "Sending your request…",
     error: "The request could not be sent.",
+    retry: "Try again",
     applicationOnlyTitle: "A note is required",
     backToRequests: "Back to your requests",
     restoredDraft: "Your previous draft for this mentor was restored.",
@@ -486,6 +498,7 @@ export const strings = {
     invalid: "That code is not valid. Check your authenticator app and try again.",
     error: "The code could not be verified. Try again.",
     backToSignIn: "Back to sign in",
+    loading: "Checking your code…",
   },
   sessions: {
     title: "Your sessions",
@@ -497,6 +510,9 @@ export const strings = {
     signedOut: "You are signed out. Sign in to see your sessions.",
     signOutPrompt: "This signs you out on every device, including this one. Continue?",
     signOutError: "Every session could not be signed out. Try again.",
+    loading: "Loading your sessions.",
+    empty: "No other device is signed in.",
+    retry: "Try again",
   },
   security: {
     title: "Second factor",
@@ -526,6 +542,8 @@ export const strings = {
     wrongPassword: "That password is not correct. No change was made.",
     wrongCode: "That code is not valid. Check your authenticator app and try again.",
     error: "The request could not be completed. Try again.",
+    working: "Working…",
+    retry: "Try again",
   },
   mentorship: {
     title: "Mentorship",

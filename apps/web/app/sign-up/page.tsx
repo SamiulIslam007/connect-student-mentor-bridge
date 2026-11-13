@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 
 import { canSubmitSignUp } from "../../lib/consent-document";
+import { stateKey } from "../../lib/page-state";
 import { NETWORK_ERROR_STATUS, signUpErrorMessage } from "../../lib/sign-up-errors";
 import { strings } from "../../lib/strings";
 
@@ -15,6 +16,7 @@ function messageFor(status: number, code: string | undefined): string {
 
 export default function SignUpPage() {
   const [message, setMessage] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
   const [success, setSuccess] = useState(false);
   const [consentAccepted, setConsentAccepted] = useState(false);
 
@@ -28,6 +30,7 @@ export default function SignUpPage() {
     }
     const form = new FormData(event.currentTarget);
 
+    setPending(true);
     let status: number;
     let code: string | undefined;
     try {
@@ -47,6 +50,8 @@ export default function SignUpPage() {
       code = body.code;
     } catch {
       status = NETWORK_ERROR_STATUS;
+    } finally {
+      setPending(false);
     }
 
     // The form is uncontrolled, so the non-password values survive a failure.
@@ -116,16 +121,16 @@ export default function SignUpPage() {
             {strings.signUp.consentAnd} <a href="/privacy">{strings.signUp.consentPrivacy}</a>
           </label>
         </p>
-        <button type="submit" disabled={!canSubmitSignUp(consentAccepted)}>
-          {strings.signUp.submit}
+        <button type="submit" disabled={pending || !canSubmitSignUp(consentAccepted)}>
+          {pending ? stateKey("loading", "signUp") : strings.signUp.submit}
         </button>
       </form>
       <p>
-        <button type="button" onClick={onGoogleSignIn}>
+        <button type="button" disabled={pending} onClick={onGoogleSignIn}>
           {strings.signIn.google}
         </button>
       </p>
-      <p role="status">{message}</p>
+      {message ? <p role={success ? "status" : "alert"}>{message}</p> : null}
       {success ? (
         <p>
           <a href="/sign-in">{strings.signIn.title}</a>
