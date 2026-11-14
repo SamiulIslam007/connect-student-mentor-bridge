@@ -98,7 +98,7 @@ export class DrizzleReputationService implements ReputationService {
         inTime: sql<number>`count(*) filter (where ${decided} and ${decidedAt} and ${mentorshipRequests.decidedAt} <= ${window})`.mapWith(
           Number,
         ),
-        late: sql<number>`count(*) filter (where ${mentorshipRequests.status} = 'EXPIRED' or (${decidedAt} and ${mentorshipRequests.decidedAt} > ${window}))`.mapWith(
+        late: sql<number>`count(*) filter (where (${mentorshipRequests.status} = 'EXPIRED' and coalesce(${mentorshipRequests.expiryReason}, 'DEADLINE') <> 'MENTOR_INELIGIBLE') or (${decidedAt} and ${mentorshipRequests.decidedAt} > ${window}))`.mapWith(
           Number,
         ),
       })

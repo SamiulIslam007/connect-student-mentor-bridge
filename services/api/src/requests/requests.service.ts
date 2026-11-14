@@ -17,6 +17,8 @@ export interface RequestRecord {
   mentorName: string;
   createdAt: Date;
   expiresAt: Date;
+  /** `DEADLINE` or `MENTOR_INELIGIBLE`; null while open (D-166). */
+  expiryReason: string | null;
   decidedAt: Date | null;
   reminderSentAt: Date | null;
   /** Set once the request is accepted; null before that and after a decline. */
@@ -90,6 +92,7 @@ export function requestPayload(request: RequestRecord): Record<string, unknown> 
     mentor_name: request.mentorName,
     created_at: request.createdAt,
     expires_at: request.expiresAt,
+    expiry_reason: request.expiryReason,
     decided_at: request.decidedAt,
     reminder_sent_at: request.reminderSentAt,
     mentorship_id: request.mentorshipId,

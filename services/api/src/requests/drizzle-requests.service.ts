@@ -109,6 +109,7 @@ const recordColumns = {
   mentorProfileId: mentorshipRequests.mentorProfileId,
   createdAt: mentorshipRequests.createdAt,
   expiresAt: mentorshipRequests.expiresAt,
+  expiryReason: mentorshipRequests.expiryReason,
   decidedAt: mentorshipRequests.decidedAt,
   reminderSentAt: mentorshipRequests.reminderSentAt,
   studentName: studentUser.name,

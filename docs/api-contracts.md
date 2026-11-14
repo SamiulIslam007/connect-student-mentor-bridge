@@ -171,6 +171,8 @@ A password sign-in for an account with an active second factor returns `200` `{ 
 
 Still deferred (change `roles-and-profile-visibility`, 4c, D-47): role-based and object-level authorization beyond the session guard, profile visibility, and the admin session timeouts. There is no refresh-token family: the better-auth cookie session replaced the earlier 15-minute access token plus rotating refresh token design (D-31), and HTTP 401 plus session-row revocation are the equivalent guarantees.
 
+In the request record (section 2, `GET /v1/requests` and the single read), `expiry_reason` is `null` while the request is open, `deadline` when the 48-hour window passed with no decision, and `mentor_ineligible` when the mentor lost their last verified affiliation (the request then expires with one notice and the mentor is not penalised in response reliability, D-166).
+
 ## 3. Idempotency
 
 - Every retryable `POST` requires `Idempotency-Key` (a client-generated UUID). Missing key returns `400` with code `IDEMPOTENCY_KEY_REQUIRED`.
@@ -235,6 +237,7 @@ All enum values below are the code names. They must match the glossary and the d
   "target_outcome": "string",
   "expected_timeframe": "string",
   "expires_at": "2026-11-05T09:30:00Z",
+  "expiry_reason": null,
   "created_at": "2026-11-02T09:30:00Z"
 }
 

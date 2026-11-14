@@ -1270,3 +1270,35 @@ date: 2026-10-29
 - Reason: a third basis value is a schema check change plus a reputation-policy decision, both out of this change; the consequence is recorded before the sampling job ships rather than discovered after it.
 - Status: Decided
 - Affects: `docs/data-model.md` section 4.4, `docs/reputation-and-verification-policy.md`
+
+### D-165: Eligibility is lost when the account holds no `VERIFIED` affiliation, evaluated after the writes
+
+- Date: 2026-11-14
+- Decision: both revocation sites call one helper at the end of their transaction. It selects any `VERIFIED` affiliation for the account and returns early when one exists; otherwise it moves every `PENDING` request of that mentor to `EXPIRED`. `claim` calls it after `syncMentorActivation`, and the attestation `verify` path calls it too, where it is a no-op by construction because the replacement row is already verified.
+- Reason: "a revocation happened" cannot tell a supersede from a loss — the attestation path revokes and verifies in the same transaction and must expire nothing. Evaluating the resulting state gives the guard one meaning at both sites, and the attestation call is a live assertion of that.
+- Status: Decided
+- Affects: `institutions/affiliation-verification`, `mentorship/request-lifecycle`, `services/api/src/affiliations/affiliation-expiry.ts`
+
+### D-166: `mentorship_requests.expiry_reason` distinguishes `DEADLINE` from `MENTOR_INELIGIBLE`
+
+- Date: 2026-11-14
+- Decision: a nullable `expiry_reason` on `mentorship_requests` with a check on those two values, backfilled to `DEADLINE` for the rows that already expired (migration `0019`). The 48-hour sweeper writes `DEADLINE`; the eligibility helper writes `MENTOR_INELIGIBLE`. The reliability aggregate and the pure rule both exclude the ineligible reason from "late or expired", and the pair read carries the reason.
+- Reason: without it, response reliability cannot tell an expiry the mentor could not prevent from one they caused, and a revoked (not suspended) affiliation would quietly worsen a mentor's record. Inferring it from the mentor's current affiliation would rewrite history as that affiliation changes.
+- Status: Decided
+- Affects: `docs/data-model.md`, `docs/api-contracts.md`, `mentorship/reputation-ledger`, `packages/domain/src/reputation.ts`
+
+### D-167: The notice reuses the `request-expired` template with reason-specific text
+
+- Date: 2026-11-14
+- Decision: one `request-expired` email per expired request, queued with the dedupe key `email:request-expired-ineligible:` followed by the request id, whose text says the mentor's affiliation could not be re-verified and links the directory. The text never names the institution or the mentor's address.
+- Reason: the fact is unchanged and the template union already names it; a second template would add a union member and a subject line for no user-visible gain.
+- Status: Decided
+- Affects: `mentorship/request-lifecycle`, `apps/web` (no change), `docs/data-model.md`
+
+### D-168: No audit action is added for the expiry itself
+
+- Date: 2026-11-14
+- Decision: the expiry writes no audit row. The cause is already recorded by the `AFFILIATION_REVOKED` row in the same transaction, and `FR-AUD-01`'s documented list has no request-expiry event.
+- Reason: the 48-hour sweeper writes no audit row either, and inventing `REQUEST_EXPIRED` would put an action in the writer's union that no read filter names — the defect shape D-155 fixed in the other direction.
+- Status: Decided
+- Affects: `docs/auth-and-access-control.md` (a note, not a table row)

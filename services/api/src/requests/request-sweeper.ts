@@ -3,6 +3,7 @@ import { alias } from "drizzle-orm/pg-core";
 
 import type { Database } from "../db/database.js";
 import { mentorProfiles, mentorshipRequests, studentProfiles, users } from "../db/schema/index.js";
+import { appOrigin } from "../email/app-origin.js";
 import { enqueueOutboxEvent } from "../platform/outbox/outbox.js";
 
 /** One sweeper queue, scheduled every five minutes (design D4, architecture §8.2). */
@@ -13,18 +14,6 @@ const HOUR_MS = 60 * 60 * 1000;
 
 const studentUser = alias(users, "sweep_student_user");
 const mentorUser = alias(users, "sweep_mentor_user");
-
-function appOrigin(): string {
-  const configured = process.env.BETTER_AUTH_URL ?? process.env.NEXT_PUBLIC_APP_URL;
-  if (configured) {
-    try {
-      return new URL(configured).origin;
-    } catch {
-      // Fall through.
-    }
-  }
-  return "http://localhost:3000";
-}
 
 export interface SweepResult {
   reminded: number;
@@ -85,7 +74,7 @@ export async function sweepRequests(database: Database, now: Date = new Date()):
 
     const expired = await tx
       .update(mentorshipRequests)
-      .set({ status: "EXPIRED", updatedAt: now })
+      .set({ status: "EXPIRED", expiryReason: "DEADLINE", updatedAt: now })
       .where(
         and(
           eq(mentorshipRequests.status, "PENDING"),
