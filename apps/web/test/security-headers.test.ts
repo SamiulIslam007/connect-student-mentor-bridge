@@ -1,41 +1,65 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { WEB_SECURITY_HEADERS, WEB_SECURITY_HEADERS_SOURCE } from "../lib/security-headers.js";
+import {
+  WEB_SECURITY_HEADERS,
+  WEB_SECURITY_HEADERS_SOURCE,
+  cspHeaderKey,
+  webSecurityHeaders,
+} from "../lib/security-headers.js";
 
-function header(key: string): string | undefined {
-  return WEB_SECURITY_HEADERS.find((entry) => entry.key === key)?.value;
+function header(headers: ReadonlyArray<{ key: string; value: string }>, key: string): string | undefined {
+  return headers.find((entry) => entry.key === key)?.value;
 }
 
-test("the web app sends the five headers every response needs", () => {
+test("every response carries the four static headers on every path", () => {
   assert.deepEqual(
     WEB_SECURITY_HEADERS.map((entry) => entry.key).sort(),
-    [
-      "Content-Security-Policy-Report-Only",
-      "Permissions-Policy",
-      "Referrer-Policy",
-      "X-Content-Type-Options",
-      "X-Frame-Options",
-    ],
+    ["Permissions-Policy", "Referrer-Policy", "X-Content-Type-Options", "X-Frame-Options"],
   );
-  assert.equal(header("X-Content-Type-Options"), "nosniff");
-  assert.equal(header("Referrer-Policy"), "no-referrer");
-  assert.equal(header("X-Frame-Options"), "DENY");
-  assert.ok(header("Permissions-Policy")?.includes("camera=()"));
+  assert.equal(header(WEB_SECURITY_HEADERS, "X-Content-Type-Options"), "nosniff");
+  assert.equal(header(WEB_SECURITY_HEADERS, "Referrer-Policy"), "no-referrer");
+  assert.equal(header(WEB_SECURITY_HEADERS, "X-Frame-Options"), "DENY");
+  assert.ok(header(WEB_SECURITY_HEADERS, "Permissions-Policy")?.includes("camera=()"));
   assert.equal(WEB_SECURITY_HEADERS_SOURCE, "/(.*)", "every path, one document tree");
 });
 
-test("the policy is report-only and enforces nothing yet", () => {
-  assert.ok(header("Content-Security-Policy-Report-Only"), "the report-only header exists");
+test("the policy enforces by default and reports only when asked", () => {
+  const enforcing = webSecurityHeaders("enforce");
+  assert.ok(header(enforcing, "Content-Security-Policy"), "the enforcing header carries the policy");
   assert.equal(
-    header("Content-Security-Policy"),
+    header(enforcing, "Content-Security-Policy-Report-Only"),
     undefined,
-    "no enforcing policy: that is the enforcement change's job",
+    "exactly one of the two headers, never both",
   );
+
+  const reporting = webSecurityHeaders("report-only");
+  assert.ok(header(reporting, "Content-Security-Policy-Report-Only"));
+  assert.equal(header(reporting, "Content-Security-Policy"), undefined, "the rollback");
+
+  assert.equal(cspHeaderKey("enforce"), "Content-Security-Policy");
+  assert.equal(cspHeaderKey("report-only"), "Content-Security-Policy-Report-Only");
+});
+
+test("the mode is enforcing unless WEB_CSP_MODE says report-only", () => {
+  const previous = process.env.WEB_CSP_MODE;
+  try {
+    delete process.env.WEB_CSP_MODE;
+    assert.equal(header(webSecurityHeaders(), "Content-Security-Policy"), header(webSecurityHeaders("enforce"), "Content-Security-Policy"));
+
+    process.env.WEB_CSP_MODE = "report-only";
+    assert.ok(header(webSecurityHeaders(), "Content-Security-Policy-Report-Only"));
+
+    process.env.WEB_CSP_MODE = "anything-else";
+    assert.ok(header(webSecurityHeaders(), "Content-Security-Policy"), "an unknown value never weakens the default");
+  } finally {
+    if (previous === undefined) delete process.env.WEB_CSP_MODE;
+    else process.env.WEB_CSP_MODE = previous;
+  }
 });
 
 test("the policy names the eight directives the app actually uses", () => {
-  const policy = header("Content-Security-Policy-Report-Only") ?? "";
+  const policy = header(webSecurityHeaders("enforce"), "Content-Security-Policy") ?? "";
   for (const directive of [
     "default-src 'self'",
     "img-src 'self' data:",

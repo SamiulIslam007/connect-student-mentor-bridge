@@ -141,6 +141,9 @@ services:
       context: .
       dockerfile: infra/docker/Dockerfile.web
       target: runtime
+      args:
+        # Baked in at build: `WEB_CSP_MODE=report-only docker compose up -d --build web`.
+        WEB_CSP_MODE: ${WEB_CSP_MODE:-enforce}
     image: connect-web:local
     environment:
       NODE_ENV: production
@@ -152,6 +155,10 @@ services:
       API_INTERNAL_URL: http://api:3001
       # The verify redirect is built from this origin, never from a request header.
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+      # The two one-line rollbacks from the header work, passed through so the
+      # documented flip works in the local container too (D-170, D-161).
+      WEB_CSP_MODE: ${WEB_CSP_MODE:-enforce}
+      WEB_CSRF_MODE: ${WEB_CSRF_MODE:-enforce}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
     ports:

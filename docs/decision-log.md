@@ -1302,3 +1302,27 @@ date: 2026-10-29
 - Reason: the 48-hour sweeper writes no audit row either, and inventing `REQUEST_EXPIRED` would put an action in the writer's union that no read filter names — the defect shape D-155 fixed in the other direction.
 - Status: Decided
 - Affects: `docs/auth-and-access-control.md` (a note, not a table row)
+
+### D-169: The web policy enforces, and the docs say what that does not buy
+
+- Date: 2026-11-14
+- Decision: `apps/web/lib/security-headers.ts` sends the enforcing `Content-Security-Policy` on every path with the eight directives the app has reported under for a round, unchanged: `'unsafe-inline'` stays in `script-src` and `style-src`. The docs, the register row and the risk line say plainly that the gain is origin and framing restriction (no third-party script, no `<base>` rewrite, no other form target, no external frame), not injection control; a nonce or hash based `script-src` is DEBT-60.
+- Reason: a year of report-only violations would have been the alternative gate, and the browser pass in change 5 — every main page, sign-in, MFA, the Google entry and callback relay, a form submit — is that gate, run once. Shipping an enforcing header while claiming more than it does would be the worse failure.
+- Status: Decided
+- Affects: `platform/http-security-controls`, `docs/security-requirements.md` SEC-API-3, `docs/known-debt.md` DEBT-56 and DEBT-60
+
+### D-170: One env flag is the whole rollback, and an unknown value keeps enforcing
+
+- Date: 2026-11-14
+- Decision: `cspMode()` reads `WEB_CSP_MODE` and returns `report-only` only for that exact string; anything else — unset, empty, mistyped — enforces. `next.config.ts` asks `webSecurityHeaders()` for the mode. Next resolves `headers()` when it builds, so the flip costs a restart for a host run and a rebuild of the web image for the container; the flag is a build argument in `Dockerfile.web` and `compose.yaml` for that reason (measured: a restart alone kept the enforcing header).
+- Reason: a kill switch that a typo can turn off is a liability; a kill switch that only one exact value turns off is a rollback. The CSRF change took the same shape (D-161) so operators learn one pattern, not two.
+- Status: Decided
+- Affects: `platform/http-security-controls`, `apps/web/next.config.ts`, `docs/local-setup.md`, `.env.example`
+
+### D-171: The archived CSP change is archived only if the browser pass is clean
+
+- Date: 2026-11-14
+- Decision: the change is archived in the same round only after the enforcing policy was exercised in a real browser with zero `securitypolicyviolation` events across sign-in, MFA, the Google entry, a form submit and the main pages; if the pass had shown violations the change would have merged and stayed unarchived with the reasons recorded.
+- Reason: an enforcing policy that breaks a page is worse than none, and the archive row is the repo's statement that the work is finished. The owner named this condition; the record makes clear it was met rather than assumed.
+- Status: Decided
+- Affects: `platform/http-security-controls`, `docs/mvp-build-plan.md` section 5

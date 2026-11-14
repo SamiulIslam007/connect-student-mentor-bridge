@@ -27,8 +27,12 @@ COPY apps/web apps/web
 COPY packages/domain packages/domain
 COPY packages/config packages/config
 COPY packages/contracts packages/contracts
+# The CSP header is fixed when `next build` runs, so the one-line rollback is this
+# build argument here, and a restart only for a host run (D-170).
+ARG WEB_CSP_MODE=enforce
 ENV NEXT_OUTPUT=standalone \
-    NEXT_TELEMETRY_DISABLED=1
+    NEXT_TELEMETRY_DISABLED=1 \
+    WEB_CSP_MODE=${WEB_CSP_MODE}
 RUN pnpm --filter web build
 
 FROM deps AS dev
