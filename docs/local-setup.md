@@ -33,15 +33,29 @@ Every service must report `healthy`:
 |---|---|---|
 | `web` | http://localhost:3000 | Next.js shell page; `/healthz` is the container health route |
 | `api` | http://localhost:3001 | NestJS API; `/healthz` liveness, `/readyz` readiness |
-| `postgres` | localhost:55432 | PostgreSQL 16 |
+| `postgres` | localhost:55432, or whichever free port `POSTGRES_PORT` names | PostgreSQL 16 |
 | `objectstore` | http://localhost:7070 | S3-compatible store (versitygw) for evidence uploads later |
 | `mailpit` | http://localhost:8025, SMTP on 1025 | Mail catcher |
 | `clamav` | internal only | Scanner container; no scan integration yet |
 
 `.env.example` lists every variable with local-only placeholder values. The
 committed file contains no real credential and no value is usable against a
-deployed system. Postgres is published on 55432 so it does not collide with a
-PostgreSQL already running on 5432.
+deployed system. Postgres is published on `${POSTGRES_PORT}` (55432 in that
+file) so it does not collide with a PostgreSQL already running on 5432.
+
+Windows can reserve a TCP port range that contains the published port, and then
+the container cannot bind it: `docker compose ps` still shows the container up,
+but a host process cannot connect and the integration suite loses its database
+without saying why. Check the reserved ranges before a local run:
+
+```bash
+netsh interface ipv4 show excludedportrange protocol=tcp
+```
+
+On this machine that output contains 55405-55504, so 55432 cannot be published;
+`POSTGRES_PORT=55400` is the value used locally. Any free port works: Compose
+publishes `${POSTGRES_PORT:-55432}`, so the only edits are the port value and the
+host `DATABASE_URL` beside it (D-157).
 
 ClamAV downloads its signature database on first run. Its health check has a
 5-minute start period, so `docker compose ps` may show `starting` for a few
@@ -70,8 +84,8 @@ pnpm build
 ```
 
 These are the same commands CI runs. When running the API on the host, point
-`DATABASE_URL` at the published database (`localhost:55432`), not the Compose
-service name.
+`DATABASE_URL` at the published database (localhost and the value of
+`POSTGRES_PORT`), not the Compose service name.
 
 ## Database migrations and reference data
 
@@ -112,7 +126,7 @@ Run it against the database, for example `docker compose exec -T postgres psql -
 
 The demo seed is separate and guarded: it refuses to run when `NODE_ENV=production` or when `SEED_DEMO_MENTORS` is not `1`. It writes two accounts on the reserved `@example.edu.bd` domain (a user, the `MENTOR` role, a Level 1 `ADMIN_ATTESTATION` affiliation, a fixed fake second-factor row, and an `ACTIVE` mentor profile) and is idempotent by email, so a second run inserts nothing. Never wire it into `db:seed`.
 
-When they run on the host, `DATABASE_URL` must point at the published port (`localhost:55432`); inside a container, Compose builds the `postgres:5432` URL. Migrations are owned by the owner/script and are never applied through the read-only `postgresql` MCP.
+When they run on the host, `DATABASE_URL` must point at the published port (localhost and the value of `POSTGRES_PORT`); inside a container, Compose builds the `postgres:5432` URL. Migrations are owned by the owner/script and are never applied through the read-only `postgresql` MCP.
 
 ### Outbox test event
 
