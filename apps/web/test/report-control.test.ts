@@ -132,7 +132,7 @@ test("the page offers the read only for a message target and requires a reason",
     "utf8",
   );
   assert.match(page, /canReadThread\(report\.target_kind, report\.mentorship_id\)/);
-  assert.match(page, /fetch\("\/api\/admin\/mentorships\/break-glass"/);
+  assert.match(page, /csrfFetch\("\/api\/admin\/mentorships\/break-glass"/);
   assert.match(page, /maxLength=\{1000\}/);
   assert.match(page, /strings\.adminReports\.readThreadReasonRequired/);
   assert.match(page, /strings\.adminReports\.readThreadError/);
@@ -144,8 +144,8 @@ test("the page offers warn and lift on the same account control the suspension u
     fileURLToPath(new URL("../app/admin/reports/page.tsx", import.meta.url)),
     "utf8",
   );
-  assert.match(page, /fetch\(`\/api\/admin\/accounts\/\$\{encodeURIComponent\(id\)\}\/warn`/);
-  assert.match(page, /fetch\(`\/api\/admin\/accounts\/\$\{encodeURIComponent\(id\)\}\/reinstate`/);
+  assert.match(page, /csrfFetch\(`\/api\/admin\/accounts\/\$\{encodeURIComponent\(id\)\}\/warn`/);
+  assert.match(page, /csrfFetch\(`\/api\/admin\/accounts\/\$\{encodeURIComponent\(id\)\}\/reinstate`/);
   assert.match(page, /strings\.adminReports\.warnSubmit/);
   assert.match(page, /strings\.adminReports\.reinstateSubmit/);
   // A lift that finds nothing suspended is its own line, not a generic failure.

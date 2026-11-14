@@ -11,6 +11,7 @@ import {
   type RequestDraftValues,
 } from "../../../lib/request-draft";
 import { strings } from "../../../lib/strings";
+import { csrfFetch } from "../../../lib/csrf-client";
 
 interface MentorContext {
   id: string;
@@ -159,7 +160,7 @@ export default function NewRequestPage() {
     setSending(true);
     setStatus(null);
     try {
-      const response = await fetch("/api/requests", {
+      const response = await csrfFetch("/api/requests", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({

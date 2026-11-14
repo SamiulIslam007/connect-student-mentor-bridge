@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { strings } from "../../lib/strings";
+import { csrfFetch } from "../../lib/csrf-client";
 
 interface RequestRecord {
   id: string;
@@ -97,7 +98,7 @@ export default function RequestsPage() {
         action === "decline"
           ? JSON.stringify({ reason: window.prompt(strings.requests.declineReason) ?? "" })
           : undefined;
-      const response = await fetch(`/api/requests/${id}/${action}`, {
+      const response = await csrfFetch(`/api/requests/${id}/${action}`, {
         method: "POST",
         headers: body ? { "content-type": "application/json" } : undefined,
         body,

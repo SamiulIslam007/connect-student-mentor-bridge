@@ -12,6 +12,7 @@ import {
   validateReport,
 } from "../../../lib/outcome-view";
 import { strings } from "../../../lib/strings";
+import { csrfFetch } from "../../../lib/csrf-client";
 
 interface OutcomeRecord {
   id: string;
@@ -77,7 +78,7 @@ export function OutcomeSection({
     setProblem(null);
     setNotice(null);
     try {
-      const response = await fetch(path, {
+      const response = await csrfFetch(path, {
         method: "POST",
         headers: body === undefined ? undefined : { "content-type": "application/json" },
         body: body === undefined ? undefined : JSON.stringify(body),

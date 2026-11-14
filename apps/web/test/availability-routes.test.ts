@@ -33,7 +33,7 @@ function stubFetch(payload: unknown, status: number, calls: UpstreamCall[]): voi
   }) as typeof fetch;
 }
 
-const COOKIE = { cookie: "connect_session=opaque-session-token" };
+const COOKIE = { cookie: "connect_session=opaque-session-token; connect_csrf=csrf-token", "x-csrf-token": "csrf-token" };
 
 test("availability reads forward the context and the session", async () => {
   const calls: UpstreamCall[] = [];

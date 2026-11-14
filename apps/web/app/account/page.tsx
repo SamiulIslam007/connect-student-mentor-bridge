@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { deletionConfirmed } from "../../lib/privacy-controls";
 import { strings } from "../../lib/strings";
+import { csrfFetch } from "../../lib/csrf-client";
 
 interface Account {
   display_name: string;
@@ -69,7 +70,7 @@ export default function AccountPage() {
   async function deactivate(): Promise<void> {
     setConfirming(false);
     try {
-      const response = await fetch("/api/me/deactivate", { method: "POST" });
+      const response = await csrfFetch("/api/me/deactivate", { method: "POST" });
       if (response.ok) {
         setAccount(null);
         setMessage(strings.account.deactivated);
@@ -87,7 +88,7 @@ export default function AccountPage() {
     setMessage(strings.account.exportStarted);
     try {
       // An empty JSON body: the export takes no fields, and the BFF needs one.
-      const response = await fetch("/api/privacy/export", {
+      const response = await csrfFetch("/api/privacy/export", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: "{}",
@@ -122,7 +123,7 @@ export default function AccountPage() {
     }
     setPrivacyBusy(true);
     try {
-      const response = await fetch("/api/privacy/delete", {
+      const response = await csrfFetch("/api/privacy/delete", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ confirm_email: confirmEmail }),

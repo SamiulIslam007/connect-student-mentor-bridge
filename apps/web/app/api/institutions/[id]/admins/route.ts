@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 // Five levels: admins, [id], institutions, api, app.
 import { proxyJson, unauthenticated } from "../../../../../lib/bff";
 import { readSessionCookie } from "../../../../../lib/session-cookie";
+import { requireCsrf } from "../../../../../lib/csrf";
 
 /**
  * `POST /api/institutions/{id}/admins` — assign the institution admin. The
@@ -17,6 +18,11 @@ export async function POST(
   if (!token) {
     return unauthenticated();
   }
+  const refused = requireCsrf(request);
+  if (refused) {
+    return refused;
+  }
+
   const { id } = await context.params;
   return proxyJson(`/v1/admin/institutions/${id}/admins`, request, {
     sessionToken: token,

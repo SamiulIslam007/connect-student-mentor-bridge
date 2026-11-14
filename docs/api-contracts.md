@@ -104,6 +104,27 @@ There is no CORS allowlist: the browser never calls this origin, because every b
 
 The web app sends its own set — `Content-Security-Policy-Report-Only` with eight directives, nosniff, `no-referrer`, `DENY` and a `Permissions-Policy` — and enforcement is DEBT-56 (D-133).
 
+### 1.1 The BFF boundary and CSRF (built 2026-11-14, D-158)
+
+| Direction | Credential | CSRF |
+|---|---|---|
+| browser to `apps/web/app/api/**` | the httpOnly `connect_session` cookie, plus a readable `connect_csrf` cookie | every write must echo the cookie in `x-csrf-token` from the app's own origin (D-158) |
+| BFF to `/v1/**` | the bearer credential the route handler reads out of that cookie | none: the API reads no cookie, so a cross-site request can never carry this credential |
+
+A refused write answers `403` with `content-type: application/json` and a problem body:
+
+```json
+{
+  "type": "https://docs.connect.example/problems/csrf-invalid",
+  "title": "The request needs a CSRF token",
+  "status": 403,
+  "code": "CSRF_INVALID",
+  "detail": "Send the x-csrf-token header matching the connect_csrf cookie, from the app's own origin."
+}
+```
+
+The refusal is BFF-local: nothing reaches the API, no OpenAPI path describes it, and the API's contract is unchanged. Five writes are exempt because no session exists yet — `POST /api/auth/sign-in`, `/sign-in/provider`, `/register`, `/forgot-password` and `/reset-password` — and `GET /api/csrf` mints the token for a signed-in page that writes before it reads.
+
 ## 2. Authentication endpoints
 
 Identity is implemented with better-auth behind `IdentityService` (ADR-003) and exposed as NestJS endpoints under `/v1/auth`. The browser reaches them only through the `apps/web` route handlers, which keep the session token in an httpOnly, SameSite=Lax cookie (Secure outside development); the API accepts `Authorization: Bearer <session token>` from the BFF.

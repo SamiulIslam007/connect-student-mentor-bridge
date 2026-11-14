@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { forwardUpstream, proxyJson, unauthenticated } from "../../../../lib/bff";
 import { readSessionCookie } from "../../../../lib/session-cookie";
+import { requireCsrf } from "../../../../lib/csrf";
 
 /**
  * `POST /api/sessions/{id}/{confirm-held|cancel}`. One handler, one allow-list;
@@ -18,6 +19,11 @@ export async function POST(request: Request, context: PathContext): Promise<Next
   if (!token) {
     return unauthenticated();
   }
+  const refused = requireCsrf(request);
+  if (refused) {
+    return refused;
+  }
+
   const segments = (await context.params).path ?? [];
   const pattern =
     segments.length === 0 ? "/" : `/${[":id", ...segments.slice(1)].join("/")}`;

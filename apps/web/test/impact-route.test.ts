@@ -29,7 +29,7 @@ function stubFetch(payload: unknown, status = 200, calls: UpstreamCall[] = []): 
 
 function withSession(path: string): Request {
   return new Request(`http://localhost:3000${path}`, {
-    headers: { cookie: "connect_session=opaque-session-token" },
+    headers: { cookie: "connect_session=opaque-session-token; connect_csrf=csrf-token", "x-csrf-token": "csrf-token" },
   });
 }
 

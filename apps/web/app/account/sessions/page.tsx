@@ -11,6 +11,7 @@ import {
 } from "../../../lib/page-state";
 import { clearAllDrafts } from "../../../lib/request-draft";
 import { strings } from "../../../lib/strings";
+import { csrfFetch } from "../../../lib/csrf-client";
 
 interface Session {
   id: string;
@@ -54,7 +55,7 @@ export default function SessionsPage() {
     setBusy(true);
     setNotice(null);
     try {
-      const response = await fetch(`/api/me/sessions/${encodeURIComponent(id)}`, {
+      const response = await csrfFetch(`/api/me/sessions/${encodeURIComponent(id)}`, {
         method: "DELETE",
       });
       if (!response.ok) {
@@ -74,7 +75,7 @@ export default function SessionsPage() {
     setConfirming(false);
     setBusy(true);
     try {
-      const response = await fetch("/api/auth/sign-out-everywhere", { method: "POST" });
+      const response = await csrfFetch("/api/auth/sign-out-everywhere", { method: "POST" });
       // `401` means the session is already gone; the BFF clears the cookie either way.
       if (response.ok || response.status === 401) {
         // Every draft goes with the session, on both success and an already-dead one.

@@ -48,7 +48,7 @@ function request(path: string, method: string, body?: unknown): Request {
   return new Request(`http://localhost:3000${path}`, {
     method,
     headers: {
-      cookie: "connect_session=opaque-session-token",
+      cookie: "connect_session=opaque-session-token; connect_csrf=csrf-token", "x-csrf-token": "csrf-token",
       ...(body === undefined ? {} : { "content-type": "application/json" }),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -57,7 +57,7 @@ function request(path: string, method: string, body?: unknown): Request {
 
 function withSession(path: string): Request {
   return new Request(`http://localhost:3000${path}`, {
-    headers: { cookie: "connect_session=opaque-session-token" },
+    headers: { cookie: "connect_session=opaque-session-token; connect_csrf=csrf-token", "x-csrf-token": "csrf-token" },
   });
 }
 
@@ -162,7 +162,7 @@ test("a non-JSON upstream answer becomes a 502 problem", async () => {
 
   const response = await getMentorship(
     new Request("http://localhost:3000/api/mentorships/m-1", {
-      headers: { cookie: "connect_session=opaque-session-token" },
+      headers: { cookie: "connect_session=opaque-session-token; connect_csrf=csrf-token", "x-csrf-token": "csrf-token" },
     }),
     params("m-1"),
   );

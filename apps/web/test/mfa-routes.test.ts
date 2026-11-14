@@ -102,7 +102,7 @@ test("the session list forwards the cookie and returns no token", async () => {
 
   const response = await listSessions(
     new Request("http://localhost:3000/api/me/sessions", {
-      headers: { cookie: "connect_session=opaque-session-token" },
+      headers: { cookie: "connect_session=opaque-session-token; connect_csrf=csrf-token", "x-csrf-token": "csrf-token" },
     }),
   );
 
@@ -118,7 +118,7 @@ test("revoking a session translates the API 204 into a bodiless 204", async () =
   const response = await revokeSession(
     new Request("http://localhost:3000/api/me/sessions/session-1", {
       method: "DELETE",
-      headers: { cookie: "connect_session=opaque-session-token" },
+      headers: { cookie: "connect_session=opaque-session-token; connect_csrf=csrf-token", "x-csrf-token": "csrf-token" },
     }),
     { params: Promise.resolve({ id: "session-1" }) },
   );

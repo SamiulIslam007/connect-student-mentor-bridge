@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 
 import { stateKey } from "../../../lib/page-state";
 import { strings } from "../../../lib/strings";
+import { csrfFetch } from "../../../lib/csrf-client";
 
 const FORM_ID = "mfa-form";
 
@@ -17,7 +18,7 @@ export default function MfaPage() {
     const form = new FormData(event.currentTarget);
 
     try {
-      const response = await fetch("/api/auth/mfa/verify", {
+      const response = await csrfFetch("/api/auth/mfa/verify", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ code: form.get("code") }),

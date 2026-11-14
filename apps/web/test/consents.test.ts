@@ -69,7 +69,7 @@ test("every purpose has its own label and its own state line", () => {
 
 test("the consent page calls one BFF route and carries the three states", () => {
   assert.ok(page.includes('fetch("/api/me/consents")'), "the read comes from the BFF route");
-  assert.ok(page.includes('fetch("/api/me/consents", {'), "the write goes to the same route");
+  assert.ok(page.includes('csrfFetch("/api/me/consents", {'), "the write goes to the same route");
   assert.ok(page.includes("strings.consent.loading"), "a loading state exists");
   assert.ok(page.includes("strings.consent.failed"), "an error state exists");
   assert.ok(page.includes("strings.consent.recorded"), "a confirmation notice exists");

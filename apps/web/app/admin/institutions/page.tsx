@@ -13,6 +13,7 @@ import {
   type InstitutionRow,
 } from "../../../lib/institutions";
 import { strings } from "../../../lib/strings";
+import { csrfFetch } from "../../../lib/csrf-client";
 
 type PageState = "loading" | "ready" | "error" | "signed-out" | "mfa-required";
 
@@ -82,7 +83,7 @@ export default function AdminInstitutionsPage() {
     }
     setBusy(true);
     try {
-      const response = await fetch("/api/institutions", {
+      const response = await csrfFetch("/api/institutions", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(checked.body),
@@ -118,7 +119,7 @@ export default function AdminInstitutionsPage() {
     }
     setAdminBusy(true);
     try {
-      const response = await fetch(`/api/institutions/${institutionId}/admins`, {
+      const response = await csrfFetch(`/api/institutions/${institutionId}/admins`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload.body),

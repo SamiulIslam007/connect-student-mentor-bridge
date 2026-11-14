@@ -102,7 +102,7 @@ test("sign-out-everywhere uses the session cookie and clears it", async () => {
   const response = await signOutEverywhere(
     new Request("http://localhost:3000/api/auth/sign-out-everywhere", {
       method: "POST",
-      headers: { cookie: "connect_session=opaque-session-token" },
+      headers: { cookie: "connect_session=opaque-session-token; connect_csrf=csrf-token", "x-csrf-token": "csrf-token" },
     }),
   );
 
@@ -132,7 +132,7 @@ test("a rejected session clears the cookie instead of leaving a dead token", asy
   const response = await signOutEverywhere(
     new Request("http://localhost:3000/api/auth/sign-out-everywhere", {
       method: "POST",
-      headers: { cookie: "connect_session=dead-token" },
+      headers: { cookie: "connect_session=dead-token; connect_csrf=csrf-token", "x-csrf-token": "csrf-token" },
     }),
   );
 
@@ -261,7 +261,7 @@ test("a malformed session cookie is treated as no session", async () => {
 
   const response = await getMe(
     new Request("http://localhost:3000/api/me", {
-      headers: { cookie: "connect_session=%" },
+      headers: { cookie: "connect_session=%; connect_csrf=csrf-token", "x-csrf-token": "csrf-token" },
     }),
   );
 
@@ -318,7 +318,7 @@ test("a non-JSON body from the account endpoint is a 502, not an empty account",
 
   const response = await getMe(
     new Request("http://localhost:3000/api/me", {
-      headers: { cookie: "connect_session=opaque-session-token" },
+      headers: { cookie: "connect_session=opaque-session-token; connect_csrf=csrf-token", "x-csrf-token": "csrf-token" },
     }),
   );
 

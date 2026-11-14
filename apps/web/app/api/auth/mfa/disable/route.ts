@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { forwardUpstream, readJsonBody, unauthenticated } from "../../../../../lib/bff";
 import { SESSION_COOKIE_NAME, readSessionCookie, sessionCookieOptions } from "../../../../../lib/session-cookie";
+import { requireCsrf } from "../../../../../lib/csrf";
 
 /** `POST /api/auth/mfa/disable` — removing the factor rotates the session. */
 export async function POST(request: Request): Promise<NextResponse> {
@@ -9,6 +10,11 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (!token) {
     return unauthenticated();
   }
+  const refused = requireCsrf(request);
+  if (refused) {
+    return refused;
+  }
+
 
   const parsed = await readJsonBody(request);
   if (!parsed.ok) {

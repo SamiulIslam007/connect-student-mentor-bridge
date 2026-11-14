@@ -34,7 +34,7 @@ test("the mentor opt-in forwards the session and returns the caller's roles", as
   const response = await grantMentor(
     new Request("http://localhost:3000/api/me/roles/mentor", {
       method: "POST",
-      headers: { cookie: "connect_session=opaque-session-token" },
+      headers: { cookie: "connect_session=opaque-session-token; connect_csrf=csrf-token", "x-csrf-token": "csrf-token" },
     }),
   );
 
@@ -63,7 +63,7 @@ test("an upstream refusal passes its status and code through", async () => {
   const response = await grantMentor(
     new Request("http://localhost:3000/api/me/roles/mentor", {
       method: "POST",
-      headers: { cookie: "connect_session=opaque-session-token" },
+      headers: { cookie: "connect_session=opaque-session-token; connect_csrf=csrf-token", "x-csrf-token": "csrf-token" },
     }),
   );
 

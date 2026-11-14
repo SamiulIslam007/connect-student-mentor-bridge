@@ -6,6 +6,7 @@ import { canSubmitSignUp } from "../../lib/consent-document";
 import { stateKey } from "../../lib/page-state";
 import { NETWORK_ERROR_STATUS, signUpErrorMessage } from "../../lib/sign-up-errors";
 import { strings } from "../../lib/strings";
+import { csrfFetch } from "../../lib/csrf-client";
 
 /** The success message is the only non-error outcome; everything else is mapped. */
 function messageFor(status: number, code: string | undefined): string {
@@ -34,7 +35,7 @@ export default function SignUpPage() {
     let status: number;
     let code: string | undefined;
     try {
-      const response = await fetch("/api/auth/register", {
+      const response = await csrfFetch("/api/auth/register", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -62,7 +63,7 @@ export default function SignUpPage() {
 
   function onGoogleSignIn(): void {
     void (async () => {
-      const response = await fetch("/api/auth/sign-in/provider", {
+      const response = await csrfFetch("/api/auth/sign-in/provider", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ provider: "google" }),
