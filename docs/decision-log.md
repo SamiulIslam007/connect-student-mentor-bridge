@@ -1199,3 +1199,19 @@ date: 2026-10-29
 - Reason: `satisfies readonly AuditAction[]` only proved that every listed value is an action, not that every action is listed — which is exactly how `ACCOUNT_WARNED` and `ACCOUNT_REINSTATED` shipped unfilterable (D-153).
 - Status: Decided
 - Affects: `services/api/src/audit/audit.service.ts`, `services/api/test/audit-read.integration.test.ts`
+
+### D-156: `FR-OUT-07` and `FR-ADM-06` reach `DONE` through an amendment that states the pilot's Tier 0 scope, not through built work
+
+- Date: 2026-11-14
+- Decision: `FR-OUT-07` reads `DONE` for the pilot scope (every MVP outcome is Tier 0 per D-64; evidence upload, the Tier 1 and Tier 2 multipliers and the evidence-file route are post-pilot, `DEBT-22`), and `FR-ADM-06` reads `DONE` for the thread half (the audited break-glass read of `FR-THR-03`), with the evidence-file half named as post-pilot and the participant-disclosure gap kept as its own line (`DEBT-52`). Both join `FR-ADM-05` in section 2.16's code-only exclusion list, so the code-only figure counts neither.
+- Reason: the owner's standing deferral of evidence upload means no code can close either row, and counting an amendment as built work would inflate pilot readiness. The code-only figure therefore falls from 53.0 to 52.5 while the register rises to 55.5; both are published.
+- Status: Decided
+- Affects: `docs/functional-requirements.md` (2.7, 2.11, 2.16), `docs/known-debt.md`
+
+### D-157: The local Postgres guidance becomes "a free port named by `POSTGRES_PORT`", with the Windows reserved-range check
+
+- Date: 2026-11-14
+- Decision: `docs/local-setup.md` and `.env.example` keep `55432` as the documented default but state that Windows can reserve a TCP range containing it, give the `netsh interface ipv4 show excludedportrange protocol=tcp` check, name 55405-55504 as this machine's range, and use `55400` as the worked free port. Compose publishes `${POSTGRES_PORT:-55432}`; the default value does not change and no Compose or code file changes.
+- Reason: the documented port cannot bind on the owner's machine, so a local gate run silently loses its integration suite: `docker compose ps` shows the container up while no host process can connect. A check plus an example is cheaper and safer than moving a default that other machines do not need.
+- Status: Decided
+- Affects: `docs/local-setup.md`, `.env.example`
