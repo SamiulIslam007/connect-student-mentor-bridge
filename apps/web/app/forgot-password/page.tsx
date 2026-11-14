@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 
 import { stateKey } from "../../lib/page-state";
 import { strings } from "../../lib/strings";
+import { csrfFetch } from "../../lib/csrf-client";
 
 /**
  * Reset-link request (FR-AUTH-07). Loading, success, invalid-email, and
@@ -27,7 +28,7 @@ export default function ForgotPasswordPage() {
     setPending(true);
 
     try {
-      const response = await fetch("/api/auth/forgot-password", {
+      const response = await csrfFetch("/api/auth/forgot-password", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ email }),

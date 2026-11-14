@@ -10,6 +10,7 @@ import {
   type ThreadView,
 } from "../../../lib/reports";
 import { strings } from "../../../lib/strings";
+import { csrfFetch } from "../../../lib/csrf-client";
 
 type PageState = "loading" | "ready" | "error" | "signed-out" | "mfa-required";
 
@@ -91,7 +92,7 @@ export default function AdminReportsPage() {
     }
     setBusy(reportId);
     try {
-      const response = await fetch(`/api/admin/reports/${reportId}/resolve`, {
+      const response = await csrfFetch(`/api/admin/reports/${reportId}/resolve`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ decision, reason }),
@@ -123,7 +124,7 @@ export default function AdminReportsPage() {
     setThreadError(null);
     setThread(null);
     try {
-      const response = await fetch("/api/admin/mentorships/break-glass", {
+      const response = await csrfFetch("/api/admin/mentorships/break-glass", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ mentorship_id: row.mentorship_id, reason }),
@@ -156,7 +157,7 @@ export default function AdminReportsPage() {
     }
     setBusy("suspend");
     try {
-      const response = await fetch(`/api/admin/accounts/${encodeURIComponent(id)}/suspend`, {
+      const response = await csrfFetch(`/api/admin/accounts/${encodeURIComponent(id)}/suspend`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -187,7 +188,7 @@ export default function AdminReportsPage() {
     }
     setBusy("warn");
     try {
-      const response = await fetch(`/api/admin/accounts/${encodeURIComponent(id)}/warn`, {
+      const response = await csrfFetch(`/api/admin/accounts/${encodeURIComponent(id)}/warn`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ reason: suspendReason.trim() }),
@@ -212,7 +213,7 @@ export default function AdminReportsPage() {
     }
     setBusy("reinstate");
     try {
-      const response = await fetch(`/api/admin/accounts/${encodeURIComponent(id)}/reinstate`, {
+      const response = await csrfFetch(`/api/admin/accounts/${encodeURIComponent(id)}/reinstate`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ reason: suspendReason.trim() }),

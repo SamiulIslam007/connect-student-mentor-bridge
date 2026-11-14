@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { forwardUpstream, proxyJson, unauthenticated } from "../../../../lib/bff";
 import { readSessionCookie } from "../../../../lib/session-cookie";
+import { requireCsrf } from "../../../../lib/csrf";
 
 /** `GET /api/me/availability?context=…` — the caller's own weekly windows. */
 export async function GET(request: Request): Promise<NextResponse> {
@@ -29,5 +30,10 @@ export async function PUT(request: Request): Promise<NextResponse> {
   if (!token) {
     return unauthenticated();
   }
+  const refused = requireCsrf(request);
+  if (refused) {
+    return refused;
+  }
+
   return proxyJson("/v1/me/availability", request, { sessionToken: token, method: "PUT" });
 }

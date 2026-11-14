@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { beginLoad, settleFailure, settleSuccess, stateKey, type PageStatus } from "../../lib/page-state";
 import { strings } from "../../lib/strings";
 import { ImpactSection } from "./impact-section";
+import { csrfFetch } from "../../lib/csrf-client";
 
 interface FieldSummary {
   id: string;
@@ -279,7 +280,7 @@ export default function ProfilePage() {
     setStudentStatus(null);
     setSaving("student");
     try {
-      const response = await fetch("/api/me/student-profile", {
+      const response = await csrfFetch("/api/me/student-profile", {
         method: "PUT",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -310,7 +311,7 @@ export default function ProfilePage() {
     setMentorStatus(null);
     setSaving("mentor");
     try {
-      const response = await fetch("/api/me/mentor-profile", {
+      const response = await csrfFetch("/api/me/mentor-profile", {
         method: "PUT",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -372,7 +373,7 @@ export default function ProfilePage() {
     setStatus(null);
     setSaving(`availability:${kind}`);
     try {
-      const response = await fetch("/api/me/availability", {
+      const response = await csrfFetch("/api/me/availability", {
         method: "PUT",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ context: kind, windows }),
@@ -396,7 +397,7 @@ export default function ProfilePage() {
     setAccessStatus(null);
     setSaving("access");
     try {
-      const response = await fetch(`/api/me/mentor-profile/${path}`, {
+      const response = await csrfFetch(`/api/me/mentor-profile/${path}`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: path === "resume" ? JSON.stringify({ access_mode: "OPEN" }) : undefined,
@@ -421,7 +422,7 @@ export default function ProfilePage() {
     setAffiliationStatus(null);
     setSaving("affiliation");
     try {
-      const response = await fetch("/api/me/affiliations", {
+      const response = await csrfFetch("/api/me/affiliations", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -468,7 +469,7 @@ export default function ProfilePage() {
     setMentorStatus(null);
     setSaving("mentorRole");
     try {
-      const response = await fetch("/api/me/roles/mentor", { method: "POST" });
+      const response = await csrfFetch("/api/me/roles/mentor", { method: "POST" });
       if (!response.ok) {
         setMentorStatus(strings.profile.mentorRoleError);
         return;

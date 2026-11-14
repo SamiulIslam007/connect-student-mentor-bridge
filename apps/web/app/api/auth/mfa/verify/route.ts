@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { forwardUpstream, readJsonBody, unauthenticated } from "../../../../../lib/bff";
+import { requireCsrf } from "../../../../../lib/csrf";
 import { MFA_COOKIE_NAME, readMfaCookie } from "../../../../../lib/mfa-cookie";
 import { SESSION_COOKIE_NAME, readSessionCookie, sessionCookieOptions } from "../../../../../lib/session-cookie";
 
@@ -19,6 +20,15 @@ export async function POST(request: Request): Promise<NextResponse> {
   const challenge = readMfaCookie(request.headers.get("cookie"));
   if (!sessionToken && !challenge) {
     return unauthenticated();
+  }
+
+  // The challenged step carries only the opaque challenge cookie, so this guard
+  // passes it through: a request with no session cookie has nothing to protect
+  // (`lib/csrf.ts`). The enrollment confirmation does carry a session, and there
+  // the token is required like any other write (D-158).
+  const refused = requireCsrf(request);
+  if (refused) {
+    return refused;
   }
 
   const body: Record<string, unknown> =

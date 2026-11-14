@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 
 import { stateKey } from "../../lib/page-state";
 import { strings } from "../../lib/strings";
+import { csrfFetch } from "../../lib/csrf-client";
 
 const FORM_ID = "sign-in-form";
 
@@ -18,7 +19,7 @@ export default function SignInPage() {
     setMessage(null);
     const form = new FormData(event.currentTarget);
     try {
-      const response = await fetch("/api/auth/sign-in", {
+      const response = await csrfFetch("/api/auth/sign-in", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ email: form.get("email"), password: form.get("password") }),
@@ -57,7 +58,7 @@ export default function SignInPage() {
 
   function onGoogleSignIn(): void {
     void (async () => {
-      const response = await fetch("/api/auth/sign-in/provider", {
+      const response = await csrfFetch("/api/auth/sign-in/provider", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ provider: "google" }),

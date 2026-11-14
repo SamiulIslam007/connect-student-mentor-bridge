@@ -37,7 +37,7 @@ function sessionRequest(path: string, method: string, body?: unknown): Request {
   return new Request(`http://localhost:3000${path}`, {
     method,
     headers: {
-      cookie: "connect_session=opaque-session-token",
+      cookie: "connect_session=opaque-session-token; connect_csrf=csrf-token", "x-csrf-token": "csrf-token",
       ...(body === undefined ? {} : { "content-type": "application/json" }),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -99,7 +99,7 @@ test("GET /api/fields forwards the cookie and returns the taxonomy", async () =>
 
   const response = await getFields(
     new Request("http://localhost:3000/api/fields", {
-      headers: { cookie: "connect_session=opaque-session-token" },
+      headers: { cookie: "connect_session=opaque-session-token; connect_csrf=csrf-token", "x-csrf-token": "csrf-token" },
     }),
   );
 
@@ -117,7 +117,7 @@ test("GET /api/fields forwards limit and cursor to the API", async () => {
 
   const response = await getFields(
     new Request("http://localhost:3000/api/fields?limit=2&cursor=beta", {
-      headers: { cookie: "connect_session=opaque-session-token" },
+      headers: { cookie: "connect_session=opaque-session-token; connect_csrf=csrf-token", "x-csrf-token": "csrf-token" },
     }),
   );
 

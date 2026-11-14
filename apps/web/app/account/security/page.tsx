@@ -5,6 +5,7 @@ import { useEffect, useReducer, useState, type FormEvent } from "react";
 import { enrollReducer, initialEnrollmentState } from "../../../lib/enrollment-state";
 import { stateKey } from "../../../lib/page-state";
 import { strings } from "../../../lib/strings";
+import { csrfFetch } from "../../../lib/csrf-client";
 
 export default function SecurityPage() {
   const [state, dispatch] = useReducer(enrollReducer, initialEnrollmentState);
@@ -54,7 +55,7 @@ export default function SecurityPage() {
   }, [reloadKey]);
 
   async function post(path: string, body: unknown): Promise<Response> {
-    return fetch(path, {
+    return csrfFetch(path, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),

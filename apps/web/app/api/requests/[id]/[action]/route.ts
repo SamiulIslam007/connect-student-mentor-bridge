@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { forwardUpstream, readJsonBody, unauthenticated } from "../../../../../lib/bff";
 import { readSessionCookie } from "../../../../../lib/session-cookie";
+import { requireCsrf } from "../../../../../lib/csrf";
 
 const ACTIONS = new Set(["accept", "decline", "withdraw"]);
 
@@ -14,6 +15,11 @@ export async function POST(
   if (!token) {
     return unauthenticated();
   }
+  const refused = requireCsrf(request);
+  if (refused) {
+    return refused;
+  }
+
   const { id, action } = await context.params;
   if (!ACTIONS.has(action)) {
     return NextResponse.json({ code: "NOT_FOUND", title: "Not found" }, { status: 404 });

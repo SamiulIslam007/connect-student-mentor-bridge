@@ -1215,3 +1215,34 @@ date: 2026-10-29
 - Reason: the documented port cannot bind on the owner's machine, so a local gate run silently loses its integration suite: `docker compose ps` shows the container up while no host process can connect. A check plus an example is cheaper and safer than moving a default that other machines do not need.
 - Status: Decided
 - Affects: `docs/local-setup.md`, `.env.example`
+### D-158: The CSRF boundary is the Next BFF, not the API
+
+- Date: 2026-11-14
+- Decision: `requireCsrf` lives in `apps/web/lib/csrf.ts` and every write-capable route handler under `apps/web/app/api` calls it. The NestJS API gains nothing: no header, no `403` row, no OpenAPI change, no authorization-matrix change.
+- Reason: the API's only session credential is the bearer value a route handler reads out of the session cookie, and no `/v1` route parses a cookie, so a check there would guard a credential the browser never sends it. A token row in the OpenAPI document would also be a contract lie that the parity tests accept.
+- Status: Decided
+- Affects: `platform/http-security-controls`, `docs/api-contracts.md` (section 1.1), `docs/auth-and-access-control.md` (section 5.1)
+
+### D-159: The token is 32 random bytes in a readable `connect_csrf` cookie, compared to `x-csrf-token` in constant time
+
+- Date: 2026-11-14
+- Decision: `connect_csrf` is base64url of 32 random bytes, `SameSite=Lax`, `Secure` outside development, `Path=/` and **not** httpOnly, because the double-submit rule needs a value the client helper can read. The session cookie stays httpOnly. The comparison is `timingSafeEqual` behind a length check. `Origin` is authoritative when present and falls back to `Referer`; a missing header does not fail a matched pair.
+- Reason: the value is unguessable and never leaves the browser, so an HMAC of the session would rotate on every session for no gain. The readable cookie is a deliberate trade, recorded here and in section 5.1.
+- Status: Decided
+- Affects: `apps/web/lib/csrf.ts`, `apps/web/lib/csrf-client.ts`, `docs/auth-and-access-control.md`
+
+### D-160: Five writes are exempt, and sign-out is not one of them
+
+- Date: 2026-11-14
+- Decision: `POST /api/auth/sign-in`, `/sign-in/provider`, `/register`, `/forgot-password` and `/reset-password` run no CSRF check, because no session cookie exists to abuse at that point. `sign-out` and `sign-out-everywhere` stay guarded. The list is one exported array (`CSRF_EXEMPT_ROUTES`). The guard also passes through any request that carries no session cookie, which is what keeps the challenged sign-in step (`/api/auth/mfa/verify`, holding only the opaque challenge cookie) working while the enrollment confirmation stays guarded.
+- Reason: the exemption has to be reasoned per route, not per path prefix, and a forced sign-out is a real nuisance attack rather than a convenience.
+- Status: Decided
+- Affects: `apps/web/lib/csrf.ts`, `apps/web/test/csrf-wiring.test.ts`, `docs/auth-and-access-control.md`
+
+### D-161: `WEB_CSRF_MODE=off` is the documented one-deploy rollback
+
+- Date: 2026-11-14
+- Decision: the guard reads `WEB_CSRF_MODE` per request; any value other than `off` enforces. A field failure is answered by setting the variable and restarting the web container, with no code change, no migration and the cookie left to expire.
+- Reason: a rollback the owner can perform in one line beats a hotfix, and a per-request read costs one string comparison.
+- Status: Decided
+- Affects: `apps/web/lib/csrf.ts`, `docs/local-setup.md`

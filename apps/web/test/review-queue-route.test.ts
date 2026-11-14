@@ -11,7 +11,7 @@ afterEach(() => {
 
 function request(path: string, withSession = true): Request {
   return new Request(`http://localhost:3000${path}`, {
-    headers: withSession ? { cookie: "connect_session=opaque-session-token" } : {},
+    headers: withSession ? { cookie: "connect_session=opaque-session-token; connect_csrf=csrf-token", "x-csrf-token": "csrf-token" } : {},
   });
 }
 

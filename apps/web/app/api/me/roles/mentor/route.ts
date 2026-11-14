@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { forwardUpstream, unauthenticated } from "../../../../../lib/bff";
 import { readSessionCookie } from "../../../../../lib/session-cookie";
+import { requireCsrf } from "../../../../../lib/csrf";
 
 /**
  * `POST /api/me/roles/mentor` — grants the mentor role to the signed-in account.
@@ -12,6 +13,11 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (!token) {
     return unauthenticated();
   }
+  const refused = requireCsrf(request);
+  if (refused) {
+    return refused;
+  }
+
 
   const outcome = await forwardUpstream("/v1/me/roles/mentor", {
     method: "POST",

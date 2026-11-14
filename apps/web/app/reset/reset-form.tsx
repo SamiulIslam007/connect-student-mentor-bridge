@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 
 import { stateKey } from "../../lib/page-state";
 import { strings } from "../../lib/strings";
+import { csrfFetch } from "../../lib/csrf-client";
 
 export function ResetForm({ token }: { token: string }) {
   const [message, setMessage] = useState<string | null>(null);
@@ -16,7 +17,7 @@ export function ResetForm({ token }: { token: string }) {
     setPending(true);
     setMessage(null);
     try {
-      const response = await fetch("/api/auth/reset-password", {
+      const response = await csrfFetch("/api/auth/reset-password", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ token, new_password: form.get("new_password") }),

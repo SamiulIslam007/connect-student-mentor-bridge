@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { claimLine, decisionBody, readClaims, type ClaimDecision, type PendingClaim } from "../../../lib/attestations";
 import { strings } from "../../../lib/strings";
+import { csrfFetch } from "../../../lib/csrf-client";
 
 type PageState = "loading" | "ready" | "error" | "signed-out" | "mfa-required";
 
@@ -64,7 +65,7 @@ export default function InstitutionAttestationsPage() {
     setBusy(claimId);
     setMessage(null);
     try {
-      const response = await fetch(`/api/institution/attestations/${claimId}/decide`, {
+      const response = await csrfFetch(`/api/institution/attestations/${claimId}/decide`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(prepared.body),

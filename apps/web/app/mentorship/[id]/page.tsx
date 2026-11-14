@@ -16,6 +16,7 @@ import {
 import { strings } from "../../../lib/strings";
 import { REPORT_REASON_OPTIONS, showReportControl } from "../../../lib/reports";
 import { OutcomeSection } from "./outcome-section";
+import { csrfFetch } from "../../../lib/csrf-client";
 
 interface SessionRecord {
   id: string;
@@ -173,7 +174,7 @@ export default function MentorshipPage({ params }: { params: Promise<{ id: strin
     setProblem(null);
     setNotice(null);
     try {
-      const response = await fetch(`/api/mentorships/${id}/messages`, {
+      const response = await csrfFetch(`/api/mentorships/${id}/messages`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ body: composed.body }),
@@ -216,7 +217,7 @@ export default function MentorshipPage({ params }: { params: Promise<{ id: strin
     setBusy(true);
     try {
       const details = reportDetails.trim();
-      const response = await fetch("/api/reports", {
+      const response = await csrfFetch("/api/reports", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({

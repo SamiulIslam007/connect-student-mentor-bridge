@@ -35,7 +35,7 @@ function stubFetch(payload: unknown, status = 200, calls: UpstreamCall[] = []): 
 function request(path: string, init: RequestInit = {}): Request {
   return new Request(`http://localhost:3000${path}`, {
     ...init,
-    headers: { cookie: "connect_session=session-token", ...(init.headers ?? {}) },
+    headers: { cookie: "connect_session=session-token; connect_csrf=csrf-token", "x-csrf-token": "csrf-token", ...(init.headers ?? {}) },
   });
 }
 

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { callApi } from "../../../../../lib/api";
 import { unauthenticated } from "../../../../../lib/bff";
 import { readSessionCookie } from "../../../../../lib/session-cookie";
+import { requireCsrf } from "../../../../../lib/csrf";
 
 /**
  * `DELETE /api/me/sessions/{id}` — a `204` carries no body, so this route reads
@@ -19,6 +20,11 @@ export async function DELETE(
   if (!token) {
     return unauthenticated();
   }
+  const refused = requireCsrf(request);
+  if (refused) {
+    return refused;
+  }
+
 
   const { id } = await context.params;
   const upstream = await callApi(`/v1/me/sessions/${encodeURIComponent(id)}`, {

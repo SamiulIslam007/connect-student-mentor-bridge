@@ -27,7 +27,7 @@ function stubFetch(payload: unknown, status = 200, calls: UpstreamCall[] = []): 
 function request(body: unknown): Request {
   return new Request("http://localhost:3000/api/admin/mentorships/break-glass", {
     method: "POST",
-    headers: { cookie: "connect_session=session-token", "content-type": "application/json" },
+    headers: { cookie: "connect_session=session-token; connect_csrf=csrf-token", "x-csrf-token": "csrf-token", "content-type": "application/json" },
     body: JSON.stringify(body),
   });
 }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { forwardUpstream, proxyJson, unauthenticated } from "../../../../lib/bff";
 import { readSessionCookie } from "../../../../lib/session-cookie";
+import { requireCsrf } from "../../../../lib/csrf";
 
 /**
  * `GET|POST /api/outcomes[/{id}[/{confirm|dispute|withdraw|review}]]`. One
@@ -46,6 +47,14 @@ async function forward(
   if (!token) {
     return unauthenticated();
   }
+  // Only the writes are guarded: one helper serves the reads too (D-160).
+  if (method !== "GET") {
+    const refused = requireCsrf(request);
+    if (refused) {
+      return refused;
+    }
+  }
+
   const segments = (await context.params).path ?? [];
   if (
     segments.some((segment) => !SEGMENT.test(segment)) ||

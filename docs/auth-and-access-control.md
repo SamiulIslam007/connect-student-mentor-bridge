@@ -111,6 +111,23 @@ sources: README.md (sections 8, 12.1); connect-research-report.md (Sections 5.4,
 
 **Transport rule (owner decision, 2026-10-29).** The browser never calls the API directly. The Next.js app is the backend-for-frontend on the same origin and holds the session cookie; it forwards requests to NestJS with `Authorization: Bearer <session token>`. The API accepts Bearer for non-browser clients and does not set browser cookies itself. This keeps CSRF handling in one place and avoids cross-origin cookie configuration between the `web` and `api` containers.
 
+### 5.1 CSRF on cookie-authenticated writes (built 2026-11-14, D-158 to D-161)
+
+The browser holds two cookies and the API still holds none:
+
+| Piece | Value | Flags |
+|---|---|---|
+| `connect_session` | the opaque session token, httpOnly | `SameSite=Lax`, `Secure` outside development |
+| `connect_csrf` | 32 random bytes, base64url, **readable by the page** | `SameSite=Lax`, `Secure` outside development, `Path=/` |
+
+Every state-changing request the pages make carries the second cookie's value in the `x-csrf-token` header. `apps/web/lib/csrf.ts` (`requireCsrf`) refuses a write whose header does not equal the cookie, or whose `Origin` (or `Referer` when `Origin` is absent) is not the configured app origin, with `403 CSRF_INVALID` in the problem shape and no upstream call. The comparison is constant time. The token is minted by `GET /api/me` and by `GET /api/csrf` for a signed-in caller only, and an existing value is never replaced.
+
+Five writes are exempt because no session exists to abuse yet: `POST /api/auth/sign-in`, `/sign-in/provider`, `/register`, `/forgot-password` and `/reset-password`. `sign-out` and `sign-out-everywhere` are **not** exempt: a forced sign-out is a real nuisance attack. The list is one exported array (`CSRF_EXEMPT_ROUTES`), and `apps/web/test/csrf-wiring.test.ts` fails if a write route is added without the guard, if the list grows, or if a page writes with a bare `fetch`.
+
+A write that carries no session cookie is passed through by the guard rather than refused: there is nothing authenticated to protect, the route's own `401` owns the answer, and this is what keeps the challenged sign-in step working, since `/api/auth/mfa/verify` carries only the opaque challenge cookie at that point. `WEB_CSRF_MODE=off` disables the guard for one deploy (D-161).
+
+The NestJS API is unchanged and needs no CSRF check: it authenticates by bearer token only, and no `/v1` route parses a session cookie.
+
 ## 6. The `IdentityService` seam
 
 Domain code depends only on this interface (TypeScript sketch, **Recommendation**):

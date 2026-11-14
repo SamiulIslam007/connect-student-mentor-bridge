@@ -34,7 +34,7 @@ test("GET /api/me forwards the session cookie to the API and returns the account
 
   const response = await getAccount(
     new Request("http://localhost:3000/api/me", {
-      headers: { cookie: "connect_session=opaque-session-token" },
+      headers: { cookie: "connect_session=opaque-session-token; connect_csrf=csrf-token", "x-csrf-token": "csrf-token" },
     }),
   );
 
@@ -64,7 +64,7 @@ test("POST /api/me/deactivate revokes the session server-side and clears the coo
   const response = await deactivate(
     new Request("http://localhost:3000/api/me/deactivate", {
       method: "POST",
-      headers: { cookie: "connect_session=opaque-session-token" },
+      headers: { cookie: "connect_session=opaque-session-token; connect_csrf=csrf-token", "x-csrf-token": "csrf-token" },
     }),
   );
 

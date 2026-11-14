@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { proxyJson, unauthenticated } from "../../../../lib/bff";
 import { readSessionCookie } from "../../../../lib/session-cookie";
+import { requireCsrf } from "../../../../lib/csrf";
 
 /** The token stays server-side; the browser sends only its httpOnly cookie. */
 export async function PUT(request: Request): Promise<NextResponse> {
@@ -9,5 +10,10 @@ export async function PUT(request: Request): Promise<NextResponse> {
   if (!token) {
     return unauthenticated();
   }
+  const refused = requireCsrf(request);
+  if (refused) {
+    return refused;
+  }
+
   return proxyJson("/v1/me/mentor-profile", request, { sessionToken: token, method: "PUT" });
 }

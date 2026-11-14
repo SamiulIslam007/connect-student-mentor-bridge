@@ -11,6 +11,7 @@ import {
   type ConsentPurpose,
 } from "../../lib/consents";
 import { strings } from "../../lib/strings";
+import { csrfFetch } from "../../lib/csrf-client";
 
 interface ConsentsPayload {
   purposes: ConsentState[];
@@ -94,7 +95,7 @@ export default function ConsentPage() {
       body.institution_id = institutionId;
     }
     try {
-      const response = await fetch("/api/me/consents", {
+      const response = await csrfFetch("/api/me/consents", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(body),

@@ -35,7 +35,7 @@ function sessionRequest(body?: unknown): Request {
   return new Request("http://localhost:3000/api/me/affiliations", {
     method: "POST",
     headers: {
-      cookie: "connect_session=opaque-session-token",
+      cookie: "connect_session=opaque-session-token; connect_csrf=csrf-token", "x-csrf-token": "csrf-token",
       ...(body === undefined ? {} : { "content-type": "application/json" }),
     },
     body: body === undefined ? undefined : JSON.stringify(body),

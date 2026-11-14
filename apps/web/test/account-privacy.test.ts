@@ -27,7 +27,7 @@ test("the account page offers both privacy controls", () => {
 test("a mismatched email is refused before any request is sent", () => {
   // The guard sits above the fetch, so a mismatch never reaches the BFF.
   const guard = page.indexOf("deletionConfirmed(account.email, confirmEmail)");
-  const call = page.indexOf('fetch("/api/privacy/delete"');
+  const call = page.indexOf('csrfFetch("/api/privacy/delete"');
   assert.ok(guard > 0 && call > guard, "the guard must run before the request");
   assert.match(page, /setMessage\(strings\.account\.deleteMismatch\)/);
 });

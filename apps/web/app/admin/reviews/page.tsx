@@ -12,6 +12,7 @@ import {
   type ReviewQueuePayload,
 } from "../../../lib/review-queue";
 import { strings } from "../../../lib/strings";
+import { csrfFetch } from "../../../lib/csrf-client";
 
 type PageState = "loading" | "ready" | "error" | "signed-out" | "mfa-required";
 
@@ -71,7 +72,7 @@ export default function AdminReviewsPage() {
     setBusy(id);
     setMessage(null);
     try {
-      const response = await fetch(`/api/outcomes/${id}/review`, {
+      const response = await csrfFetch(`/api/outcomes/${id}/review`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(composed.body),

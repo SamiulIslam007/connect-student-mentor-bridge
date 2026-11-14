@@ -24,21 +24,26 @@ export function sessionCookieOptions(
   };
 }
 
-export function readSessionCookie(cookieHeader: string | null): string | null {
+/** Read one cookie by name from a `Cookie` header. */
+export function readCookie(cookieHeader: string | null, name: string): string | null {
   if (!cookieHeader) {
     return null;
   }
   for (const part of cookieHeader.split(";")) {
-    const [name, ...rest] = part.trim().split("=");
-    if (name === SESSION_COOKIE_NAME && rest.length > 0) {
+    const [cookieName, ...rest] = part.trim().split("=");
+    if (cookieName === name && rest.length > 0) {
       try {
         return decodeURIComponent(rest.join("="));
       } catch {
-        // A malformed cookie is not a session: treat it as absent (design D8)
+        // A malformed cookie is not a credential: treat it as absent (design D8)
         // instead of throwing a 500 out of the route handler.
         return null;
       }
     }
   }
   return null;
+}
+
+export function readSessionCookie(cookieHeader: string | null): string | null {
+  return readCookie(cookieHeader, SESSION_COOKIE_NAME);
 }

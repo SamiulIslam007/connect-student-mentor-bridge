@@ -158,6 +158,7 @@ Replace `connect` with `POSTGRES_USER` if it differs. The tests reset the `conne
 |---|---|
 | `BETTER_AUTH_SECRET` | Session signing and the keyed hash in `signup_blocks`. Generate a local value with `openssl rand -base64 32`; at least 32 characters. Never commit it |
 | `BETTER_AUTH_URL` | Public application origin used in verification and reset links (`http://localhost:3000` locally) |
+| `WEB_CSRF_MODE` | Unset or any value enforces the CSRF guard on cookie-authenticated writes; `off` disables it for one deploy, a restart is enough (D-161) |
 
 `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are optional: set both to enable
 Google sign-in, leave both empty to keep it disabled. A half-set pair is treated as
