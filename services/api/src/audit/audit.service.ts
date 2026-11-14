@@ -36,6 +36,7 @@ const AUDIT_ACTION_MAP: Record<AuditAction, true> = {
   OUTCOME_WITHDRAWN: true,
   OUTCOME_REVIEWED: true,
   OUTCOME_REVERSED: true,
+  OUTCOME_AUDIT_HELD: true,
   ACCOUNT_DELETED: true,
   REPORT_RESOLVED: true,
   INSTITUTION_CREATED: true,

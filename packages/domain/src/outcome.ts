@@ -15,7 +15,7 @@ export const OUTCOME_STATUSES = [
 ] as const;
 export type OutcomeStatus = (typeof OUTCOME_STATUSES)[number];
 
-/** Reporting, participant decisions, and the reviewer moves (T8, T9, T11). */
+/** Reporting, participant decisions, the reviewer moves (T8, T9, T11), and the audit hold (T6). */
 export const OUTCOME_ACTIONS = [
   "report",
   "confirm",
@@ -23,6 +23,7 @@ export const OUTCOME_ACTIONS = [
   "dispute",
   "escalate",
   "withdraw",
+  "auditHold",
 ] as const;
 export type OutcomeAction = (typeof OUTCOME_ACTIONS)[number];
 
@@ -52,6 +53,10 @@ export function transition(from: OutcomeStatus | null, action: OutcomeAction): O
       return from === "PENDING_CONFIRMATION" ? "IN_PLATFORM_REVIEW" : null;
     case "withdraw":
       return OUTCOME_OPEN_STATUSES.includes(from) ? "WITHDRAWN" : null;
+    case "auditHold":
+      // T6: a confirmed outcome can be pulled into review for an audit. The only
+      // way in from CONFIRMED, and the review decision is the only way out.
+      return from === "CONFIRMED" ? "IN_PLATFORM_REVIEW" : null;
   }
 }
 

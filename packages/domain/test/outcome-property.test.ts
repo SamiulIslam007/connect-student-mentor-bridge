@@ -39,6 +39,7 @@ const NOWHERE: Record<OutcomeAction, OutcomeStatus | null> = {
   dispute: null,
   escalate: null,
   withdraw: null,
+  auditHold: null,
 };
 
 /** `docs/data-model.md` section 4.4 (T1 to T11) written out, so the test compares the function to the table and not to itself. */
@@ -51,7 +52,7 @@ const TABLE: Record<OutcomeStatus, Record<OutcomeAction, OutcomeStatus | null>> 
     escalate: "IN_PLATFORM_REVIEW",
     withdraw: "WITHDRAWN",
   },
-  CONFIRMED: { ...NOWHERE, withdraw: "WITHDRAWN" },
+  CONFIRMED: { ...NOWHERE, withdraw: "WITHDRAWN", auditHold: "IN_PLATFORM_REVIEW" },
   IN_PLATFORM_REVIEW: { ...NOWHERE, withdraw: "WITHDRAWN" },
   COUNTED: NOWHERE,
   REJECTED: NOWHERE,
@@ -104,7 +105,7 @@ function describe(node: Node): string {
 test("pair depth: every (state, action) pair equals the data-model table", () => {
   const states = Object.keys(TABLE).length;
   const actions = Object.keys(TABLE.PENDING_CONFIRMATION).length;
-  assert.equal(states * actions, 42, "the table is 7 states by 6 actions");
+  assert.equal(states * actions, 49, "the table is 7 states by 7 actions");
   let visited = 0;
   for (const from of OUTCOME_STATUSES) {
     for (const action of OUTCOME_ACTIONS) {

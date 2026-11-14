@@ -50,6 +50,15 @@ export interface ReviewQueueInput {
   cursor?: string;
 }
 
+/** The audit hold (T6). No route calls it yet: `FR-ADM-03` is the first caller. */
+export interface HoldOutcomeInput {
+  outcomeId: string;
+  actorUserId: string;
+  actorRole: string;
+  reason: string;
+  requestId: string;
+}
+
 /** One open review case; the case is derived, never stored (design D3). */
 export interface ReviewCase {
   id: string;
@@ -114,6 +123,8 @@ export interface OutcomeService {
   withdraw(userId: string, outcomeId: string, requestId: string): Promise<OutcomeRecord>;
   /** Reviewer-only; the controller enforces the role and the second factor. */
   review(input: ReviewInput): Promise<OutcomeRecord>;
+  /** The audit hold (T6). No route yet: `FR-ADM-03` is the first caller (D-161). */
+  hold(input: HoldOutcomeInput): Promise<OutcomeRecord>;
   /** Platform-admin queue: open cases, oldest mentor deadline first. */
   reviewQueue(input: ReviewQueueInput): Promise<ReviewQueuePage>;
 }

@@ -36,6 +36,7 @@ import { enqueueOutboxEvent } from "../platform/outbox/outbox.js";
 import type {
   ConfirmOutcomeInput,
   DisputeOutcomeInput,
+  HoldOutcomeInput,
   ListOutcomesInput,
   OutcomeDecision,
   OutcomeRecord,
@@ -579,6 +580,56 @@ export class DrizzleOutcomeService implements OutcomeService {
     });
   }
 
+  /**
+   * The audit hold (T6, design R3): `CONFIRMED` to `IN_PLATFORM_REVIEW` with one
+   * `CASE_OPENED` event and one audit row, no email. The caller is the future
+   * sampling job or a reviewer route; this change ships the transition alone
+   * (D-161). Conditional on the status it read, so a concurrent count cannot be
+   * pulled back, and a zero-row match writes nothing.
+   */
+  async hold(input: HoldOutcomeInput): Promise<OutcomeRecord> {
+    const reason = requiredText(input.reason, "reason", OUTCOME_FIELD_LIMITS.reason);
+
+    return await this.db.transaction(async (tx) => {
+      const current = await readRecord(tx, input.outcomeId, true);
+      const target = transition(current.status, "auditHold");
+      if (!target) {
+        throw new IdentityError("OUTCOME_INVALID_STATE", "this outcome cannot be held for audit now");
+      }
+
+      const now = new Date();
+      const updated = await tx
+        .update(outcomes)
+        .set({ status: target, updatedAt: now })
+        .where(and(eq(outcomes.id, input.outcomeId), eq(outcomes.status, current.status)))
+        .returning({ id: outcomes.id });
+      if (updated.length === 0) {
+        throw new IdentityError("OUTCOME_INVALID_STATE", "this outcome cannot be held for audit now");
+      }
+
+      await appendEvent(tx, {
+        outcomeId: input.outcomeId,
+        eventType: "CASE_OPENED",
+        fromStatus: current.status,
+        toStatus: target,
+        actorUserId: input.actorUserId,
+        actorRole: input.actorRole,
+        requestId: input.requestId,
+        payload: { reason },
+      });
+      await appendAuditEntry(tx, {
+        action: "OUTCOME_AUDIT_HELD",
+        actorUserId: input.actorUserId,
+        actorRole: input.actorRole,
+        objectType: "outcomes",
+        objectId: input.outcomeId,
+        requestId: input.requestId,
+      });
+
+      return await readRecord(tx, input.outcomeId);
+    });
+  }
+
   async withdraw(userId: string, outcomeId: string, requestId: string): Promise<OutcomeRecord> {
     return await this.db.transaction(async (tx) => {
       const current = await readRecord(tx, outcomeId, true);
@@ -618,7 +669,8 @@ export class DrizzleOutcomeService implements OutcomeService {
 
       return await readRecord(tx, outcomeId);
     });
-  }
+  }
+
 
   /**
    * The only exit from `IN_PLATFORM_REVIEW` (design D2/D5). `invalid` on a

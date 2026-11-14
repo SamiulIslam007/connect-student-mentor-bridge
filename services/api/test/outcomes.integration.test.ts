@@ -838,3 +838,214 @@ test("invalid on a counted outcome reverses the ledger and the snapshot", async 
   );
   assert.equal(twice.status, 409);
 });
+
+/** The account id behind a mentor fixture, for the audit actor. */
+async function userIdFor(current: TestApiStack, email: string): Promise<string> {
+  const row = await current.client.query<{ id: string }>("SELECT id FROM users WHERE email = $1", [
+    email,
+  ]);
+  return row.rows[0].id;
+}
+
+test("an audit hold moves a confirmed outcome into review with one event and one audit row", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const { student, mentor, mentorshipId } = await acceptedPair(current, ".hold");
+  const created = await report(current, student, reportBody(mentorshipId));
+  const outcomeId = String(created.body?.id);
+  const confirmed = await apiRequest(
+    current,
+    "POST",
+    `/v1/outcomes/${outcomeId}/confirm`,
+    { contribution_level_confirmed: "HELPED" },
+    mentor.token,
+  );
+  assert.equal(confirmed.status, 200, confirmed.text);
+  const auditEmails = await countRows(current, "outbox_events");
+
+  const service = new DrizzleOutcomeService(current.database.db);
+  const held = await service.hold({
+    outcomeId,
+    actorUserId: await userIdFor(current, "mentor.hold@example.edu.bd"),
+    actorRole: "PLATFORM_ADMIN",
+    reason: "sampled for an audit",
+    requestId: "test-audit-hold",
+  });
+  assert.equal(held.status, "IN_PLATFORM_REVIEW");
+  assert.equal(held.countedBasis, null, "a hold never counts anything");
+
+  const events = await current.client.query<{
+    event_type: string;
+    from_status: string;
+    to_status: string;
+    payload: { reason?: string };
+  }>(
+    "SELECT event_type, from_status, to_status, payload FROM outcome_events WHERE outcome_id = $1 ORDER BY seq",
+    [outcomeId],
+  );
+  const opened = events.rows.filter((row) => row.event_type === "CASE_OPENED");
+  assert.equal(opened.length, 1, "exactly one case-opened event");
+  assert.equal(opened[0].from_status, "CONFIRMED");
+  assert.equal(opened[0].to_status, "IN_PLATFORM_REVIEW");
+  assert.equal(opened[0].payload.reason, "sampled for an audit");
+
+  const audit = await current.client.query<{ action: string }>(
+    "SELECT action FROM audit_logs WHERE object_id = $1 ORDER BY occurred_at",
+    [outcomeId],
+  );
+  assert.deepEqual(
+    audit.rows.map((row) => row.action),
+    ["OUTCOME_REPORTED", "OUTCOME_CONFIRMED", "OUTCOME_AUDIT_HELD"],
+  );
+  assert.equal(
+    await countRows(current, "outbox_events"),
+    auditEmails,
+    "a hold tells nobody: no email is queued",
+  );
+});
+
+test("a second hold is refused and writes nothing", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const { student, mentor, mentorshipId } = await acceptedPair(current, ".hold2");
+  const created = await report(current, student, reportBody(mentorshipId));
+  const outcomeId = String(created.body?.id);
+  assert.equal(
+    (
+      await apiRequest(
+        current,
+        "POST",
+        `/v1/outcomes/${outcomeId}/confirm`,
+        { contribution_level_confirmed: "HELPED" },
+        mentor.token,
+      )
+    ).status,
+    200,
+  );
+
+  const service = new DrizzleOutcomeService(current.database.db);
+  const actorUserId = await userIdFor(current, "mentor.hold2@example.edu.bd");
+  await service.hold({
+    outcomeId,
+    actorUserId,
+    actorRole: "PLATFORM_ADMIN",
+    reason: "first hold",
+    requestId: "test-audit-hold-1",
+  });
+
+  const before = await current.client.query<{ count: string }>(
+    "SELECT count(*) FROM outcome_events WHERE outcome_id = $1",
+    [outcomeId],
+  );
+  const auditBefore = await countRows(current, "audit_logs");
+  await assert.rejects(
+    service.hold({
+      outcomeId,
+      actorUserId,
+      actorRole: "PLATFORM_ADMIN",
+      reason: "second hold",
+      requestId: "test-audit-hold-2",
+    }),
+    /cannot be held for audit/,
+  );
+  const after = await current.client.query<{ count: string }>(
+    "SELECT count(*) FROM outcome_events WHERE outcome_id = $1",
+    [outcomeId],
+  );
+  assert.equal(after.rows[0].count, before.rows[0].count, "no second event");
+  assert.equal(await countRows(current, "audit_logs"), auditBefore, "no second audit row");
+});
+
+test("a hold is refused from every state but CONFIRMED", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const service = new DrizzleOutcomeService(current.database.db);
+
+  // PENDING_CONFIRMATION: a fresh report.
+  const { student, mentorshipId } = await acceptedPair(current, ".hold3");
+  const created = await report(current, student, reportBody(mentorshipId));
+  const pendingId = String(created.body?.id);
+  const actorUserId = await userIdFor(current, "mentor.hold3@example.edu.bd");
+  await assert.rejects(
+    service.hold({
+      outcomeId: pendingId,
+      actorUserId,
+      actorRole: "PLATFORM_ADMIN",
+      reason: "too early",
+      requestId: "test-audit-hold-pending",
+    }),
+    /cannot be held for audit/,
+  );
+
+  // WITHDRAWN: a terminal state.
+  const withdrawn = await apiRequest(
+    current,
+    "POST",
+    `/v1/outcomes/${pendingId}/withdraw`,
+    undefined,
+    student,
+  );
+  assert.equal(withdrawn.status, 200, withdrawn.text);
+  await assert.rejects(
+    service.hold({
+      outcomeId: pendingId,
+      actorUserId,
+      actorRole: "PLATFORM_ADMIN",
+      reason: "already closed",
+      requestId: "test-audit-hold-withdrawn",
+    }),
+    /cannot be held for audit/,
+  );
+  assert.equal(
+    (await apiRequest(current, "GET", `/v1/outcomes/${pendingId}`, undefined, student)).body?.status,
+    "withdrawn",
+    "a refused hold changes nothing",
+  );
+});
+
+test("a held outcome is skipped by the counting job and the queue lists it", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const { student, mentor, mentorshipId } = await acceptedPair(current, ".hold4");
+  const created = await report(current, student, reportBody(mentorshipId));
+  const outcomeId = String(created.body?.id);
+  assert.equal(
+    (
+      await apiRequest(
+        current,
+        "POST",
+        `/v1/outcomes/${outcomeId}/confirm`,
+        { contribution_level_confirmed: "HELPED" },
+        mentor.token,
+      )
+    ).status,
+    200,
+  );
+
+  const service = new DrizzleOutcomeService(current.database.db);
+  await service.hold({
+    outcomeId,
+    actorUserId: await userIdFor(current, "mentor.hold4@example.edu.bd"),
+    actorRole: "PLATFORM_ADMIN",
+    reason: "anomaly flag",
+    requestId: "test-audit-hold-queue",
+  });
+
+  // The job's predicate is `status = CONFIRMED AND cooling_ends_at <= now`; a
+  // past deadline must still not pull a held row in.
+  await current.client.query(
+    "UPDATE outcomes SET cooling_ends_at = now() - interval '1 day' WHERE id = $1",
+    [outcomeId],
+  );
+  const countDue = await current.client.query<{ count: string }>(
+    "SELECT count(*) FROM outcomes WHERE id = $1 AND status = 'CONFIRMED' AND cooling_ends_at <= now()",
+    [outcomeId],
+  );
+  assert.equal(countDue.rows[0].count, "0", "the counting predicate excludes a held outcome");
+
+  const queue = await apiRequest(current, "GET", "/v1/review-queue", undefined, await platformReviewer(current, "reviewer.hold@example.com"));
+  assert.equal(queue.status, 200, queue.text);
+  const ids = (queue.body?.data as Array<{ id: string; case_kind: string }>) ?? [];
+  const held = ids.find((row) => row.id === outcomeId);
+  assert.ok(held, "a held outcome is an ordinary review case");
+});

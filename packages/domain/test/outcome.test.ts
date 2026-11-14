@@ -24,6 +24,7 @@ const LEGAL: [OutcomeStatus | null, OutcomeAction, OutcomeStatus][] = [
   ["PENDING_CONFIRMATION", "escalate", "IN_PLATFORM_REVIEW"],
   ["PENDING_CONFIRMATION", "withdraw", "WITHDRAWN"],
   ["CONFIRMED", "withdraw", "WITHDRAWN"],
+  ["CONFIRMED", "auditHold", "IN_PLATFORM_REVIEW"],
   ["IN_PLATFORM_REVIEW", "withdraw", "WITHDRAWN"],
 ];
 
@@ -41,6 +42,7 @@ test("every other pair answers null, including COUNTED and the terminal states",
     "dispute",
     "escalate",
     "withdraw",
+    "auditHold",
   ];
   const legal = new Set(LEGAL.map(([from, action]) => `${from}:${action}`));
   for (const status of [null, ...OUTCOME_STATUSES]) {

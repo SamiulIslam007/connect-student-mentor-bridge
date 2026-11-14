@@ -1246,3 +1246,27 @@ date: 2026-10-29
 - Reason: a rollback the owner can perform in one line beats a hotfix, and a per-request read costs one string comparison.
 - Status: Decided
 - Affects: `apps/web/lib/csrf.ts`, `docs/local-setup.md`
+
+### D-162: An audit hold reuses the existing `CASE_OPENED` event type and adds one audit action
+
+- Date: 2026-11-14
+- Decision: `transition("CONFIRMED", "auditHold")` returns `IN_PLATFORM_REVIEW`. `OutcomeService.hold` appends one `outcome_events` row with `event_type = CASE_OPENED` (already in the enum, so no migration) and one audit row `OUTCOME_AUDIT_HELD`, added to both the writer's `AuditAction` union and the read filter's derived `AUDIT_ACTIONS`.
+- Reason: the event enum already names the fact being recorded, so a new value would be a migration for a synonym; a new audit action is the honest label, and adding it to both lists at once is what keeps `GET /v1/admin/audit` from answering `422` for a row a writer stored (D-155's shape).
+- Status: Decided
+- Affects: `mentorship/outcome-verification`, `packages/domain/src/outcome.ts`, `docs/data-model.md`, `docs/auth-and-access-control.md`
+
+### D-163: The hold is a service method with no route, and `FR-ADM-03` is its first caller
+
+- Date: 2026-11-14
+- Decision: the transition ships with no controller, no OpenAPI row, no matrix row and no caller. The deliberate exception to "no policy without a consumer" (D-47) lasts one change window; `docs/known-debt.md`'s `DEBT-55` closure and the `FR-ADM-03` status line both name the sampling job as the consumer, and `FR-ADM-03` stays `NOT STARTED` because the selection itself is not built.
+- Reason: the sampling change cannot be specified against a state machine that has no way into review; shipping the edge alone is smaller than shipping an unused route with it.
+- Status: Decided
+- Affects: `docs/known-debt.md`, `docs/functional-requirements.md`
+
+### D-164: An audit-cleared outcome counts as `PLATFORM_DECISION` and earns no mentor reputation
+
+- Date: 2026-11-14
+- Decision: a held outcome cleared as `valid` counts with `counted_basis = PLATFORM_DECISION`, because `outcomes_counted_basis_known` allows only `MENTOR_CONFIRMED` and `PLATFORM_DECISION`, and `earnsMentorReputation` refuses mentorship reputation for a platform decision (D-63). The pilot accepts it.
+- Reason: a third basis value is a schema check change plus a reputation-policy decision, both out of this change; the consequence is recorded before the sampling job ships rather than discovered after it.
+- Status: Decided
+- Affects: `docs/data-model.md` section 4.4, `docs/reputation-and-verification-policy.md`
