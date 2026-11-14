@@ -102,7 +102,7 @@ Every API response carries the same set: `Content-Security-Policy` (`default-src
 
 There is no CORS allowlist: the browser never calls this origin, because every browser request goes through the web BFF and the BFF calls the API server-side. A response therefore carries no `Access-Control-Allow-Origin`, `-Methods` or `-Credentials` header, and a test fails if CORS is enabled without a new decision (D-132, SEC-API-5).
 
-The web app sends its own set — `Content-Security-Policy-Report-Only` with eight directives, nosniff, `no-referrer`, `DENY` and a `Permissions-Policy` — and enforcement is DEBT-56 (D-133).
+The web app sends its own set — the enforcing `Content-Security-Policy` with eight directives, nosniff, `no-referrer`, `DENY` and a `Permissions-Policy` — and `WEB_CSP_MODE=report-only` swaps in the reporting header for one deploy (D-169, D-170).
 
 ### 1.1 The BFF boundary and CSRF (built 2026-11-14, D-158)
 
