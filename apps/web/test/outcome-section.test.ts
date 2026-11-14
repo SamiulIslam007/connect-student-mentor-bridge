@@ -104,3 +104,10 @@ test("a report is refused before the round trip when a field is invalid", () => 
     { ok: true },
   );
 });
+
+test("a held outcome keeps the withdraw action and the review label", () => {
+  // The audit hold (T6) lands an outcome in `in_platform_review`, where the
+  // screen must still offer the student a way out and name the state.
+  assert.equal(actionsFor("in_platform_review").canWithdraw, true);
+  assert.equal(outcomeStatusLabel("in_platform_review"), strings.outcome.statusReview);
+});

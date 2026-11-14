@@ -291,7 +291,7 @@ Written to the append-only `AuditLog` (who, role, action, object, result, time, 
 | Authentication | Sign-in success and failure, MFA enrolled or removed, password change, password reset, session revoked, lockout |
 | Authorization | Role granted or revoked, permission denied on a sensitive action |
 | Affiliation | Approved, rejected, overridden |
-| Verification | Outcome confirmed, disputed, sent to platform review, resolved with a written reason, withdrawn, clawed back |
+| Verification | Outcome confirmed, disputed, sent to platform review, held for audit (`OUTCOME_AUDIT_HELD`), resolved with a written reason, withdrawn, clawed back |
 | Privacy | Consent given or withdrawn, data export, deletion request and completion |
 | Admin | Break-glass access, suspension, removal, configuration change |
 | Data access | Evidence file viewed by a reviewer; student-level data viewed by an institution admin |
