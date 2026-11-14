@@ -398,6 +398,7 @@ Check: `institution_id IS NOT NULL OR organization_name IS NOT NULL`. A partial 
 | `target_outcome_type` | `outcome_type?` | Optional hint |
 | `timeframe` | `timeframe_bucket` | README structured field: expected timeframe |
 | `interaction_type` | `interaction_type` | Check excludes `GROUP_OFFICE_HOURS` in Phase 1 |
+| `expiry_reason` | `text?` | Why the request left `PENDING` for `EXPIRED`: `DEADLINE` (the 48-hour window) or `MENTOR_INELIGIBLE` (the mentor lost their last verified affiliation). Null while open. Check on the two values, backfilled to `DEADLINE` for the rows that already expired (migration `0019`, D-166). The reliability aggregate excludes the ineligible reason, so an expiry the mentor could not prevent is not a non-response |
 | `application_note` | `text?` | For Application-only mentors (FR-DISC-03) |
 | `status` | `request_status` | |
 | `decided_at`, `decision_note` | `timestamptz?`, `text?` | |

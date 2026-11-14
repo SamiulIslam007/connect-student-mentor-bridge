@@ -3568,6 +3568,11 @@ components:
         expires_at:
           type: string
           format: date-time
+        expiry_reason:
+          anyOf:
+            - type: string
+              enum: [deadline, mentor_ineligible]
+            - type: "null"
         decided_at:
           anyOf:
             - type: string

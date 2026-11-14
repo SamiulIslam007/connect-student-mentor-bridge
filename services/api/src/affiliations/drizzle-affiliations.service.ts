@@ -19,6 +19,7 @@ import {
 } from "../db/schema/index.js";
 import { appendAuditEntry } from "../identity/audit-log.js";
 import { syncMentorActivation } from "../onboarding/mentor-activation.js";
+import { expireRequestsWithoutVerifiedAffiliation } from "./affiliation-expiry.js";
 import type {
   AffiliationRecord,
   AffiliationsService,
@@ -245,6 +246,12 @@ export class DrizzleAffiliationsService implements AffiliationsService {
       });
 
       await syncMentorActivation(tx, input.userId);
+      // A claim the new domain cannot support leaves the account at Level 0, so
+      // every request still waiting on this mentor expires here (FR-VER-04).
+      await expireRequestsWithoutVerifiedAffiliation(tx, {
+        mentorUserId: input.userId,
+        requestId: input.requestId,
+      });
 
       return { affiliation: await readRecord(tx, inserted.id), created: true };
     });

@@ -45,6 +45,11 @@ export const mentorshipRequests = pgTable(
     decisionNote: text("decision_note"),
     /** Created + 48 hours (owner decision). */
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    /**
+     * Why the request left `PENDING` for `EXPIRED`: the 48-hour deadline or the
+     * mentor losing their last verified affiliation (D-166). Null while open.
+     */
+    expiryReason: text("expiry_reason"),
     /** At 24 hours (owner decision). */
     reminderSentAt: timestamp("reminder_sent_at", { withTimezone: true }),
     version: integer("version").default(1).notNull(),
@@ -57,6 +62,10 @@ export const mentorshipRequests = pgTable(
     ),
     check("mentorship_requests_version_min", sql`${table.version} >= 1`),
     check("mentorship_requests_expires_after_creation", sql`${table.expiresAt} > ${table.createdAt}`),
+    check(
+      "mentorship_requests_expiry_reason_known",
+      sql`${table.expiryReason} is null or ${table.expiryReason} in ('DEADLINE', 'MENTOR_INELIGIBLE')`,
+    ),
     uniqueIndex("mentorship_requests_one_pending_per_pair")
       .on(table.studentProfileId, table.mentorProfileId)
       .where(sql`${table.status} = 'PENDING'`),

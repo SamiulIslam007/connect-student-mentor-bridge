@@ -431,3 +431,27 @@ test("a pooled connection opens a transaction and readiness reports the database
     await connection.pool.end();
   }
 });
+
+test("the app role can read and write mentorship_requests.expiry_reason", async (context) => {
+  const db = requireDatabase(context);
+  if (!db) return;
+  const client = db.client;
+
+  // The column exists for the application role, and an update on it is permitted
+  // (the grant is the risk a new column carries; the check constraint is part of
+  // the migration and fires on a real row).
+  await client.query("BEGIN");
+  try {
+    await client.query("SET LOCAL ROLE connect_app");
+    const read = await client.query<{ expiry_reason: string | null }>(
+      "SELECT expiry_reason FROM mentorship_requests WHERE false",
+    );
+    assert.equal(read.rows.length, 0);
+    const written = await client.query(
+      "UPDATE mentorship_requests SET expiry_reason = 'DEADLINE' WHERE false",
+    );
+    assert.equal(written.rowCount, 0, "the update is permitted and touches nothing");
+  } finally {
+    await client.query("ROLLBACK");
+  }
+});

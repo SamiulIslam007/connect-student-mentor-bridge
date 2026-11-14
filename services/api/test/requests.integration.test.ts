@@ -697,3 +697,156 @@ test("a body user_id on a request is refused and writes nothing", async (context
   const all = await current.client.query("SELECT id FROM mentorship_requests");
   assert.equal(all.rowCount, 0, "a refused body writes nothing");
 });
+
+/** An institution whose domain does not match the mentor's own email. */
+async function otherInstitution(current: TestApiStack): Promise<string> {
+  // Fixture row: this stack does not register the institutions controller, and
+  // the test only needs an institution whose domain the mentor's email cannot match.
+  const created = await current.client.query<{ id: string }>(
+    "INSERT INTO institutions (name, kind, country_code, status) VALUES ('Elsewhere University', 'UNIVERSITY', 'BD', 'ACTIVE') RETURNING id",
+  );
+  const id = created.rows[0].id;
+  await current.client.query(
+    "INSERT INTO institution_domains (institution_id, domain) VALUES ($1, 'elsewhere.edu.bd')",
+    [id],
+  );
+  return id;
+}
+
+test("losing Level 1 expires every pending request and tells the student why", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const mentor = await activeMentor(current, "lose.level@example.edu.bd");
+  const student = await studentWithProfile(current, "lose.level.student@example.com");
+  const created = await createRequest(current, student, mentor.profileId);
+  assert.equal(created.status, 201, created.text);
+  const requestId = String(created.body?.id);
+
+  // The claim names an institution whose registered domain cannot match the
+  // mentor's email, so the earlier verified row is revoked and the new one is
+  // PENDING at Level 0.
+  const elsewhere = await otherInstitution(current);
+  const claimed = await apiRequest(
+    current,
+    "POST",
+    "/v1/me/affiliations",
+    { kind: "ALUMNUS", institution_id: elsewhere },
+    mentor.token,
+  );
+  assert.equal(claimed.status, 200, claimed.text);
+  assert.equal((claimed.body?.affiliation as Record<string, unknown>).level, "level_0");
+
+  const rows = await current.client.query<{ status: string; expiry_reason: string | null }>(
+    "SELECT status, expiry_reason FROM mentorship_requests WHERE id = $1",
+    [requestId],
+  );
+  assert.deepEqual(rows.rows[0], { status: "EXPIRED", expiry_reason: "MENTOR_INELIGIBLE" });
+
+  const mails = await current.client.query<{ payload: { template?: string; text?: string } }>(
+    "SELECT payload FROM outbox_events WHERE dedupe_key = $1",
+    [`email:request-expired-ineligible:${requestId}`],
+  );
+  assert.equal(mails.rows.length, 1, "one notice, once");
+  assert.equal(mails.rows[0].payload.template, "request-expired");
+  assert.match(String(mails.rows[0].payload.text), /affiliation could not be re-verified/);
+
+  const listed = await apiRequest(current, "GET", "/v1/requests?role=sent", undefined, student);
+  assert.equal(listed.status, 200, listed.text);
+  const row = (listed.body?.data as Array<Record<string, unknown>>).find((item) => item.id === requestId);
+  assert.equal(row?.status, "expired");
+  assert.equal(row?.expiry_reason, "MENTOR_INELIGIBLE");
+});
+
+test("a second run expires nothing twice and the student may request again", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const mentor = await activeMentor(current, "lose.twice@example.edu.bd");
+  const student = await studentWithProfile(current, "lose.twice.student@example.com");
+  const created = await createRequest(current, student, mentor.profileId);
+  const requestId = String(created.body?.id);
+
+  const elsewhere = await otherInstitution(current);
+  await apiRequest(
+    current,
+    "POST",
+    "/v1/me/affiliations",
+    { kind: "ALUMNUS", institution_id: elsewhere },
+    mentor.token,
+  );
+
+  // The helper is idempotent: a second invocation inside its own transaction
+  // finds no PENDING row and queues no second notice.
+  const { expireRequestsWithoutVerifiedAffiliation } = await import(
+    "../src/affiliations/affiliation-expiry.js"
+  );
+  const mentorUserId = (
+    await current.client.query<{ id: string }>(
+      "SELECT id FROM users WHERE email = $1",
+      ["lose.twice@example.edu.bd"],
+    )
+  ).rows[0].id;
+  const second = await current.database.db.transaction(async (tx) =>
+    expireRequestsWithoutVerifiedAffiliation(tx, { mentorUserId, requestId: "retry" }),
+  );
+  assert.deepEqual(second.expired, []);
+
+  const mails = await current.client.query<{ count: string }>(
+    "SELECT count(*)::text AS count FROM outbox_events WHERE dedupe_key LIKE $1",
+    [`email:request-expired-ineligible:${requestId}`],
+  );
+  assert.equal(mails.rows[0].count, "1", "one notice for one expiry");
+
+  // The expiry frees the student's pending slot, so a request to another mentor
+  // is possible again (this mentor is at Level 0 now, so asking them again is
+  // refused as unverified — which is the point of the expiry).
+  const pending = await current.client.query<{ count: string }>(
+    "SELECT count(*)::text AS count FROM mentorship_requests WHERE status = 'PENDING'",
+  );
+  assert.equal(pending.rows[0].count, "0", "the pending slot is free");
+  const again = await createRequest(current, student, mentor.profileId);
+  assert.equal(again.status, 409, again.text);
+  assert.match(String(again.body?.code), /MENTOR/);
+});
+
+test("a deadline expiry still carries DEADLINE and counts as a non-response", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const mentor = await activeMentor(current, "deadline@example.edu.bd");
+  const student = await studentWithProfile(current, "deadline.student@example.com");
+  const created = await createRequest(current, student, mentor.profileId);
+  const requestId = String(created.body?.id);
+
+  // The row's own check keeps `expires_at` after `created_at`, so move both.
+  await current.client.query(
+    "UPDATE mentorship_requests SET created_at = now() - interval '2 days', expires_at = now() - interval '1 day' WHERE id = $1",
+    [requestId],
+  );
+  const swept = await sweepRequests(current.database.db);
+  assert.ok(swept.expired >= 1);
+
+  const rows = await current.client.query<{ status: string; expiry_reason: string | null }>(
+    "SELECT status, expiry_reason FROM mentorship_requests WHERE id = $1",
+    [requestId],
+  );
+  assert.deepEqual(rows.rows[0], { status: "EXPIRED", expiry_reason: "DEADLINE" });
+});
+
+test("a claim that stays verified expires nothing", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const mentor = await activeMentor(current, "stay.verified@example.edu.bd");
+  const student = await studentWithProfile(current, "stay.verified.student@example.com");
+  const created = await createRequest(current, student, mentor.profileId);
+  const requestId = String(created.body?.id);
+
+  // The same institution again: the account still holds a VERIFIED row, so the
+  // guard returns early and the request keeps its 48-hour window (D-165).
+  const again = await apiRequest(current, "POST", "/v1/me/affiliations", { kind: "ALUMNUS" }, mentor.token);
+  assert.equal(again.status, 200, again.text);
+
+  const rows = await current.client.query<{ status: string; expiry_reason: string | null }>(
+    "SELECT status, expiry_reason FROM mentorship_requests WHERE id = $1",
+    [requestId],
+  );
+  assert.deepEqual(rows.rows[0], { status: "PENDING", expiry_reason: null });
+});

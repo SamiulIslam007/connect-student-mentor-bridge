@@ -621,18 +621,18 @@ test("the impact read returns counts only and excludes every uncounted state", a
 async function seedRequest(
   current: TestApiStack,
   mentorProfileId: string,
-  input: { status: string; decidedAfterHours?: number },
+  input: { status: string; decidedAfterHours?: number; expiryReason?: string },
 ): Promise<void> {
   await current.client.query(
     `INSERT INTO mentorship_requests
        (student_profile_id, mentor_profile_id, field_id, question, context_summary,
-        target_outcome, timeframe, status, decided_at, expires_at, created_at, updated_at)
+        target_outcome, timeframe, status, decided_at, expires_at, created_at, updated_at, expiry_reason)
      SELECT student_profile_id, mentor_profile_id, field_id, 'A follow-up question',
             'Second-year student', 'Understand the field', timeframe, $2,
             CASE WHEN $3::int IS NULL THEN NULL ELSE created_at + ($3::int * interval '1 hour') END,
-            created_at + interval '49 hours', created_at, created_at
+            created_at + interval '49 hours', created_at, created_at, $4
      FROM mentorship_requests WHERE mentor_profile_id = $1 LIMIT 1`,
-    [mentorProfileId, input.status, input.decidedAfterHours ?? null],
+    [mentorProfileId, input.status, input.decidedAfterHours ?? null, input.expiryReason ?? null],
   );
 }
 
@@ -653,8 +653,13 @@ test("the own impact read reports the two request counts and the public read doe
   assert.equal(own.body?.requests_late_or_expired, 2, "one late decision and one expiry");
 
   // The SQL aggregate and the pure rule must agree on the same rows.
-  const rows = await current.client.query<{ status: string; created_at: Date; decided_at: Date | null }>(
-    "SELECT status, created_at, decided_at FROM mentorship_requests WHERE mentor_profile_id = $1",
+  const rows = await current.client.query<{
+    status: string;
+    created_at: Date;
+    decided_at: Date | null;
+    expiry_reason: string | null;
+  }>(
+    "SELECT status, created_at, decided_at, expiry_reason FROM mentorship_requests WHERE mentor_profile_id = $1",
     [pair.mentorProfileId],
   );
   assert.deepEqual(
@@ -663,6 +668,7 @@ test("the own impact read reports the two request counts and the public read doe
         status: row.status,
         createdAt: new Date(row.created_at),
         decidedAt: row.decided_at ? new Date(row.decided_at) : null,
+        expiryReason: row.expiry_reason,
       })),
       48,
     ),
@@ -701,4 +707,25 @@ test("a non-mentor sees an empty impact list", async (context) => {
     requests_decided_in_time: 0,
     requests_late_or_expired: 0,
   });
+});
+
+test("an eligibility expiry is not a non-response, and a deadline expiry still is", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const pair = await acceptPair(current, "eligibility.student@example.com", "eligibility.mentor@example.edu.bd");
+  await seedRequest(current, pair.mentorProfileId, { status: "EXPIRED", expiryReason: "MENTOR_INELIGIBLE" });
+
+  const before = await apiRequest(current, "GET", "/v1/me/impact", undefined, pair.mentorToken);
+  assert.equal(before.status, 200, before.text);
+  assert.equal(
+    before.body?.requests_late_or_expired,
+    0,
+    "the mentor could not decide, so the expiry is not their non-response",
+  );
+  assert.equal(before.body?.requests_decided_in_time, 1, "the accept is still decided in time");
+
+  await seedRequest(current, pair.mentorProfileId, { status: "EXPIRED", expiryReason: "DEADLINE" });
+  const after = await apiRequest(current, "GET", "/v1/me/impact", undefined, pair.mentorToken);
+  assert.equal(after.body?.requests_late_or_expired, 1, "a deadline expiry counts exactly as before");
+  assert.equal(after.body?.requests_decided_in_time, 1, "and it changes nothing else");
 });

@@ -132,6 +132,8 @@ export interface RequestTimingRow {
   status: string;
   createdAt: Date;
   decidedAt: Date | null;
+  /** `DEADLINE` or `MENTOR_INELIGIBLE`; absent on a request that never expired. */
+  expiryReason?: string | null;
 }
 
 export interface ResponseReliability {
@@ -155,6 +157,12 @@ export function responseReliability(
 
   for (const request of requests) {
     if (request.status === "EXPIRED") {
+      // The mentor could not decide, so the expiry is not their non-response
+      // (D-166). Every other expiry — the deadline, or a row with no reason —
+      // counts exactly as before.
+      if (request.expiryReason === "MENTOR_INELIGIBLE") {
+        continue;
+      }
       lateOrExpired += 1;
       continue;
     }

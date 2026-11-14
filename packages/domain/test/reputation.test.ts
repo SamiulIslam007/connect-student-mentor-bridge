@@ -188,3 +188,19 @@ test("an invalid window is refused rather than guessed", () => {
   assert.throws(() => responseReliability([], 0), /windowHours/);
   assert.throws(() => responseReliability([], Number.NaN), /windowHours/);
 });
+
+test("an eligibility expiry is not the mentor's non-response", () => {
+  // The mentor could not decide, so the row leaves both buckets alone (D-166);
+  // a deadline expiry, or a row with no reason, still counts.
+  assert.deepEqual(
+    responseReliability(
+      [
+        { status: "EXPIRED", createdAt: at(0), decidedAt: null, expiryReason: "MENTOR_INELIGIBLE" },
+        { status: "EXPIRED", createdAt: at(0), decidedAt: null, expiryReason: "DEADLINE" },
+        { status: "EXPIRED", createdAt: at(0), decidedAt: null },
+      ],
+      48,
+    ),
+    { decidedInTime: 0, lateOrExpired: 2 },
+  );
+});

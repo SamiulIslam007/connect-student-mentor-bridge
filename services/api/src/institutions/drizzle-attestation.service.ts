@@ -12,6 +12,7 @@ import type { Database } from "../db/database.js";
 import { affiliations, institutions, users } from "../db/schema/index.js";
 import { appendAuditEntry } from "../identity/audit-log.js";
 import { syncMentorActivation } from "../onboarding/mentor-activation.js";
+import { expireRequestsWithoutVerifiedAffiliation } from "../affiliations/affiliation-expiry.js";
 import { enqueueOutboxEvent } from "../platform/outbox/outbox.js";
 import {
   CLAIM_DECISIONS,
@@ -206,6 +207,13 @@ export class DrizzleAttestationsService implements AttestationsService {
 
       if (decision === "verify") {
         await syncMentorActivation(tx, claim.userId);
+        // A no-op here by construction — the replacement row is already VERIFIED —
+        // but evaluated rather than assumed, so the guard has one meaning at both
+        // revocation sites (D-165).
+        await expireRequestsWithoutVerifiedAffiliation(tx, {
+          mentorUserId: claim.userId,
+          requestId: input.requestId,
+        });
       }
 
       return {
