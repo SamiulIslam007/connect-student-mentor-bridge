@@ -2199,8 +2199,8 @@ paths:
       summary: Open platform-review cases for a Platform Admin with a second factor
       description: >-
         Derived case rows: the outcome, the case kind from the latest dispute or
-        conflict record (ESCALATED_D7 when there is none), the opening reason and
-        time, and the waiting days. Oldest mentor deadline first, keyset by the
+        conflict record (a hold's CASE_OPENED event, ESCALATED_D7 when neither
+        exists), the opening reason and time, and the waiting days. Oldest mentor deadline first, keyset by the
         last outcome id. No assignment, due dates, or SLA in this release (D-76).
       security:
         - bearerAuth: []
@@ -2220,6 +2220,14 @@ paths:
             minimum: 1
             maximum: 50
             default: 20
+        - name: case_kind
+          in: query
+          required: false
+          description: >-
+            One case kind only. A value outside the enum is refused with 422
+            rather than answered with an empty page.
+          schema:
+            $ref: "#/components/schemas/ReviewCaseKind"
       responses:
         "200":
           description: One page of open cases
@@ -4079,6 +4087,12 @@ components:
           type: string
           minLength: 1
           maxLength: 1000
+    ReviewCaseKind:
+      type: string
+      enum: [mentor_dispute, conflict_of_interest, escalated_d7, audit_hold]
+      description: >-
+        How the case was opened: a mentor dispute, a declared conflict of
+        interest, the day-7 escalation, or the audit sampler's hold.
     ReviewQueueCase:
       type: object
       additionalProperties: false
@@ -4111,8 +4125,7 @@ components:
         mentor_name:
           type: string
         case_kind:
-          type: string
-          enum: [mentor_dispute, conflict_of_interest, escalated_d7]
+          $ref: "#/components/schemas/ReviewCaseKind"
         reason:
           type: string
           nullable: true

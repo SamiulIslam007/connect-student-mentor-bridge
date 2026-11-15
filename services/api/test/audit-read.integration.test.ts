@@ -450,3 +450,32 @@ test("reading the log writes no audit row", async (context) => {
   );
   assert.equal(reads.rows[0].count, "0", "no read action exists");
 });
+
+test("the action a hold writes is filterable without a new action name", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const admin = await adminToken(current);
+  await registerAndVerify(current, "actor.hold@example.com");
+  const actor = await accountId(current, "actor.hold@example.com");
+  await current.client.query(
+    `INSERT INTO audit_logs
+       (occurred_at, actor_user_id, actor_role, action, object_type, object_id, request_id)
+     VALUES (now(), NULL, 'SYSTEM', 'OUTCOME_AUDIT_HELD', 'outcomes', 'outcome-sampled', 'system:audit-sampler')`,
+  );
+
+  const filtered = await apiRequest(
+    current,
+    "GET",
+    "/v1/admin/audit?action=OUTCOME_AUDIT_HELD",
+    undefined,
+    admin,
+  );
+  assert.equal(filtered.status, 200, filtered.text);
+  const rows = (filtered.body?.data as Array<{ action: string; object_id: string | null }>) ?? [];
+  assert.deepEqual(
+    rows.map((row) => [row.action, row.object_id]),
+    [["OUTCOME_AUDIT_HELD", "outcome-sampled"]],
+    "the sampler's effect is visible through the existing filter",
+  );
+  assert.ok(actor, "the fixture account exists");
+});

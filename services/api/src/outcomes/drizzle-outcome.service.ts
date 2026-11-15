@@ -582,13 +582,14 @@ export class DrizzleOutcomeService implements OutcomeService {
 
   /**
    * The audit hold (T6, design R3): `CONFIRMED` to `IN_PLATFORM_REVIEW` with one
-   * `CASE_OPENED` event and one audit row, no email. The caller is the future
-   * sampling job or a reviewer route; this change ships the transition alone
-   * (D-161). Conditional on the status it read, so a concurrent count cannot be
-   * pulled back, and a zero-row match writes nothing.
+   * `CASE_OPENED` event and one audit row, no email. The caller is the audit
+   * sampler (`audit-sampling`, FR-ADM-03), which passes a null actor, so the row
+   * records `SYSTEM`. Conditional on the status it read, so a concurrent count
+   * cannot be pulled back, and a zero-row match writes nothing.
    */
   async hold(input: HoldOutcomeInput): Promise<OutcomeRecord> {
     const reason = requiredText(input.reason, "reason", OUTCOME_FIELD_LIMITS.reason);
+    const actorRole = input.actorUserId === null ? "SYSTEM" : input.actorRole;
 
     return await this.db.transaction(async (tx) => {
       const current = await readRecord(tx, input.outcomeId, true);
@@ -613,14 +614,14 @@ export class DrizzleOutcomeService implements OutcomeService {
         fromStatus: current.status,
         toStatus: target,
         actorUserId: input.actorUserId,
-        actorRole: input.actorRole,
+        actorRole,
         requestId: input.requestId,
         payload: { reason },
       });
       await appendAuditEntry(tx, {
         action: "OUTCOME_AUDIT_HELD",
         actorUserId: input.actorUserId,
-        actorRole: input.actorRole,
+        actorRole,
         objectType: "outcomes",
         objectId: input.outcomeId,
         requestId: input.requestId,
@@ -811,8 +812,24 @@ export class DrizzleOutcomeService implements OutcomeService {
       );
   }
 
-  async reviewQueue({ limit, cursor }: ReviewQueueInput): Promise<ReviewQueuePage> {
+  async reviewQueue({ limit, cursor, caseKind }: ReviewQueueInput): Promise<ReviewQueuePage> {
     const conditions = [eq(outcomes.status, "IN_PLATFORM_REVIEW")];
+    // The kind is derived once and used twice (select and filter), so the page
+    // and the filter can never disagree (design R5). A hold writes no
+    // verification record, so a held case needs its own branch.
+    const caseKindSql = sql<string>`COALESCE((
+      SELECT record.kind::text FROM verification_records record
+      WHERE record.outcome_id = ${outcomes.id}
+        AND record.kind IN ('MENTOR_DISPUTE', 'CONFLICT_OF_INTEREST')
+      ORDER BY record.created_at DESC LIMIT 1
+    ), (
+      SELECT 'AUDIT_HOLD' FROM outcome_events event
+      WHERE event.outcome_id = ${outcomes.id}
+        AND event.event_type = 'CASE_OPENED' LIMIT 1
+    ), 'ESCALATED_D7')`;
+    if (caseKind) {
+      conditions.push(sql`lower(${caseKindSql}) = ${caseKind}`);
+    }
     if (cursor) {
       conditions.push(sql`(
         ${outcomes.mentorDecisionDueAt}, ${outcomes.id}
@@ -831,12 +848,7 @@ export class DrizzleOutcomeService implements OutcomeService {
         fieldName: fields.name,
         studentName: studentUser.name,
         mentorName: mentorUser.name,
-        caseKind: sql<string>`COALESCE((
-          SELECT record.kind::text FROM verification_records record
-          WHERE record.outcome_id = ${outcomes.id}
-            AND record.kind IN ('MENTOR_DISPUTE', 'CONFLICT_OF_INTEREST')
-          ORDER BY record.created_at DESC LIMIT 1
-        ), 'ESCALATED_D7')`,
+        caseKind: caseKindSql,
         reason: sql<string | null>`(
           SELECT record.statement FROM verification_records record
           WHERE record.outcome_id = ${outcomes.id}

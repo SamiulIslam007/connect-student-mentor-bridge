@@ -26,6 +26,25 @@ export const READINESS_TIMEOUT_MS = 2_000;
 export const OUTCOME_COOLING_PERIOD_DAYS = 14;
 
 /**
+ * Audit sampling (`FR-ADM-03`, D-178): a `CONFIRMED` outcome is held for review
+ * before it counts. 25% is a working value the owner can lower before the pilot;
+ * the three always-sampled types are named because every difficulty weight is
+ * still a placeholder (D-179). The salt is fixed so raising the rate later
+ * cannot re-roll an outcome already judged (D-181).
+ */
+export const AUDIT_SAMPLE_RATE = 0.25;
+export const AUDIT_ALWAYS_SAMPLED_OUTCOME_TYPES = ["ADMISSION", "INTERNSHIP", "JOB_OFFER"] as const;
+export const AUDIT_SAMPLE_SALT = "audit-sample-v1";
+
+/**
+ * The one seam the sampling job reads the rate through, so configuration
+ * versioning can replace the source without touching the job (design R7).
+ */
+export function auditSampleRate(): number {
+  return AUDIT_SAMPLE_RATE;
+}
+
+/**
  * Reputation weights are **placeholders pending pilot data**: every value is
  * `1.0`, and `docs/reputation-and-verification-policy.md` §17 keeps the real
  * values Open. Points therefore reduce to the pair factor, and no numeric score

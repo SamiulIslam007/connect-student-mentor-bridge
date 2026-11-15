@@ -1374,3 +1374,51 @@ date: 2026-10-29
 - Reason: a marker is removed only by the mentorship cascade. A `DELETE` grant would let a caller erase their own read history, which is the evidence of what they had not seen.
 - Status: Decided
 - Affects: `docs/data-model.md` INV-05 and 5.4, `services/api/test/database.integration.test.ts`
+
+### D-178: The audit sample rate is a working value of 25%
+
+- Date: 2026-11-15
+- Decision: `AUDIT_SAMPLE_RATE = 0.25` in `@connect/config`, read by the job through the one-line `auditSampleRate()` seam. At a pilot week of about 20 confirmations this is roughly five to eight cases for the only reviewer.
+- Reason: the requirement leaves the rate Open (P1) and a pilot needs a number. Single constant, read through one function, so `configuration-versioning` can replace the source without touching the job.
+- Status: Decided; the value stays `Open` as a product number, and the owner can lower it before the pilot
+- Affects: `packages/config/src/index.ts`, `services/api/src/outcomes/audit-sampler.ts`, `docs/reputation-and-verification-policy.md` §6
+
+### D-179: Three outcome types are always sampled, by name
+
+- Date: 2026-11-15
+- Decision: `AUDIT_ALWAYS_SAMPLED_OUTCOME_TYPES = ["ADMISSION", "INTERNSHIP", "JOB_OFFER"]`, independent of the rate.
+- Reason: every difficulty weight is a `1.0` placeholder (D-67), so "the highest difficulty band" would select everything and make the random draw meaningless. The three types are the ones the register already ties to Tier 1 (`FR-OUT-07`), so the rule has a documentary basis rather than an invented one.
+- Status: Decided
+- Affects: `packages/config/src/index.ts`, `packages/domain/src/audit-sample.ts`
+
+### D-180: The sampler adds no audit action
+
+- Date: 2026-11-15
+- Decision: the sampler writes only the existing `OUTCOME_AUDIT_HELD` row through `OutcomeService.hold`. No `OUTCOME_AUDIT_SAMPLED` exists, and a test proves `GET /v1/admin/audit?action=OUTCOME_AUDIT_HELD` answers `200` with the row.
+- Reason: a second row for one fact is the defect shape D-168 rejected, and the action is already in both the writer union and the reader map.
+- Status: Decided
+- Affects: `docs/api-contracts.md` §5.9, `services/api/test/audit-read.integration.test.ts`
+
+### D-181: The draw is FNV-1a over the outcome id and a fixed salt
+
+- Date: 2026-11-15
+- Decision: `shouldSample` hashes `audit-sample-v1:<outcome id>` with 32-bit FNV-1a and compares the scaled value to the rate. No `node:crypto` import.
+- Reason: `packages/domain` may not import a Node built-in, and the draw needs no cryptographic strength — ids are server-generated UUIDs a client cannot choose. The salt is fixed so raising the rate cannot re-roll an outcome already judged; when the rate becomes a versioned value, the salt stays.
+- Status: Decided
+- Affects: `packages/domain/src/audit-sample.ts`, `packages/domain/test/audit-sample.test.ts`
+
+### D-182: The hold records a null actor as `SYSTEM`
+
+- Date: 2026-11-15
+- Decision: `HoldOutcomeInput.actorUserId` widens to `string | null`; a null actor writes `actor_role` `SYSTEM` on both the `CASE_OPENED` event and the audit row, in the shape `drizzle-reports.service.ts` already uses.
+- Reason: the sampler has no account behind it. Writing a stand-in account id would attribute a system action to a person.
+- Status: Decided
+- Affects: `services/api/src/outcomes/outcome.service.ts`, `services/api/src/outcomes/drizzle-outcome.service.ts`
+
+### D-183: `case_kind` keeps its three existing values and gains `audit_hold`
+
+- Date: 2026-11-15
+- Decision: the queue reports `mentor_dispute`, `conflict_of_interest`, `escalated_d7` (unchanged) and the new `audit_hold`; the filter accepts those four in any letter case and refuses anything else with `422`. The draft delta's `disputed` / `conflict_declared` names were not adopted.
+- Reason: renaming two wire values would break `apps/web/lib/review-queue.ts` and its test, which the change's scope excludes, for no user-visible gain. A held case reported `escalated_d7` before this change, and that mislabel is what the new branch fixes.
+- Status: Decided
+- Affects: `openspec/changes/audit-sampling/specs/mentorship/platform-review/spec.md`, `packages/contracts/openapi.yaml`, `services/api/src/outcomes/drizzle-outcome.service.ts`
