@@ -44,16 +44,30 @@ export interface ReviewInput {
   requestId: string;
 }
 
+/** The four kinds a case can be, in the wire's lowercase snake case. */
+export const REVIEW_CASE_KINDS = [
+  "mentor_dispute",
+  "conflict_of_interest",
+  "escalated_d7",
+  "audit_hold",
+] as const;
+export type ReviewCaseKind = (typeof REVIEW_CASE_KINDS)[number];
+
 export interface ReviewQueueInput {
   limit: number;
   /** The last outcome id of the previous page. */
   cursor?: string;
+  /** One kind only; the queue reports every kind when absent. */
+  caseKind?: ReviewCaseKind;
 }
 
-/** The audit hold (T6). No route calls it yet: `FR-ADM-03` is the first caller. */
+/**
+ * The audit hold (T6). Its caller is the audit sampler (`audit-sampling`,
+ * FR-ADM-03); a reviewer route may follow. A null actor is the system.
+ */
 export interface HoldOutcomeInput {
   outcomeId: string;
-  actorUserId: string;
+  actorUserId: string | null;
   actorRole: string;
   reason: string;
   requestId: string;

@@ -21,6 +21,11 @@ import {
 } from "../../requests/request-sweeper.js";
 import { sweepOutcomes } from "../../outcomes/outcome-sweeper.js";
 import {
+  AUDIT_SAMPLE_CRON,
+  AUDIT_SAMPLE_QUEUE,
+  sampleConfirmedOutcomes,
+} from "../../outcomes/audit-sampler.js";
+import {
   countDueOutcomes,
   REPUTATION_COUNT_CRON,
   REPUTATION_COUNT_QUEUE,
@@ -67,6 +72,7 @@ export class OutboxWorker implements OnApplicationBootstrap, OnApplicationShutdo
     await boss.createQueue(REQUEST_SWEEP_QUEUE);
     await boss.createQueue(REPUTATION_COUNT_QUEUE);
     await boss.createQueue(ACCOUNT_SANCTION_QUEUE);
+    await boss.createQueue(AUDIT_SAMPLE_QUEUE);
     await boss.work(REQUEST_SWEEP_QUEUE, { batchSize: 1 }, async () => {
       const result = await sweepRequests(this.database);
       if (result.reminded > 0 || result.expired > 0) {
@@ -94,6 +100,13 @@ export class OutboxWorker implements OnApplicationBootstrap, OnApplicationShutdo
       }
     });
     await boss.schedule(ACCOUNT_SANCTION_QUEUE, ACCOUNT_SANCTION_CRON);
+    await boss.work(AUDIT_SAMPLE_QUEUE, { batchSize: 1 }, async () => {
+      const result = await sampleConfirmedOutcomes(this.database);
+      if (result.held > 0 || result.raced > 0) {
+        log("outcomes.audit-sampled", { ...result });
+      }
+    });
+    await boss.schedule(AUDIT_SAMPLE_QUEUE, AUDIT_SAMPLE_CRON);
     await boss.work(
       OUTBOX_QUEUE,
       { batchSize: 1, pollingIntervalSeconds: 2 },

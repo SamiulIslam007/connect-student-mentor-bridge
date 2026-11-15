@@ -61,7 +61,7 @@ While every reputation difficulty weight is a placeholder, the system SHALL alwa
 
 ### Requirement: The review queue reports and filters the kind of case
 
-The review queue SHALL report a `case_kind` of `disputed`, `conflict_declared`, `escalated_d7` or `audit_hold` for every open case, SHALL accept one optional `case_kind` filter, and SHALL refuse an unknown kind with `422` rather than returning an empty page.
+The review queue SHALL report a `case_kind` of `mentor_dispute`, `conflict_of_interest`, `escalated_d7` or `audit_hold` for every open case, SHALL accept one optional `case_kind` filter, and SHALL refuse an unknown kind with `422` rather than returning an empty page.
 
 #### Scenario: A held-for-audit case is reported as an audit hold
 
