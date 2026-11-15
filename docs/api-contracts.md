@@ -378,6 +378,7 @@ Built by `mentorship-thread-and-sessions` (#8). Every row below is a session plu
 | `POST /v1/mentorships/{id}/agreement/acknowledge` | participant | yes | Sets the caller's own acknowledgement; a later call never overwrites the first |
 | `GET /v1/mentorships/{id}/messages?cursor=&limit=` | participant | no | Thread, oldest first, keyset on (`created_at`, `id`) |
 | `POST /v1/mentorships/{id}/messages` | participant | no | Text only, trimmed, 1 to 2000 characters. Queues exactly one email per message on the message id (D-62) |
+| `POST /v1/mentorships/{id}/read` | participant | yes | **Built** by `thread-read-state` (D-172 to D-177). No body. Advances the caller's own read marker to the server's current instant and answers `200` with `mentorship_id`, `user_id`, `last_read_at` and the caller's remaining `unread_count`. The update is conditional on a later instant, so a duplicate or stale write changes nothing |
 | `POST /v1/mentorships/{id}/sessions` | participant | no | Body: `scheduled_start`, `duration_minutes` (15 to 240), `meeting_url` (`https://` only) |
 | `POST /v1/sessions/{id}/confirm-held` | participant | yes | Sets the caller's own confirmation; `HELD` only when both exist |
 | `POST /v1/sessions/{id}/cancel` | participant | no | Body: `reason` (1 to 500 characters); only a `SCHEDULED` session can be cancelled |
@@ -386,6 +387,8 @@ Built by `mentorship-thread-and-sessions` (#8). Every row below is a session plu
 | `POST /v1/admin/mentorships/{id}/break-glass-read` | PA + MFA | no | **Built** by `break-glass-thread-read` (D-120 to D-124): a moderation read of one thread, its agreement and its session records. Body: `reason`, required, 1 to 1000 characters (a refusal states the bound). The order is fixed: authorize, validate, resolve, append one `THREAD_BREAK_GLASS_READ` audit row (`break_glass` true, the reason, the actor, the mentorship), then read. A missing reason, a non-admin, an admin without a second factor and an unknown mentorship return no content and write no row. The response is `200` with `mentorship_id`, `status`, `agreement`, `messages` (oldest first) and `sessions`, all through the participant projection, with `Cache-Control: no-store`; it carries no outcome text, no profile text and no email address. Participants are not notified (DEBT-52) |
 
 `meeting_url` must be an `https` URL. Domain allow-listing is an **Open decision**. The stored link is mentor-provided and untrusted: the page labels it as such and opens it outside connect. Messages are immutable (no update or delete route). A retried identical message post creates a second row and a second email; an idempotency-key store is DEBT-21. A transition from a wrong or terminal state is `409 MENTORSHIP_INVALID_STATE`.
+
+Read state (`thread-read-state`): `GET /v1/mentorships` and `GET /v1/mentorships/{id}` carry an optional `unread_count` — the other participant's messages newer than the caller's marker, or every message they wrote when the caller has no marker. **No `GET` marks a thread read**: only `POST /v1/mentorships/{id}/read` writes the marker, so a page load is never a write. A moderator's break-glass read moves nobody's marker. The count is absent from a write response, because a write does not compute it.
 
 
 ### 5.6 Outcomes and verification

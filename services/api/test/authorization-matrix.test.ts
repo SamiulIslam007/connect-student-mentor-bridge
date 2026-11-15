@@ -135,6 +135,9 @@ const MATRIX: Requirement[] = [
     mutating: true,
   },
   { route: /^GET \/v1\/mentorships\/:id\/messages$/, access: "signed-in" },
+  // Mark-read is a participant write; the foreign-id 404 is asserted in
+  // mentorship.integration.test.ts, so access here is any signed-in account.
+  { route: /^POST \/v1\/mentorships\/:id\/read$/, access: "signed-in", mutating: true },
   { route: /^POST \/v1\/mentorships\/:id\/messages$/, access: "signed-in", mutating: true },
   { route: /^POST \/v1\/mentorships\/:id\/sessions$/, access: "signed-in", mutating: true },
   { route: /^POST \/v1\/mentorships\/:id\/complete$/, access: "signed-in", mutating: true },

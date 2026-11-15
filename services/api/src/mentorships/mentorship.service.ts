@@ -22,6 +22,19 @@ export interface MentorshipRecord {
   mentorName: string;
   /** Set by the single-mentorship read only: which side the caller is. */
   viewerRole?: "student" | "mentor";
+  /**
+   * The caller's unread count. Set by the two reads only: a write response does
+   * not report a number it did not compute (design R4).
+   */
+  unreadCount?: number;
+}
+
+/** The mark-read answer: the caller's stored marker and what it leaves unread. */
+export interface ThreadReadState {
+  mentorshipId: string;
+  userId: string;
+  lastReadAt: Date;
+  unreadCount: number;
 }
 
 export interface MessageRecord {
@@ -56,6 +69,11 @@ export interface ListMentorshipsInput {
   userId: string;
   status?: MentorshipStatus;
   limit: number;
+}
+
+export interface MarkReadInput {
+  userId: string;
+  mentorshipId: string;
 }
 
 export interface AgreementInput {
@@ -117,6 +135,11 @@ export interface MentorshipService {
   list(input: ListMentorshipsInput): Promise<MentorshipRecord[]>;
   /** Participant-only; a foreign id reads as not found. */
   read(userId: string, mentorshipId: string): Promise<MentorshipRecord>;
+  /**
+   * Advances the caller's read marker to the database's current instant, never
+   * backwards, and returns what the marker leaves unread (design R2, R3).
+   */
+  markRead(input: MarkReadInput): Promise<ThreadReadState>;
   setAgreement(input: AgreementInput): Promise<MentorshipRecord>;
   acknowledge(userId: string, mentorshipId: string): Promise<MentorshipRecord>;
   listMessages(input: ListMessagesInput): Promise<MessagePage>;
@@ -156,6 +179,16 @@ export function mentorshipPayload(mentorship: MentorshipRecord): Record<string, 
     student_name: mentorship.studentName,
     mentor_name: mentorship.mentorName,
     ...(mentorship.viewerRole ? { viewer_role: mentorship.viewerRole } : {}),
+    ...(mentorship.unreadCount !== undefined ? { unread_count: mentorship.unreadCount } : {}),
+  };
+}
+
+export function threadReadStatePayload(state: ThreadReadState): Record<string, unknown> {
+  return {
+    mentorship_id: state.mentorshipId,
+    user_id: state.userId,
+    last_read_at: state.lastReadAt,
+    unread_count: state.unreadCount,
   };
 }
 

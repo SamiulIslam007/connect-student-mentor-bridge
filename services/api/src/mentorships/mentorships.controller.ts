@@ -17,6 +17,7 @@ import {
   mentorshipPayload,
   messagePayload,
   sessionPayload,
+  threadReadStatePayload,
   type MentorshipService,
 } from "./mentorship.service.js";
 import { MENTORSHIP_SERVICE } from "./mentorships.tokens.js";
@@ -94,6 +95,19 @@ export class MentorshipsController {
     // sessions have no list route of their own.
     const sessions = await this.mentorships.listSessions(acting.account.id, id);
     return { ...mentorshipPayload(mentorship), sessions: sessions.map(sessionPayload) };
+  }
+
+  @Throttle({ default: RATE_LIMITS.write })
+  @Post(":id/read")
+  @HttpCode(200)
+  async markRead(
+    @Param("id") id: string,
+    @Req() request: RequestWithId,
+  ): Promise<Record<string, unknown>> {
+    const acting = await actingAccountWithRoles(this.identity, request);
+    return threadReadStatePayload(
+      await this.mentorships.markRead({ userId: acting.account.id, mentorshipId: id }),
+    );
   }
 
   @Put(":id/agreement")

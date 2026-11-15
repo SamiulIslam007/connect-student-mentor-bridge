@@ -44,7 +44,7 @@ async function expectPermissionDenied(client: TestDatabase["client"], sql: strin
   }
 }
 
-test("the migrations create the thirty tables and protect the ledger", async (context) => {
+test("the migrations create the thirty-one tables and protect the ledger", async (context) => {
   const current = requireDatabase(context);
   if (!current) {
     return;
@@ -83,6 +83,7 @@ test("the migrations create the thirty tables and protect the ledger", async (co
       "student_field_interests",
       "student_profiles",
       "thread_messages",
+      "thread_read_states",
       "two_factors",
       "users",
       "verification_records",
@@ -277,6 +278,25 @@ test("the application role can use every profile table and nothing else", async 
       "INSERT INTO mentorship_sessions (mentorship_id, created_by_user_id, scheduled_start, duration_minutes, meeting_url) VALUES ($1, 'user-grants', now() + interval '1 day', 45, 'https://meet.example.com/probe') RETURNING id",
       [mentorship.rows[0].id],
     );
+    // `0020` grants the read-marker table, without DELETE (design R6).
+    const marker = await client.query<{ id: string }>(
+      "INSERT INTO thread_read_states (mentorship_id, user_id, last_read_at) VALUES ($1, 'user-grants', now()) RETURNING id",
+      [mentorship.rows[0].id],
+    );
+    await client.query("UPDATE thread_read_states SET last_read_at = now() WHERE id = $1", [
+      marker.rows[0].id,
+    ]);
+    // A savepoint, because this probe already runs inside a transaction.
+    await client.query("SAVEPOINT marker_grant");
+    await assert.rejects(client.query("DELETE FROM thread_read_states"), (error: unknown) => {
+      assert.equal(
+        (error as { code?: string }).code,
+        "42501",
+        "connect_app must not delete a read marker",
+      );
+      return true;
+    });
+    await client.query("ROLLBACK TO SAVEPOINT marker_grant");
     assert.deepEqual(
       (
         await client.query<{ body: string }>("SELECT body FROM thread_messages WHERE id = $1", [

@@ -1860,6 +1860,38 @@ paths:
           $ref: "#/components/responses/Problem"
         "409":
           $ref: "#/components/responses/Problem"
+  /v1/mentorships/{id}/read:
+    post:
+      operationId: markMentorshipThreadRead
+      summary: Advance the caller's own read marker in this thread (participant only)
+      description: >-
+        The marker moves to the server's current instant and never backwards, so
+        a duplicate or stale write is a no-op. No GET marks a thread read, and a
+        moderator's break-glass read never moves a participant's marker. The
+        response reports what the marker leaves unread.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The stored marker and the caller's remaining unread count
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ThreadReadState"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        "429":
+          $ref: "#/components/responses/Problem"
   /v1/mentorships/{id}/messages:
     get:
       operationId: listThreadMessages
@@ -3861,11 +3893,35 @@ components:
           type: string
         mentor_name:
           type: string
+        unread_count:
+          type: integer
+          minimum: 0
+          description: >-
+            Present on the two mentorship reads only: messages the other
+            participant wrote after the caller's read marker. A caller with no
+            marker counts every message the other participant wrote.
         sessions:
           type: array
           description: Present on the single-mentorship read only.
           items:
             $ref: "#/components/schemas/Session"
+    ThreadReadState:
+      type: object
+      additionalProperties: false
+      required: [mentorship_id, user_id, last_read_at, unread_count]
+      properties:
+        mentorship_id:
+          type: string
+        user_id:
+          type: string
+        last_read_at:
+          type: string
+          format: date-time
+          description: The stored marker after this write; never earlier than before.
+        unread_count:
+          type: integer
+          minimum: 0
+          description: Messages the other participant wrote after the marker.
     ThreadMessage:
       type: object
       additionalProperties: false

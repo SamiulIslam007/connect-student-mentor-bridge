@@ -63,3 +63,20 @@ export function isHttpsUrl(value: string): boolean {
 export function isCadence(value: string): value is Cadence {
   return (CADENCES as readonly string[]).includes(value);
 }
+
+/**
+ * What a reader has not seen: the counterpart's messages newer than the
+ * reader's marker. A reader with no marker has seen nothing (design R4).
+ * The API's SQL is the authority; this pins the same answer for the same rows.
+ */
+export function countUnread(input: {
+  messages: readonly { senderUserId: string; createdAt: Date }[];
+  viewerUserId: string;
+  lastReadAt: Date | null;
+}): number {
+  return input.messages.filter(
+    (message) =>
+      message.senderUserId !== input.viewerUserId &&
+      (input.lastReadAt === null || message.createdAt > input.lastReadAt),
+  ).length;
+}
