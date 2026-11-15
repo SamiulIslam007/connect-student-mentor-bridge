@@ -291,6 +291,7 @@ test("the mentorship surface is documented, session-guarded, and matches the con
     "/v1/mentorships/{id}/agreement",
     "/v1/mentorships/{id}/agreement/acknowledge",
     "/v1/mentorships/{id}/messages",
+    "/v1/mentorships/{id}/read",
     "/v1/mentorships/{id}/sessions",
     "/v1/mentorships/{id}/complete",
     "/v1/sessions/{id}/confirm-held",

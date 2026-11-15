@@ -433,8 +433,8 @@ Constraints: at most one `PENDING` request per (`student_profile_id`, `mentor_pr
 
 ### 5.4 Threads, mentorship sessions, feedback
 
-**`thread_messages`** (High; **built** by #8): `mentorship_id`, `sender_user_id`, `body text` (trimmed, 1 to 2000 characters), `created_at`. Messages are **not editable** and have no `updated_at`. Redaction columns (`redacted_at?`, `redacted_by_user_id?`, `redaction_reason?`) and `thread_read_states` are **not created** in #8; moderation and read state have no surface until Sprint 7. No attachments. Index (`mentorship_id`, `created_at`, `id`).
-**`thread_read_states`**: (`mentorship_id`, `user_id`) key, `last_read_message_id`.
+**`thread_messages`** (High; **built** by #8): `mentorship_id`, `sender_user_id`, `body text` (trimmed, 1 to 2000 characters), `created_at`. Messages are **not editable** and have no `updated_at`. Redaction columns (`redacted_at?`, `redacted_by_user_id?`, `redaction_reason?`) are **not created** in #8; moderation has no redaction surface yet. No attachments. Index (`mentorship_id`, `created_at`, `id`).
+**`thread_read_states`** (**built** by `thread-read-state`; migration `0020`): `id` uuid key, `mentorship_id` (FK `mentorships.id`, `ON DELETE CASCADE`), `user_id` (FK `users.id`, `ON DELETE CASCADE`), `last_read_at` (timestamptz, not null), `created_at`, `updated_at`. Exactly one row per (mentorship, participant): unique (`mentorship_id`, `user_id`), plus an index on (`user_id`, `mentorship_id`). The marker advances only through `POST /v1/mentorships/{id}/read`, only forwards (the upsert is conditional on a later instant) and takes the database's `now()`, never a caller clock. `connect_app` holds `SELECT, INSERT, UPDATE` (grant block in `0020`) and **no `DELETE`**: a marker is removed only by the mentorship cascade.
 
 **`mentorship_sessions`** (**built** by #8; renamed from `sessions` so the auth library's `sessions` table can keep its native name): `mentorship_id`, `scheduled_start`, `duration_minutes` (15 to 240, checked), `meeting_url` (checked to start with `https://`), `status`, `student_confirmed_held_at?`, `mentor_confirmed_held_at?`, `cancelled_by_user_id?`, `cancel_reason?`, `created_by_user_id`, `created_at`, `updated_at`. `HELD` requires both confirmations (a check constraint enforces it). Meeting links are mentor-provided; the UI warns users to treat links as untrusted. Index (`mentorship_id`, `scheduled_start`).
 
@@ -672,6 +672,7 @@ All periods are **Proposed defaults** unless marked, to be confirmed with counse
 | `mentorship_requests` | (`mentor_profile_id`, `status`, `created_at`); partial unique (`student_profile_id`, `mentor_profile_id`) where `PENDING`; (`expires_at`) where `PENDING` | Inbox, capacity, expiry sweeper |
 | `mentorships` | (`student_profile_id`), (`mentor_profile_id`, `status`) | Dashboards |
 | `thread_messages` | (`mentorship_id`, `created_at`, `id`) | Thread paging |
+| `thread_read_states` | unique (`mentorship_id`, `user_id`); (`user_id`, `mentorship_id`) | One marker per participant; unread counts and the caller's own markers |
 | `outcomes` | (`mentor_profile_id`, `field_id`, `status`); (`student_profile_id`); (`mentor_decision_due_at`) where `PENDING_CONFIRMATION`; (`cooling_ends_at`) where `CONFIRMED`; (`mentor_profile_id`, `student_profile_id`, `status`) | Impact view, timers, pair factor |
 | `outcome_events` | unique (`outcome_id`, `seq`); partial unique (`outcome_id`, `event_type`) for `REMINDER_D3_SENT`, `REMINDER_D5_SENT`, `ESCALATED_D7`, `COUNTED` | Replay, idempotent timers |
 | `reputation_events` | (`mentor_profile_id`, `field_id`, `occurred_at`); partial unique (`outcome_id`) where `COUNTED`; partial unique (`outcome_id`) where `REVERSAL` | Recompute |

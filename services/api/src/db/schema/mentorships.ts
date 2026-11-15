@@ -88,6 +88,29 @@ export const threadMessages = pgTable(
 );
 
 /**
+ * One read marker per (mentorship, participant), advanced only by the explicit
+ * mark-read route. A moderator read never touches it (design R1, R2).
+ */
+export const threadReadStates = pgTable(
+  "thread_read_states",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    mentorshipId: uuid("mentorship_id")
+      .notNull()
+      .references(() => mentorships.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    lastReadAt: timestamp("last_read_at", { withTimezone: true }).notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("thread_read_states_pair_unique").on(table.mentorshipId, table.userId),
+    index("thread_read_states_user_idx").on(table.userId, table.mentorshipId),
+  ],
+);
+
+/**
  * A planned session. `HELD` is written only when both participants have
  * confirmed the session happened, so the two timestamps are the evidence.
  */

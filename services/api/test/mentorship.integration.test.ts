@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { after, before, beforeEach, test, type TestContext } from "node:test";
 
+import { countUnread } from "@connect/domain";
+
 import { AffiliationsController } from "../src/affiliations/affiliations.controller.js";
 import { AFFILIATIONS_SERVICE } from "../src/affiliations/affiliations.tokens.js";
 import { DrizzleAffiliationsService } from "../src/affiliations/drizzle-affiliations.service.js";
@@ -698,4 +700,251 @@ test("a mentorship is completed once and a third account gets 404", async (conte
   );
   assert.equal(again.status, 409, again.text);
   assert.equal(again.body?.code, "MENTORSHIP_INVALID_STATE");
+});
+
+test("a participant marks the thread read and the marker persists", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const { student, mentor, mentorshipId } = await acceptedPair(current, ".read");
+  assert.equal(
+    (
+      await apiRequest(
+        current,
+        "POST",
+        `/v1/mentorships/${mentorshipId}/messages`,
+        { body: "First message" },
+        mentor.token,
+      )
+    ).status,
+    201,
+  );
+
+  const marked = await apiRequest(
+    current,
+    "POST",
+    `/v1/mentorships/${mentorshipId}/read`,
+    undefined,
+    student,
+  );
+  assert.equal(marked.status, 200, marked.text);
+  assert.equal(marked.body?.mentorship_id, mentorshipId);
+  assert.equal(marked.body?.unread_count, 0);
+  assert.ok(marked.body?.last_read_at);
+  assert.equal(await countRows(current, "thread_read_states"), 1);
+
+  const read = await apiRequest(
+    current,
+    "GET",
+    `/v1/mentorships/${mentorshipId}`,
+    undefined,
+    student,
+  );
+  assert.equal(read.status, 200, read.text);
+  assert.equal(read.body?.unread_count, 0, "the count persisted across a read");
+});
+
+test("the marker never moves backwards", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const { student, mentorshipId } = await acceptedPair(current, ".monotonic");
+  assert.equal(
+    (
+      await apiRequest(
+        current,
+        "POST",
+        `/v1/mentorships/${mentorshipId}/read`,
+        undefined,
+        student,
+      )
+    ).status,
+    200,
+  );
+  // A marker already ahead of `now()` stands in for a duplicate or stale write.
+  await current.client.query(
+    "UPDATE thread_read_states SET last_read_at = now() + interval '1 hour' WHERE mentorship_id = $1",
+    [mentorshipId],
+  );
+  const ahead = await current.client.query<{ last_read_at: Date }>(
+    "SELECT last_read_at FROM thread_read_states WHERE mentorship_id = $1",
+    [mentorshipId],
+  );
+
+  const again = await apiRequest(
+    current,
+    "POST",
+    `/v1/mentorships/${mentorshipId}/read`,
+    undefined,
+    student,
+  );
+  assert.equal(again.status, 200, again.text);
+  assert.deepEqual(new Date(String(again.body?.last_read_at)), ahead.rows[0].last_read_at);
+  const stored = await current.client.query<{ last_read_at: Date }>(
+    "SELECT last_read_at FROM thread_read_states WHERE mentorship_id = $1",
+    [mentorshipId],
+  );
+  assert.deepEqual(stored.rows, ahead.rows, "an earlier instant is a no-op");
+});
+
+test("unread counts only the other participant's newer messages", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const { student, mentor, mentorshipId } = await acceptedPair(current, ".unread");
+
+  assert.equal(
+    (
+      await apiRequest(
+        current,
+        "POST",
+        `/v1/mentorships/${mentorshipId}/messages`,
+        { body: "Student question" },
+        student,
+      )
+    ).status,
+    201,
+  );
+  assert.equal(
+    (
+      await apiRequest(
+        current,
+        "POST",
+        `/v1/mentorships/${mentorshipId}/read`,
+        undefined,
+        student,
+      )
+    ).status,
+    200,
+  );
+  for (const body of ["One", "Two", "Three"]) {
+    assert.equal(
+      (
+        await apiRequest(
+          current,
+          "POST",
+          `/v1/mentorships/${mentorshipId}/messages`,
+          { body },
+          mentor.token,
+        )
+      ).status,
+      201,
+    );
+  }
+
+  const studentRead = await apiRequest(
+    current,
+    "GET",
+    `/v1/mentorships/${mentorshipId}`,
+    undefined,
+    student,
+  );
+  assert.equal(studentRead.status, 200, studentRead.text);
+  assert.equal(studentRead.body?.unread_count, 3);
+
+  // The mentor never marked read, so the student's one message is unread to them.
+  const mentorRead = await apiRequest(
+    current,
+    "GET",
+    `/v1/mentorships/${mentorshipId}`,
+    undefined,
+    mentor.token,
+  );
+  assert.equal(mentorRead.status, 200, mentorRead.text);
+  assert.equal(mentorRead.body?.unread_count, 1);
+
+  const list = await apiRequest(current, "GET", "/v1/mentorships", undefined, student);
+  assert.equal(list.status, 200, list.text);
+  const listed = (list.body?.data as Record<string, unknown>[])[0];
+  assert.equal(listed?.id, mentorshipId);
+  assert.equal(listed?.unread_count, 3, "the list carries the same number");
+
+  // The API's number equals the pure rule on the same rows.
+  const messages = await current.client.query<{ sender_user_id: string; created_at: Date }>(
+    "SELECT sender_user_id, created_at FROM thread_messages WHERE mentorship_id = $1",
+    [mentorshipId],
+  );
+  const markers = await current.client.query<{ user_id: string; last_read_at: Date }>(
+    "SELECT user_id, last_read_at FROM thread_read_states WHERE mentorship_id = $1",
+    [mentorshipId],
+  );
+  for (const [read, email] of [
+    [studentRead, "student.unread@example.com"],
+    [mentorRead, "mentor.unread@example.edu.bd"],
+  ] as const) {
+    const viewer = await current.client.query<{ id: string }>(
+      "SELECT id FROM users WHERE email = $1",
+      [email],
+    );
+    const viewerUserId = viewer.rows[0].id;
+    const marker = markers.rows.find((row) => row.user_id === viewerUserId)?.last_read_at ?? null;
+    const expected = countUnread({
+      messages: messages.rows.map((row) => ({
+        senderUserId: row.sender_user_id,
+        createdAt: row.created_at,
+      })),
+      viewerUserId,
+      lastReadAt: marker,
+    });
+    assert.equal(read.body?.unread_count, expected);
+  }
+});
+
+test("only a participant writes a marker, and a GET writes none", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const { student, mentor, mentorshipId } = await acceptedPair(current, ".refuse");
+  const third = await studentWithProfile(current, "refuse.third@example.com");
+
+  const foreign = await apiRequest(
+    current,
+    "POST",
+    `/v1/mentorships/${mentorshipId}/read`,
+    undefined,
+    third,
+  );
+  assert.equal(foreign.status, 404, foreign.text);
+  assert.equal(await countRows(current, "thread_read_states"), 0, "a refusal writes nothing");
+
+  const anonymous = await apiRequest(
+    current,
+    "POST",
+    `/v1/mentorships/${mentorshipId}/read`,
+    undefined,
+    undefined,
+  );
+  assert.equal(anonymous.status, 401, anonymous.text);
+  assert.equal(await countRows(current, "thread_read_states"), 0);
+
+  // Reads never mark anything.
+  assert.equal(
+    (
+      await apiRequest(
+        current,
+        "GET",
+        `/v1/mentorships/${mentorshipId}/messages`,
+        undefined,
+        student,
+      )
+    ).status,
+    200,
+  );
+  assert.equal(
+    (await apiRequest(current, "GET", `/v1/mentorships/${mentorshipId}`, undefined, mentor.token))
+      .status,
+    200,
+  );
+  assert.equal(await countRows(current, "thread_read_states"), 0, "a read writes no marker");
+});
+
+test("a deleted mentorship takes its read markers with it", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const { student, mentorshipId } = await acceptedPair(current, ".cascade");
+  assert.equal(
+    (await apiRequest(current, "POST", `/v1/mentorships/${mentorshipId}/read`, undefined, student))
+      .status,
+    200,
+  );
+  assert.equal(await countRows(current, "thread_read_states"), 1);
+
+  await current.client.query("DELETE FROM mentorships WHERE id = $1", [mentorshipId]);
+  assert.equal(await countRows(current, "thread_read_states"), 0, "the marker cascades away");
 });

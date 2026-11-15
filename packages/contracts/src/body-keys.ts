@@ -81,6 +81,7 @@ export const ROUTE_BODY_KEYS: Readonly<Record<string, readonly string[]>> = {
   "POST /v1/requests/:id/withdraw": [],
   "PUT /v1/mentorships/:id/agreement": ["cadence", "planned_weeks", "goal"],
   "POST /v1/mentorships/:id/agreement/acknowledge": [],
+  "POST /v1/mentorships/:id/read": [],
   "POST /v1/mentorships/:id/messages": ["body"],
   "POST /v1/mentorships/:id/sessions": [
     "scheduled_start",

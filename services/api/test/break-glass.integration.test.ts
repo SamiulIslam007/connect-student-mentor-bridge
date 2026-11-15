@@ -438,3 +438,69 @@ test("the audit insert is issued before any message is read", async (context) =>
   );
   assert.equal((await auditRows(current)).length, 1);
 });
+
+test("a break-glass read moves no participant's read marker", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const seed = await seedThread(current);
+  const admin = await platformAdmin(current, "admin-markers@example.com");
+
+  // The student marks the thread read; the mentor never does.
+  const marked = await apiRequest(
+    current,
+    "POST",
+    `/v1/mentorships/${seed.mentorshipId}/read`,
+    undefined,
+    seed.studentToken,
+  );
+  assert.equal(marked.status, 200, marked.text);
+
+  const markersBefore = await current.client.query(
+    "SELECT to_jsonb(t) AS row FROM thread_read_states t ORDER BY user_id",
+  );
+  const studentBefore = await apiRequest(
+    current,
+    "GET",
+    `/v1/mentorships/${seed.mentorshipId}`,
+    undefined,
+    seed.studentToken,
+  );
+  const mentorBefore = await apiRequest(
+    current,
+    "GET",
+    `/v1/mentorships/${seed.mentorshipId}`,
+    undefined,
+    seed.mentorToken,
+  );
+
+  const response = await apiRequest(
+    current,
+    "POST",
+    breakGlassPath(seed.mentorshipId),
+    { reason: "Moderation review" },
+    admin,
+  );
+  assert.equal(response.status, 200, response.text);
+
+  const markersAfter = await current.client.query(
+    "SELECT to_jsonb(t) AS row FROM thread_read_states t ORDER BY user_id",
+  );
+  assert.deepEqual(markersAfter.rows, markersBefore.rows, "the moderator read moved no marker");
+
+  const studentAfter = await apiRequest(
+    current,
+    "GET",
+    `/v1/mentorships/${seed.mentorshipId}`,
+    undefined,
+    seed.studentToken,
+  );
+  const mentorAfter = await apiRequest(
+    current,
+    "GET",
+    `/v1/mentorships/${seed.mentorshipId}`,
+    undefined,
+    seed.mentorToken,
+  );
+  assert.equal(studentAfter.body?.unread_count, studentBefore.body?.unread_count);
+  assert.equal(mentorAfter.body?.unread_count, mentorBefore.body?.unread_count);
+});

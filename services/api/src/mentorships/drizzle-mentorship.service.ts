@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { and, asc, count, desc, eq, gt, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, inArray, ne, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 import {
@@ -26,6 +26,7 @@ import {
   mentorships,
   studentProfiles,
   threadMessages,
+  threadReadStates,
 } from "../db/schema/index.js";
 import { users } from "../db/schema/index.js";
 import { appendAuditEntry } from "../identity/audit-log.js";
@@ -37,6 +38,7 @@ import type {
   CreateSessionInput,
   ListMentorshipsInput,
   ListMessagesInput,
+  MarkReadInput,
   MentorshipRecord,
   MentorshipService,
   MessagePage,
@@ -44,6 +46,7 @@ import type {
   ModerationThread,
   SessionInput,
   SessionRecord,
+  ThreadReadState,
 } from "./mentorship.service.js";
 
 type Executor = Pick<Database, "select">;
@@ -188,6 +191,40 @@ function requireParticipant<T extends { studentUserId: string; mentorUserId: str
   return participants;
 }
 
+/**
+ * Unread counts for a set of mentorships in ONE aggregate (design R4): the
+ * counterpart's messages newer than the caller's marker, or every message when
+ * no marker exists. The unique pair index keeps the join one row per pair.
+ */
+async function unreadCounts(
+  executor: Executor,
+  userId: string,
+  mentorshipIds: string[],
+): Promise<Map<string, number>> {
+  if (mentorshipIds.length === 0) {
+    return new Map();
+  }
+  const rows = await executor
+    .select({ mentorshipId: threadMessages.mentorshipId, value: count() })
+    .from(threadMessages)
+    .leftJoin(
+      threadReadStates,
+      and(
+        eq(threadReadStates.mentorshipId, threadMessages.mentorshipId),
+        eq(threadReadStates.userId, userId),
+      ),
+    )
+    .where(
+      and(
+        inArray(threadMessages.mentorshipId, mentorshipIds),
+        ne(threadMessages.senderUserId, userId),
+        sql`${threadMessages.createdAt} > coalesce(${threadReadStates.lastReadAt}, 'epoch'::timestamptz)`,
+      ),
+    )
+    .groupBy(threadMessages.mentorshipId);
+  return new Map(rows.map((row) => [row.mentorshipId, Number(row.value ?? 0)]));
+}
+
 const sessionColumns = {
   id: mentorshipSessions.id,
   mentorshipId: mentorshipSessions.mentorshipId,
@@ -241,7 +278,15 @@ export class DrizzleMentorshipService implements MentorshipService {
       .where(and(...filters))
       .orderBy(desc(mentorships.startedAt), desc(mentorships.id))
       .limit(pageSizeOf(limit));
-    return rows.map(recordOf);
+    const unread = await unreadCounts(
+      this.db,
+      userId,
+      rows.map((row) => row.id),
+    );
+    return rows.map((row) => ({
+      ...recordOf(row),
+      unreadCount: unread.get(row.id) ?? 0,
+    }));
   }
 
   async read(userId: string, mentorshipId: string): Promise<MentorshipRecord> {
@@ -251,10 +296,52 @@ export class DrizzleMentorshipService implements MentorshipService {
       userId,
     );
     const record = requireRecord((await readRecord(this.db, mentorshipId))[0]);
+    const unread = await unreadCounts(this.db, userId, [record.id]);
     return {
       ...record,
       viewerRole: participants.studentUserId === userId ? "student" : "mentor",
+      unreadCount: unread.get(record.id) ?? 0,
     };
+  }
+
+  /**
+   * One conditional upsert (design R3): the marker only moves forward, and the
+   * instant is the database's, never the caller's. Participation is resolved
+   * first, so a foreign id writes nothing.
+   */
+  async markRead({ userId, mentorshipId }: MarkReadInput): Promise<ThreadReadState> {
+    uuidOf(mentorshipId, "mentorship id");
+    return await this.db.transaction(async (tx) => {
+      const participants = requireParticipant(await readParticipants(tx, mentorshipId), userId);
+      await tx
+        .insert(threadReadStates)
+        .values({ mentorshipId: participants.id, userId, lastReadAt: sql`now()` })
+        .onConflictDoUpdate({
+          target: [threadReadStates.mentorshipId, threadReadStates.userId],
+          set: { lastReadAt: sql`excluded.last_read_at`, updatedAt: sql`now()` },
+          setWhere: sql`${threadReadStates.lastReadAt} < excluded.last_read_at`,
+        });
+      const [marker] = await tx
+        .select({ lastReadAt: threadReadStates.lastReadAt })
+        .from(threadReadStates)
+        .where(
+          and(
+            eq(threadReadStates.mentorshipId, participants.id),
+            eq(threadReadStates.userId, userId),
+          ),
+        )
+        .limit(1);
+      if (!marker) {
+        throw new Error("the read marker could not be read back");
+      }
+      const unread = await unreadCounts(tx, userId, [participants.id]);
+      return {
+        mentorshipId: participants.id,
+        userId,
+        lastReadAt: marker.lastReadAt,
+        unreadCount: unread.get(participants.id) ?? 0,
+      };
+    });
   }
 
   async setAgreement(input: AgreementInput): Promise<MentorshipRecord> {

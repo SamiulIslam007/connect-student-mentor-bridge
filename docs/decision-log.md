@@ -1326,3 +1326,51 @@ date: 2026-10-29
 - Reason: an enforcing policy that breaks a page is worse than none, and the archive row is the repo's statement that the work is finished. The owner named this condition; the record makes clear it was met rather than assumed.
 - Status: Decided
 - Affects: `platform/http-security-controls`, `docs/mvp-build-plan.md` section 5
+
+### D-172: The read marker lives in its own table, not on `mentorships` or `thread_messages`
+
+- Date: 2026-11-15
+- Decision: `thread_read_states` holds one row per (mentorship, user) with a unique index on the pair and a monotonic `last_read_at`. Two nullable columns on `mentorships` were rejected.
+- Reason: two columns hard-code the two-party assumption into the row the capacity check locks, and give a future third participant nowhere to live. A separate table also leaves the mentorship write pattern untouched.
+- Status: Decided
+- Affects: `docs/data-model.md` 5.4, `services/api/src/db/schema/mentorships.ts`, migration `0020`
+
+### D-173: One explicit mark-read route, and no read ever writes
+
+- Date: 2026-11-15
+- Decision: `POST /v1/mentorships/{id}/read` is the only writer of a marker. Marking on `GET /v1/mentorships/{id}/messages` was rejected.
+- Reason: marking on a read makes the read non-idempotent, puts a write behind every page load, and forces a CSRF token and a rate-limit bucket onto a route the contract describes as a read.
+- Status: Decided
+- Affects: `docs/api-contracts.md` 5.5, `packages/contracts/openapi.yaml`
+
+### D-174: The marker advances under a conditional upsert, with the database's clock
+
+- Date: 2026-11-15
+- Decision: one `INSERT ... ON CONFLICT (mentorship_id, user_id) DO UPDATE SET last_read_at = excluded.last_read_at WHERE thread_read_states.last_read_at < excluded.last_read_at`, with the instant from `now()`. No caller-supplied timestamp.
+- Reason: a stale or duplicate writer cannot regress the marker, the route stays idempotent without a lock, and a client clock is attacker-controlled — a future timestamp would hide every later message.
+- Status: Decided
+- Affects: `services/api/src/mentorships/drizzle-mentorship.service.ts`
+
+### D-175: `unread_count` is reported on the mentorship read and list, not on the message page
+
+- Date: 2026-11-15
+- Decision: `mentorshipPayload()` carries an optional `unread_count`, so `GET /v1/mentorships` and `GET /v1/mentorships/{id}` report it and no write response does. The message page stays a keyset page.
+- Reason: a count returned with a window of 20 messages answers a different question and is wrong the moment the client pages; the participant opens the mentorship before the thread, so the count belongs there. A write does not compute a number only to omit it later.
+- Status: Decided
+- Affects: `docs/api-contracts.md` 5.5, `packages/contracts/openapi.yaml`
+
+### D-176: The unread rule is a pure domain function pinned to the API's SQL
+
+- Date: 2026-11-15
+- Decision: `countUnread` in `@connect/domain` takes the messages, the viewer and the marker and returns a non-negative integer. The integration test computes it on the same rows the API answered from and asserts the two agree.
+- Reason: the same pattern `responseReliability` set (D-114): the SQL stays the authority, and the pure rule cannot drift from it without a failing test.
+- Status: Decided
+- Affects: `packages/domain/src/mentorship.ts`, `services/api/test/mentorship.integration.test.ts`
+
+### D-177: The marker table's grant excludes DELETE
+
+- Date: 2026-11-15
+- Decision: `GRANT SELECT, INSERT, UPDATE ON thread_read_states TO connect_app` in migration `0020`; no `DELETE`, and the database probe asserts that `connect_app` is refused one.
+- Reason: a marker is removed only by the mentorship cascade. A `DELETE` grant would let a caller erase their own read history, which is the evidence of what they had not seen.
+- Status: Decided
+- Affects: `docs/data-model.md` INV-05 and 5.4, `services/api/test/database.integration.test.ts`
