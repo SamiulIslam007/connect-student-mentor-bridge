@@ -49,6 +49,7 @@ const PROBLEMS: Record<IdentityErrorCode, ProblemMapping> = {
   CLAIM_ALREADY_DECIDED: { status: 409, code: "CLAIM_ALREADY_DECIDED", title: "This claim has already been decided" },
   INSTITUTION_DOMAIN_TAKEN: { status: 409, code: "INSTITUTION_DOMAIN_TAKEN", title: "This domain already belongs to an institution" },
   ACCOUNT_NOT_SUSPENDED: { status: 409, code: "ACCOUNT_NOT_SUSPENDED", title: "This account is not suspended" },
+  CONFIG_VERSION_CONFLICT: { status: 409, code: "CONFIG_VERSION_CONFLICT", title: "Another version was created at the same moment" },
 };
 
 const PROBLEM_BASE = "https://docs.connect.example/problems/";

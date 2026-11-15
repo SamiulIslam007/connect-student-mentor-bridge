@@ -106,8 +106,25 @@ export async function resetDatabase(client: Client): Promise<void> {
   }
 }
 
+/**
+ * The version-1 baseline, exactly as migration `0021` seeds it. Truncating
+ * `users` cascades into `config_versions` (its actor FK), so every test that
+ * starts from a clean database must re-seed it or the jobs would find no active
+ * version and correctly refuse to write (design R6).
+ */
+export async function seedConfigBaseline(client: Client): Promise<void> {
+  await client.query(
+    `INSERT INTO config_versions (version, payload, digest, reason)
+     VALUES (1, '{"cooling_days":14,"difficulty_weights":{"ADMISSION":1,"INTERNSHIP":1,"JOB_OFFER":1,"SKILL_MILESTONE":1,"INTERVIEW":1},"tier_multipliers":{"0":1,"1":1,"2":1},"contribution_multipliers":{"DIRECTLY_ENABLED":1,"HELPED":1,"MINOR":1},"audit_sample_rate":0.25}'::jsonb,
+     'fc79f9c8987205e8c4688fd429b1673843c24a82e9b276e6e274e5675243a6af',
+     'Baseline: the constants in force before configuration versioning')
+     ON CONFLICT (version) DO NOTHING`,
+  );
+}
+
 export async function truncateAll(client: Client): Promise<void> {
   await client.query(
     "TRUNCATE TABLE reports, privacy_requests, audit_logs, consent_records, signup_blocks, two_factors, sessions, accounts, verification_records, reputation_events, field_impact_snapshots, outcome_events, outcomes, verifications, student_field_interests, student_profiles, mentor_fields, mentor_profiles, fields, thread_read_states, mentorship_sessions, thread_messages, mentorships, users RESTART IDENTITY CASCADE",
   );
+  await seedConfigBaseline(client);
 }

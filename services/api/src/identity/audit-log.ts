@@ -43,7 +43,8 @@ export type AuditAction =
   | "ACCOUNT_WARNED"
   | "ACCOUNT_REINSTATED"
   | "DATA_EXPORTED"
-  | "PERMISSION_DENIED";
+  | "PERMISSION_DENIED"
+  | "CONFIGURATION_CHANGED";
 
 export interface AuditEntry {
   action: AuditAction;

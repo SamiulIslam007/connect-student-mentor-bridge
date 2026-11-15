@@ -2,6 +2,7 @@ export * from "./auth.js";
 export * from "./affiliations.js";
 export * from "./availability.js";
 export * from "./columns.js";
+export * from "./config.js";
 export * from "./enums.js";
 export * from "./fields.js";
 export * from "./mentorships.js";

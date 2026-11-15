@@ -10,6 +10,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
+import { configVersions } from "./config.js";
 import { outcomeType, reputationEventType } from "./enums.js";
 import { fields } from "./fields.js";
 import { mentorProfiles, studentProfiles } from "./profiles.js";
@@ -39,6 +40,15 @@ export const reputationEvents = pgTable(
       .references(() => fields.id, { onDelete: "restrict" }),
     outcomeType: outcomeType("outcome_type").notNull(),
     eventType: reputationEventType("event_type").notNull(),
+    /**
+     * The configuration version that priced this row (FR-ADM-07, D-185). The
+     * counting job refuses to write without one, so an unattributed ledger row
+     * cannot exist; the multipliers above are still copied, so a later version
+     * cannot rewrite history.
+     */
+    configVersionId: uuid("config_version_id")
+      .notNull()
+      .references(() => configVersions.id, { onDelete: "restrict" }),
     difficultyWeight: numeric("difficulty_weight", { precision: 6, scale: 4 }).notNull(),
     tierMultiplier: numeric("tier_multiplier", { precision: 6, scale: 4 }).notNull(),
     contributionMultiplier: numeric("contribution_multiplier", { precision: 6, scale: 4 }).notNull(),

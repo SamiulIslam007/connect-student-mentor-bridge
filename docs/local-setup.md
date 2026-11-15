@@ -152,6 +152,24 @@ docker compose exec postgres psql -U connect -d postgres -c "CREATE DATABASE con
 
 Replace `connect` with `POSTGRES_USER` if it differs. The tests reset the `connect_test` schema on every run and never touch the development database. Outside CI they print a skip reason when the database is unreachable; with `CI` set they fail instead, so a green required check means the integration suite really ran.
 
+### Publishing a configuration version without a UI
+
+`FR-ADM-07` ships routes and no page (ADR-019), so an operator publishes a tuning change with `curl`. Both calls need a Platform Admin session **with an enrolled second factor**; the API's bearer credential goes in the `Authorization` header and the body is JSON.
+
+```bash
+# The version in force and its history
+curl -s -H "Authorization: Bearer $SESSION_TOKEN" http://localhost:3001/v1/admin/config
+
+# Publish version N+1 (the database assigns the number)
+curl -s -X POST http://localhost:3001/v1/admin/config   -H "Authorization: Bearer $SESSION_TOKEN" -H "Content-Type: application/json"   -d '{"reason":"Pilot tuning","cooling_days":21,
+       "difficulty_weights":{"ADMISSION":1,"INTERNSHIP":1,"JOB_OFFER":1,"SKILL_MILESTONE":1,"INTERVIEW":1},
+       "tier_multipliers":{"0":1,"1":1,"2":1},
+       "contribution_multipliers":{"DIRECTLY_ENABLED":1,"HELPED":1,"MINOR":1},
+       "audit_sample_rate":0.25}'
+```
+
+A missing or out-of-range field is `422` naming it and writes nothing; one `CONFIGURATION_CHANGED` audit row is appended with the new version. The counting job reads the version in force once per run, so a change affects the next run and never rewrites history.
+
 ## Auth configuration
 
 | Variable | Purpose |

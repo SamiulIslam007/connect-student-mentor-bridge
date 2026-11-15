@@ -13,6 +13,7 @@ export * from "./age-gate.js";
 export * from "./affiliation.js";
 export * from "./audit-sample.js";
 export * from "./account-status.js";
+export * from "./config-payload.js";
 export * from "./availability.js";
 export * from "./fields.js";
 export * from "./identity.js";

@@ -124,7 +124,7 @@ async function seedCountedOutcome(
     [outcomeId, mentorId],
   );
   await client.query(
-    "INSERT INTO reputation_events (outcome_id, mentor_profile_id, student_profile_id, field_id, outcome_type, event_type, difficulty_weight, tier_multiplier, contribution_multiplier, pair_factor, points, occurred_at) VALUES ($1, $2, $3, $4, 'INTERNSHIP', 'COUNTED', 1, 1, 1, 1, 1, now())",
+    "INSERT INTO reputation_events (outcome_id, mentor_profile_id, student_profile_id, field_id, config_version_id, outcome_type, event_type, difficulty_weight, tier_multiplier, contribution_multiplier, pair_factor, points, occurred_at) VALUES ($1, $2, $3, $4, (SELECT id FROM config_versions WHERE version = 1), 'INTERNSHIP', 'COUNTED', 1, 1, 1, 1, 1, now())",
     [outcomeId, mentorProfile.rows[0].id, studentProfile.rows[0].id, fieldId],
   );
   await client.query(

@@ -391,6 +391,21 @@ Built by `mentorship-thread-and-sessions` (#8). Every row below is a session plu
 Read state (`thread-read-state`): `GET /v1/mentorships` and `GET /v1/mentorships/{id}` carry an optional `unread_count` — the other participant's messages newer than the caller's marker, or every message they wrote when the caller has no marker. **No `GET` marks a thread read**: only `POST /v1/mentorships/{id}/read` writes the marker, so a page load is never a write. A moderator's break-glass read moves nobody's marker. The count is absent from a write response, because a write does not compute it.
 
 
+### 5.17 Platform configuration
+
+Built by `configuration-versioning` (`FR-ADM-07`, ADR-019). Both routes are a Platform Admin with an enrolled second factor; a version is immutable once written.
+
+| Method and path | Roles | Idem | Purpose |
+|---|---|---|---|
+| `GET /v1/admin/config?cursor=&limit=` | PA + MFA | no | The version in force (`active`) and one page of history, newest first, keyset on the version number (`limit` 1 to 50, default 20). A version carries `id`, `version`, `payload`, `digest`, `reason`, `created_by_user_id` and `created_at` |
+| `POST /v1/admin/config` | PA + MFA | no | Body: `reason` (required, 1 to 1000 characters) plus the five payload fields `cooling_days`, `difficulty_weights`, `tier_multipliers`, `contribution_multipliers`, `audit_sample_rate`. The database assigns `version = MAX(version) + 1`, one `CONFIGURATION_CHANGED` audit row is appended in the same transaction, and the answer is `201` with the stored version |
+
+Rules:
+- The payload is validated by one pure rule: `cooling_days` 1 to 90, every multiplier 0 to 10, `audit_sample_rate` 0 to 1, and each map must carry exactly its enum's members. A missing member, an unknown key or an out-of-range value is `422 VALIDATION_FAILED` naming the field, and nothing is written.
+- The `digest` is sha256 of the payload in its canonical key order; the response carries the payload in that order, so a reader can recompute it.
+- A version cannot be edited: the application role holds `SELECT, INSERT` on the table only. A ledger row cannot name a version that is missing, so `DELETE` is refused by the foreign key.
+- `RATE_LIMITS`, cron expressions, page sizes and session timeouts are deliberately **not** configurable: they never price a ledger row, and a form that could change them is a denial-of-service surface (`AGENTS.md` rule 13).
+
 ### 5.6 Outcomes and verification
 
 Built by `outcomes-and-verification` (#9). Every route is a session plus a participant predicate; a non-participant gets `404`.

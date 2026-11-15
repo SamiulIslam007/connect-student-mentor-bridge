@@ -1,17 +1,14 @@
 import { and, count, eq, lte, sql } from "drizzle-orm";
 
 import {
-  REPUTATION_CONTRIBUTION_MULTIPLIERS,
-  REPUTATION_DIFFICULTY_WEIGHTS,
-  REPUTATION_TIER_MULTIPLIERS,
-} from "@connect/config";
-import {
   earnsMentorReputation,
   pairFactor,
   pointsToNumeric,
   reputationPoints,
+  type ConfigPayload,
 } from "@connect/domain";
 
+import { activeConfigVersion } from "../admin-config/drizzle-config.service.js";
 import type { Database } from "../db/database.js";
 import {
   fieldImpactSnapshots,
@@ -32,31 +29,21 @@ export interface CountResult {
   events: number;
 }
 
-function difficultyFor(outcomeType: string): number {
-  return (
-    REPUTATION_DIFFICULTY_WEIGHTS[
-      outcomeType as keyof typeof REPUTATION_DIFFICULTY_WEIGHTS
-    ] ?? 1
-  );
+/** The values come from the version in force, never from the module constants (D-185). */
+function difficultyFor(outcomeType: string, payload: ConfigPayload): number {
+  return payload.difficulty_weights[outcomeType] ?? 1;
 }
 
-function tierFor(evidenceTier: number): number {
-  return (
-    REPUTATION_TIER_MULTIPLIERS[
-      Math.min(Math.max(evidenceTier, 0), 2) as keyof typeof REPUTATION_TIER_MULTIPLIERS
-    ] ?? 1
-  );
+function tierFor(evidenceTier: number, payload: ConfigPayload): number {
+  const tier = String(Math.min(Math.max(evidenceTier, 0), 2));
+  return payload.tier_multipliers[tier] ?? 1;
 }
 
-function contributionFor(level: string | null): number {
+function contributionFor(level: string | null, payload: ConfigPayload): number {
   if (!level) {
     return 1;
   }
-  return (
-    REPUTATION_CONTRIBUTION_MULTIPLIERS[
-      level as keyof typeof REPUTATION_CONTRIBUTION_MULTIPLIERS
-    ] ?? 1
-  );
+  return payload.contribution_multipliers[level] ?? 1;
 }
 
 /**
@@ -71,6 +58,15 @@ export async function countDueOutcomes(
   database: Database,
   now: Date = new Date(),
 ): Promise<CountResult> {
+  // One read per run, so a mid-batch change affects the next run only (design
+  // R6). No active version means no attribution, so the job writes nothing: a
+  // delayed count is recoverable, an unattributed ledger row is not.
+  const active = await activeConfigVersion(database);
+  if (!active) {
+    console.log(JSON.stringify({ event: "configuration.none_active" }));
+    return { counted: 0, events: 0 };
+  }
+
   const due = await database
     .select({ id: outcomes.id })
     .from(outcomes)
@@ -166,10 +162,11 @@ export async function countDueOutcomes(
         );
       const factor = pairFactor(Number(earlier?.value ?? 0));
       const factors = {
-        difficultyWeight: difficultyFor(locked.outcomeType),
-        tierMultiplier: tierFor(locked.evidenceTier),
+        difficultyWeight: difficultyFor(locked.outcomeType, active.payload),
+        tierMultiplier: tierFor(locked.evidenceTier, active.payload),
         contributionMultiplier: contributionFor(
           locked.contributionConfirmed ?? locked.contributionClaimed,
+          active.payload,
         ),
         pairFactor: factor,
       };
@@ -182,6 +179,7 @@ export async function countDueOutcomes(
         fieldId: locked.fieldId,
         outcomeType: locked.outcomeType,
         eventType: "COUNTED",
+        configVersionId: active.id,
         difficultyWeight: factors.difficultyWeight.toFixed(4),
         tierMultiplier: factors.tierMultiplier.toFixed(4),
         contributionMultiplier: factors.contributionMultiplier.toFixed(4),

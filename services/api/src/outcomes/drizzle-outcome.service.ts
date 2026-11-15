@@ -31,6 +31,7 @@ import {
   users,
   verificationRecords,
 } from "../db/schema/index.js";
+import { activeConfigVersion } from "../admin-config/drizzle-config.service.js";
 import { appendAuditEntry } from "../identity/audit-log.js";
 import { enqueueOutboxEvent } from "../platform/outbox/outbox.js";
 import type {
@@ -781,6 +782,13 @@ export class DrizzleOutcomeService implements OutcomeService {
       return;
     }
 
+    // The compensating row names the version in force when it is written, not
+    // the one the original count used: that one is on the COUNTED row (D-185).
+    // The ledger write fails closed rather than writing an unattributed row.
+    const active = await activeConfigVersion(tx);
+    if (!active) {
+      throw new Error("no configuration version is active");
+    }
     await tx.insert(reputationEvents).values({
       outcomeId,
       mentorProfileId: counted.mentorProfileId,
@@ -788,6 +796,7 @@ export class DrizzleOutcomeService implements OutcomeService {
       fieldId: counted.fieldId,
       outcomeType: counted.outcomeType,
       eventType: "REVERSAL",
+      configVersionId: active.id,
       difficultyWeight: counted.difficultyWeight,
       tierMultiplier: counted.tierMultiplier,
       contributionMultiplier: counted.contributionMultiplier,

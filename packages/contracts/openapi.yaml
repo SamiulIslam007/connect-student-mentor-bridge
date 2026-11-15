@@ -1651,6 +1651,96 @@ paths:
           $ref: "#/components/responses/Problem"
         "429":
           $ref: "#/components/responses/Problem"
+  /v1/admin/config:
+    get:
+      operationId: listConfigVersions
+      summary: The configuration version in force and its history (Platform Admin + MFA)
+      description: >-
+        Newest version first, keyset on the version number. A version is
+        immutable: the application role holds SELECT and INSERT on the table
+        only, so a stored payload cannot be edited after it is written.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: cursor
+          in: query
+          required: false
+          description: The `next_cursor` version number from the previous page.
+          schema:
+            type: integer
+            minimum: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+      responses:
+        "200":
+          description: The active version and one page of history
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [active, data, next_cursor]
+                properties:
+                  active:
+                    oneOf:
+                      - $ref: "#/components/schemas/ConfigVersion"
+                      - type: "null"
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ConfigVersion"
+                  next_cursor:
+                    type: integer
+                    nullable: true
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+    post:
+      operationId: createConfigVersion
+      summary: Publish a new configuration version (Platform Admin + MFA)
+      description: >-
+        The body carries a required reason and the five payload fields. The
+        version number is assigned by the database as the highest plus one; an
+        out-of-range, missing or unknown field is 422 naming it and writes
+        nothing, and one CONFIGURATION_CHANGED audit entry is appended in the
+        same transaction. Rate limits and cron expressions are deliberately not
+        configurable (they are code, AGENTS.md rule 13).
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConfigVersionCreate"
+      responses:
+        "201":
+          description: The created version
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConfigVersion"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+        "413":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        "429":
+          $ref: "#/components/responses/Problem"
   /v1/admin/audit:
     get:
       operationId: listAuditLog
@@ -2584,6 +2674,82 @@ components:
         account_status:
           type: string
           description: Accepted and ignored (no-op); the server owns account status.
+    ConfigVersionCreate:
+      type: object
+      additionalProperties: false
+      required:
+        - reason
+        - cooling_days
+        - difficulty_weights
+        - tier_multipliers
+        - contribution_multipliers
+        - audit_sample_rate
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        cooling_days:
+          type: integer
+          minimum: 1
+          maximum: 90
+        difficulty_weights:
+          type: object
+          additionalProperties: false
+          required: [ADMISSION, INTERNSHIP, JOB_OFFER, SKILL_MILESTONE, INTERVIEW]
+          properties:
+            ADMISSION: { type: number, minimum: 0, maximum: 10 }
+            INTERNSHIP: { type: number, minimum: 0, maximum: 10 }
+            JOB_OFFER: { type: number, minimum: 0, maximum: 10 }
+            SKILL_MILESTONE: { type: number, minimum: 0, maximum: 10 }
+            INTERVIEW: { type: number, minimum: 0, maximum: 10 }
+        tier_multipliers:
+          type: object
+          additionalProperties: false
+          required: ["0", "1", "2"]
+          properties:
+            "0": { type: number, minimum: 0, maximum: 10 }
+            "1": { type: number, minimum: 0, maximum: 10 }
+            "2": { type: number, minimum: 0, maximum: 10 }
+        contribution_multipliers:
+          type: object
+          additionalProperties: false
+          required: [DIRECTLY_ENABLED, HELPED, MINOR]
+          properties:
+            DIRECTLY_ENABLED: { type: number, minimum: 0, maximum: 10 }
+            HELPED: { type: number, minimum: 0, maximum: 10 }
+            MINOR: { type: number, minimum: 0, maximum: 10 }
+        audit_sample_rate:
+          type: number
+          minimum: 0
+          maximum: 1
+    ConfigVersion:
+      type: object
+      additionalProperties: false
+      required: [id, version, payload, digest, reason, created_by_user_id, created_at]
+      properties:
+        id:
+          type: string
+        version:
+          type: integer
+          minimum: 1
+        payload:
+          type: object
+          additionalProperties: true
+          description: The normalised tunables this version fixed.
+        digest:
+          type: string
+          pattern: "^[0-9a-f]{64}$"
+          description: sha256 of the normalised payload, so a reader can recompute it.
+        reason:
+          type: string
+        created_by_user_id:
+          type: string
+          nullable: true
+          description: Null only for the migration's version-1 baseline.
+        created_at:
+          type: string
+          format: date-time
     AuditEntry:
       type: object
       additionalProperties: false

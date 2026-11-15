@@ -48,6 +48,12 @@ const ALLOWLIST: Record<string, string> = {
   points: "point",
   // the snapshot total, internal only and never sent by any route (DEBT-24)
   points_total: "point",
+  // the audit sampler's rate: a configuration input on the platform-admin-only
+  // config route, never a participant-facing score (D-178)
+  audit_sample_rate: "rate",
+  // the per-tier multipliers a configuration version fixes, admin-only and
+  // copied onto a ledger row that no participant route returns (D-179)
+  tier_multipliers: "tier",
 };
 
 function words(name: string): string[] {

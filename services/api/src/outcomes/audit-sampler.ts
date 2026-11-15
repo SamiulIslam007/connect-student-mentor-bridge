@@ -1,8 +1,8 @@
 import { and, asc, eq, gt } from "drizzle-orm";
 
-import { auditSampleRate } from "@connect/config";
 import { IdentityError, shouldSample } from "@connect/domain";
 
+import { activeConfigVersion } from "../admin-config/drizzle-config.service.js";
 import type { Database } from "../db/database.js";
 import { outcomes } from "../db/schema/index.js";
 import { DrizzleOutcomeService } from "./drizzle-outcome.service.js";
@@ -44,7 +44,14 @@ export async function sampleConfirmedOutcomes(
 ): Promise<AuditSampleResult> {
   const now = options.now ?? new Date();
   const service = options.service ?? new DrizzleOutcomeService(database);
-  const rate = auditSampleRate();
+  // The rate is a versioned value (FR-ADM-07, D-185): one read per run, and no
+  // version means no sampling rather than a silent fallback to a constant.
+  const active = await activeConfigVersion(database);
+  if (!active) {
+    console.log(JSON.stringify({ event: "configuration.none_active", job: "audit-sampler" }));
+    return { selected: 0, held: 0, raced: 0 };
+  }
+  const rate = active.payload.audit_sample_rate;
 
   const candidates = await database
     .select({ id: outcomes.id, outcomeType: outcomes.outcomeType })
