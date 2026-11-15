@@ -350,3 +350,14 @@ connect/
 - [ ] The system architecture diagram matches the "Now" decisions here (no ADR marked "later" is required by a Phase 1 requirement).
 - [ ] No ADR relies on an **Unverified** claim without saying so.
 - [ ] Owner-stated directions (001, 004, 011 GraphQL deferral, 013, 015, 016, 017) are confirmed or changed by the owner.
+### ADR-019: Configuration is data, and history is immutable
+
+**Status:** Accepted (2026-11-15, D-184 to D-191).
+
+**Context.** The runtime tunables that price a reputation ledger row (the cooling period, the three multiplier maps, the audit sample rate) were nine constants in `@connect/config`. A pilot tuning change was therefore a deploy, with no immutable version, no admin attribution, no audit row, and no way for an auditor reading `reputation_events` to know which rules priced a row. `FR-ADM-07` is a Must and asks for exactly that.
+
+**Decision.** Those values become data: one `config_versions` table of immutable rows, each with a monotonically increasing `version`, a `jsonb` payload, a sha256 digest of the payload, a required reason and the creating account. `reputation_events.config_version_id` is `NOT NULL` and names the version that priced the row; `countDueOutcomes` reads the version in force once per run and refuses to run at all when none exists. A Platform Admin with an enrolled second factor publishes a new version through `POST /v1/admin/config`, which appends one `CONFIGURATION_CHANGED` audit row in the same transaction; the application role holds `SELECT, INSERT` on the table only, and the ledger's FK is `ON DELETE RESTRICT`, so a version cannot be edited or removed.
+
+**Deliberately excluded.** `RATE_LIMITS`, the cron expressions, page sizes and session timeouts. They never price a ledger row, and a web form that could change a rate limit or a cron string is a denial-of-service and load-shedding surface with an audit row instead of a code review. `AGENTS.md` rule 13 makes throttling a code concern. The pair factor is a **formula** (`1/(1+n)`), not a value: the payload cannot carry it without inventing a parameter, and inventing parameters is what a `MATH-FLAG` forbids, so a version records that it fixes the pair-factor form and `pairFactor` stays a pure function with its own property test.
+
+**Consequences.** A tuning change is attributable and reversible by publishing another version; history keeps the values and the version each row used, and re-scoring is out of scope (FR-REP-06). The `created_by_user_id` column is nullable for exactly one row — the version-1 baseline the migration seeds before any account exists — and every route-written version names its actor.

@@ -2,6 +2,11 @@ import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { after, before, beforeEach, test, type TestContext } from "node:test";
 
+import { drizzle } from "drizzle-orm/node-postgres";
+
+import type { Database } from "../src/db/database.js";
+import * as schema from "../src/db/schema/index.js";
+
 import { responseReliability } from "@connect/domain";
 
 import { AffiliationsController } from "../src/affiliations/affiliations.controller.js";
@@ -728,4 +733,93 @@ test("an eligibility expiry is not a non-response, and a deadline expiry still i
   const after = await apiRequest(current, "GET", "/v1/me/impact", undefined, pair.mentorToken);
   assert.equal(after.body?.requests_late_or_expired, 1, "a deadline expiry counts exactly as before");
   assert.equal(after.body?.requests_decided_in_time, 1, "and it changes nothing else");
+});
+
+test("every ledger row names the configuration version that priced it", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const pair = await acceptPair(current, "config.student@example.com", "config.mentor@example.edu.bd");
+  const outcomeId = await confirmedOutcome(current, pair, "Priced by version 1");
+  await expireCooling(current, outcomeId);
+  assert.deepEqual(await countDueOutcomes(current.database.db), { counted: 1, events: 1 });
+
+  const baseline = await current.client.query<{ id: string; payload: { difficulty_weights: Record<string, number> } }>(
+    "SELECT id, payload FROM config_versions WHERE version = 1",
+  );
+  const first = await current.client.query<{
+    config_version_id: string;
+    difficulty_weight: string;
+    tier_multiplier: string;
+    contribution_multiplier: string;
+    pair_factor: string;
+  }>(
+    "SELECT config_version_id, difficulty_weight, tier_multiplier, contribution_multiplier, pair_factor FROM reputation_events WHERE outcome_id = $1",
+    [outcomeId],
+  );
+  assert.equal(first.rows[0].config_version_id, baseline.rows[0].id);
+  assert.equal(
+    Number(first.rows[0].difficulty_weight),
+    baseline.rows[0].payload.difficulty_weights.INTERNSHIP,
+    "the number on the row is the version's value",
+  );
+
+  // A second version re-prices only the rows counted after it exists.
+  await current.client.query(
+    `INSERT INTO config_versions (version, payload, digest, reason)
+     VALUES (2, jsonb_set('{"cooling_days":14,"difficulty_weights":{"ADMISSION":1,"INTERNSHIP":1,"JOB_OFFER":1,"SKILL_MILESTONE":1,"INTERVIEW":1},"tier_multipliers":{"0":1,"1":1,"2":1},"contribution_multipliers":{"DIRECTLY_ENABLED":1,"HELPED":1,"MINOR":1},"audit_sample_rate":0.25}'::jsonb, '{difficulty_weights,INTERNSHIP}', '2'),
+     repeat('b', 64), 'Pilot tuning')`,
+  );
+  const secondOutcome = await confirmedOutcome(current, pair, "Priced by version 2");
+  await expireCooling(current, secondOutcome);
+  assert.deepEqual(await countDueOutcomes(current.database.db), { counted: 1, events: 1 });
+
+  const secondVersion = await current.client.query<{ id: string }>(
+    "SELECT id FROM config_versions WHERE version = 2",
+  );
+  const rowsAfter = await current.client.query<{
+    outcome_id: string;
+    config_version_id: string;
+    difficulty_weight: string;
+  }>(
+    "SELECT outcome_id, config_version_id, difficulty_weight FROM reputation_events ORDER BY occurred_at, id",
+  );
+  assert.deepEqual(
+    rowsAfter.rows.map((row) => [row.outcome_id, row.config_version_id, Number(row.difficulty_weight)]),
+    [
+      [outcomeId, baseline.rows[0].id, 1],
+      [secondOutcome, secondVersion.rows[0].id, 2],
+    ],
+    "the first row keeps the values and the version it used",
+  );
+});
+
+test("no active configuration version stops the count and writes nothing", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const pair = await acceptPair(current, "noversion.student@example.com", "noversion.mentor@example.edu.bd");
+  const outcomeId = await confirmedOutcome(current, pair, "Nothing active");
+  await expireCooling(current, outcomeId);
+
+  // One connection and one transaction: the job must see the empty table, and
+  // the rollback leaves the tests' baseline in place.
+  await current.client.query("BEGIN");
+  try {
+    await current.client.query("DELETE FROM config_versions");
+    const txDatabase = drizzle(current.client as never, { schema }) as unknown as Database;
+    const result = await countDueOutcomes(txDatabase);
+    assert.deepEqual(result, { counted: 0, events: 0 }, "no version means no attribution");
+
+    const row = await current.client.query<{ status: string }>(
+      "SELECT status FROM outcomes WHERE id = $1",
+      [outcomeId],
+    );
+    assert.equal(row.rows[0].status, "CONFIRMED", "the outcome is left for a later run");
+    const ledger = await current.client.query<{ count: string }>(
+      "SELECT count(*) FROM reputation_events WHERE outcome_id = $1",
+      [outcomeId],
+    );
+    assert.equal(ledger.rows[0].count, "0", "no unattributed ledger row exists");
+  } finally {
+    await current.client.query("ROLLBACK");
+  }
 });

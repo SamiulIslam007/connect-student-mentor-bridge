@@ -415,6 +415,10 @@ Constraints: at most one `PENDING` request per (`student_profile_id`, `mentor_pr
 
 **`suggestion_logs`**: `student_profile_id`, `mentor_profile_id`, `rank`, `score`, `factors jsonb`, `config_version_id`, `shown_at`, `clicked_at?`, `request_id?`. Feeds the match acceptance KPI and weight calibration.
 
+**`config_versions`** (**built** by `configuration-versioning`, ADR-019; migration `0021`): `id` uuid key, `version` integer (unique, assigned by the database as `MAX(version) + 1`), `payload` jsonb, `digest` text (sha256 of the payload in its canonical key order, checked to 64 lowercase hex characters), `reason` text (1 to 1000 characters, checked), `created_by_user_id` (FK `users.id`, `ON DELETE RESTRICT`), `created_at`. The application role holds `SELECT, INSERT` only, so a stored version cannot be edited; the ledger's FK is `ON DELETE RESTRICT`, so a version a row names cannot be removed. The migration seeds version 1 from the constants that were in force, and that one row carries a null actor because no account exists at migration time (D-184).
+
+The payload is exactly the five values that price a ledger row, each with a range the pure validator enforces: `cooling_days` (integer 1 to 90), `difficulty_weights` (one number 0 to 10 per outcome type), `tier_multipliers` (one per evidence tier `0`, `1`, `2`), `contribution_multipliers` (one per contribution level), `audit_sample_rate` (0 to 1). Each map must carry exactly its enum's members. Rate limits, cron expressions, page sizes and session timeouts are deliberately absent (D-184).
+
 **`mentorships`** (**built** by `mentorship-thread-and-sessions`, #8; migration `0012`)
 
 | Column | Type | Notes |
@@ -529,10 +533,12 @@ Original filenames are not stored (they can contain personal data). Limits (**Pr
 
 **`reputation_events`** (append-only ledger)
 
+**`reputation_events.config_version_id`** (**built** by `configuration-versioning`, migration `0021`): `uuid`, `NOT NULL`, FK `config_versions.id` `ON DELETE RESTRICT`. The counting job stamps the version it read once per run; a row cannot exist without one, so an unattributed ledger row is impossible (D-185). The multipliers are still copied onto the row, so a later version never rewrites history.
+
 | Column | Type | Notes |
 |---|---|---|
-| `mentor_profile_id`, `student_profile_id`, `field_id`, `outcome_id` | `uuid` FK | `outcome_id` is unique: one counted event per outcome. **Built** by #10 split |
-| `event_type` | `reputation_event_type` | `COUNTED` only today; `REVERSAL` is reserved and a check refuses it |
+| `mentor_profile_id`, `student_profile_id`, `field_id`, `outcome_id` | `uuid` FK | One `COUNTED` event and one `REVERSAL` per outcome (two partial unique indexes). **Built** by #10 split |
+| `event_type` | `reputation_event_type` | `COUNTED`, and `REVERSAL` for the compensating row a clawback writes |
 | `points` | `numeric(12,6)` | The product of the four factors. Never exposed by any endpoint |
 | `difficulty_weight`, `tier_multiplier`, `contribution_multiplier`, `pair_factor` | `numeric(6,4)` | Copied onto the row, so a later config change cannot rewrite history |
 | `outcome_type`, `occurred_at`, `created_at` | | The outcome type is copied; `occurred_at` is the counting time |

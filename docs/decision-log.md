@@ -1422,3 +1422,67 @@ date: 2026-10-29
 - Reason: renaming two wire values would break `apps/web/lib/review-queue.ts` and its test, which the change's scope excludes, for no user-visible gain. A held case reported `escalated_d7` before this change, and that mislabel is what the new branch fixes.
 - Status: Decided
 - Affects: `openspec/changes/audit-sampling/specs/mentorship/platform-review/spec.md`, `packages/contracts/openapi.yaml`, `services/api/src/outcomes/drizzle-outcome.service.ts`
+
+### D-184: "Runtime tunables" means the values that price a ledger row, and nothing else
+
+- Date: 2026-11-15
+- Decision: version payload is exactly `cooling_days`, `difficulty_weights`, `tier_multipliers`, `contribution_multipliers`, `audit_sample_rate`. `RATE_LIMITS`, cron strings, match weights, the impact reliability sample and the consent document version stay code.
+- Reason: a web form that could change a rate limit or a cron expression is a denial-of-service and load-shedding surface audited instead of reviewed; `AGENTS.md` rule 13 makes throttling a code concern.
+- Status: Decided
+- Affects: `packages/domain/src/config-payload.ts`, `docs/architecture-decisions.md` ADR-019
+
+### D-185: The counting job refuses to write without an active version
+
+- Date: 2026-11-15
+- Decision: `countDueOutcomes` reads the version in force once per run, stamps `config_version_id` on every row it writes, and returns `{ counted: 0, events: 0 }` when none exists.
+- Reason: a delayed count is recoverable; an unattributed ledger row is not. One read per run also means a mid-batch change affects the next run only.
+- Status: Decided
+- Affects: `services/api/src/reputation/counting-job.ts`, `docs/data-model.md` 5.6
+
+### D-186: The pair factor is a formula, recorded as fixed rather than carried as a value
+
+- Date: 2026-11-15
+- Decision: a version records that it fixes the `1/(1+n)` pair-factor form; the payload carries no pair-factor parameter.
+- Reason: the brief counted four multipliers, but the fourth is a formula. A parameter would be an invented mechanism, which a `MATH-FLAG` forbids, and `pairFactor` already has its own property test.
+- Status: Decided
+- Affects: `packages/domain/src/reputation.ts` (unchanged), `docs/architecture-decisions.md` ADR-019
+
+### D-187: Version numbers are assigned by the database
+
+- Date: 2026-11-15
+- Decision: one `INSERT ... SELECT COALESCE(MAX(version), 0) + 1` with a unique index on `version`; a lost race maps to `409 CONFIG_VERSION_CONFLICT`.
+- Reason: read-then-insert races, and the unique index makes the collision visible instead of producing two rows with one number.
+- Status: Decided
+- Affects: `services/api/src/admin-config/drizzle-config.service.ts`, `packages/domain/src/identity.ts`
+
+### D-188: The column is added nullable, seeded, backfilled, then made `NOT NULL` — in one migration
+
+- Date: 2026-11-15
+- Decision: `0021` creates the table, seeds version 1, adds `reputation_events.config_version_id` nullable, backfills the historical rows to version 1, and only then sets `NOT NULL` (drizzle-kit's bare `NOT NULL` add was hand-corrected).
+- Reason: no window in which a null is legal, and the backfill is a true attribution because version 1 *is* the values those rows were priced by.
+- Status: Decided
+- Affects: `services/api/drizzle/0021_absent_morbius.sql`
+
+### D-189: The version-1 baseline row has a null actor
+
+- Date: 2026-11-15
+- Decision: `config_versions.created_by_user_id` is nullable; the migration's seed row leaves it null, and every route-written version names its actor. The OpenAPI schema documents the null.
+- Reason: no account exists at migration time, and inventing one (a synthetic system user) would be a fabricated identity in an audit surface. This is the one deviation from the design's `NOT NULL`, recorded here rather than silently.
+- Status: Decided
+- Affects: `services/api/src/db/schema/config.ts`, `docs/data-model.md` 5.3, `docs/api-contracts.md` 5.17
+
+### D-190: The audit log gains `CONFIGURATION_CHANGED` in both unions
+
+- Date: 2026-11-15
+- Decision: the writer union and the reader map both gain `CONFIGURATION_CHANGED`; the version row and its audit row are written in one transaction.
+- Reason: an action in the writer union only stores rows the admin filter refuses with `422`, the defect shape D-155; a reader map entry without a writer would advertise a filter that never matches.
+- Status: Decided
+- Affects: `services/api/src/identity/audit-log.ts`, `services/api/src/audit/audit.service.ts`
+
+### D-191: The sampler's rate now comes from the version in force
+
+- Date: 2026-11-15
+- Decision: `sampleConfirmedOutcomes` reads `audit_sample_rate` from the active version once per run, and `auditSampleRate()` is removed; `AUDIT_SAMPLE_RATE` stays in `@connect/config` as documentation of what version 1 seeds.
+- Reason: the seam existed so this change could replace the source without touching the draw logic, and a second read path through a module constant would let the two disagree.
+- Status: Decided
+- Affects: `services/api/src/outcomes/audit-sampler.ts`, `packages/config/src/index.ts`

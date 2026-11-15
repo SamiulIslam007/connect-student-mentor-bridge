@@ -49,6 +49,7 @@ const AUDIT_ACTION_MAP: Record<AuditAction, true> = {
   ACCOUNT_REINSTATED: true,
   DATA_EXPORTED: true,
   PERMISSION_DENIED: true,
+  CONFIGURATION_CHANGED: true,
 };
 
 export const AUDIT_ACTIONS: readonly AuditAction[] = Object.keys(

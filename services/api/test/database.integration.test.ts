@@ -44,7 +44,7 @@ async function expectPermissionDenied(client: TestDatabase["client"], sql: strin
   }
 }
 
-test("the migrations create the thirty-one tables and protect the ledger", async (context) => {
+test("the migrations create the thirty-two tables and protect the ledger", async (context) => {
   const current = requireDatabase(context);
   if (!current) {
     return;
@@ -61,6 +61,7 @@ test("the migrations create the thirty-one tables and protect the ledger", async
       "affiliations",
       "audit_logs",
       "availability_windows",
+      "config_versions",
       "consent_records",
       "field_impact_snapshots",
       "fields",
@@ -332,7 +333,7 @@ test("the application role can use every profile table and nothing else", async 
     );
     // `0014` grants the reputation ledger and the snapshot table.
     const ledger = await client.query<{ id: string }>(
-      "INSERT INTO reputation_events (outcome_id, mentor_profile_id, student_profile_id, field_id, outcome_type, event_type, difficulty_weight, tier_multiplier, contribution_multiplier, pair_factor, points, occurred_at) VALUES ($1, $2, $3, $4, 'INTERNSHIP', 'COUNTED', 1, 1, 1, 1, 1, now()) RETURNING id",
+      "INSERT INTO reputation_events (outcome_id, mentor_profile_id, student_profile_id, field_id, config_version_id, outcome_type, event_type, difficulty_weight, tier_multiplier, contribution_multiplier, pair_factor, points, occurred_at) VALUES ($1, $2, $3, $4, (SELECT id FROM config_versions WHERE version = 1), 'INTERNSHIP', 'COUNTED', 1, 1, 1, 1, 1, now()) RETURNING id",
       [outcome.rows[0].id, mentorId, studentId, fieldId],
     );
     await client.query(
@@ -341,12 +342,12 @@ test("the application role can use every profile table and nothing else", async 
     );
     // `0015` allows one COUNTED and one compensating REVERSAL per outcome.
     await client.query(
-      "INSERT INTO reputation_events (outcome_id, mentor_profile_id, student_profile_id, field_id, outcome_type, event_type, difficulty_weight, tier_multiplier, contribution_multiplier, pair_factor, points, occurred_at) VALUES ($1, $2, $3, $4, 'INTERNSHIP', 'REVERSAL', 1, 1, 1, 1, -1, now())",
+      "INSERT INTO reputation_events (outcome_id, mentor_profile_id, student_profile_id, field_id, config_version_id, outcome_type, event_type, difficulty_weight, tier_multiplier, contribution_multiplier, pair_factor, points, occurred_at) VALUES ($1, $2, $3, $4, (SELECT id FROM config_versions WHERE version = 1), 'INTERNSHIP', 'REVERSAL', 1, 1, 1, 1, -1, now())",
       [outcome.rows[0].id, mentorId, studentId, fieldId],
     );
     for (const sql of [
-      "INSERT INTO reputation_events (outcome_id, mentor_profile_id, student_profile_id, field_id, outcome_type, event_type, difficulty_weight, tier_multiplier, contribution_multiplier, pair_factor, points, occurred_at) VALUES ($1, $2, $3, $4, 'INTERNSHIP', 'COUNTED', 1, 1, 1, 1, 1, now())",
-      "INSERT INTO reputation_events (outcome_id, mentor_profile_id, student_profile_id, field_id, outcome_type, event_type, difficulty_weight, tier_multiplier, contribution_multiplier, pair_factor, points, occurred_at) VALUES ($1, $2, $3, $4, 'INTERNSHIP', 'REVERSAL', 1, 1, 1, 1, -1, now())",
+      "INSERT INTO reputation_events (outcome_id, mentor_profile_id, student_profile_id, field_id, config_version_id, outcome_type, event_type, difficulty_weight, tier_multiplier, contribution_multiplier, pair_factor, points, occurred_at) VALUES ($1, $2, $3, $4, (SELECT id FROM config_versions WHERE version = 1), 'INTERNSHIP', 'COUNTED', 1, 1, 1, 1, 1, now())",
+      "INSERT INTO reputation_events (outcome_id, mentor_profile_id, student_profile_id, field_id, config_version_id, outcome_type, event_type, difficulty_weight, tier_multiplier, contribution_multiplier, pair_factor, points, occurred_at) VALUES ($1, $2, $3, $4, (SELECT id FROM config_versions WHERE version = 1), 'INTERNSHIP', 'REVERSAL', 1, 1, 1, 1, -1, now())",
     ]) {
       await client.query("SAVEPOINT ledger_unique");
       await assert.rejects(

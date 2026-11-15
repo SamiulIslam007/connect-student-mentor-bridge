@@ -37,12 +37,10 @@ export const AUDIT_ALWAYS_SAMPLED_OUTCOME_TYPES = ["ADMISSION", "INTERNSHIP", "J
 export const AUDIT_SAMPLE_SALT = "audit-sample-v1";
 
 /**
- * The one seam the sampling job reads the rate through, so configuration
- * versioning can replace the source without touching the job (design R7).
+ * Documentation of the value version 1 seeds. No runtime path reads it: the
+ * sampler reads `audit_sample_rate` from the configuration version in force
+ * (`configuration-versioning`, D-185), and the migration's seed is the source.
  */
-export function auditSampleRate(): number {
-  return AUDIT_SAMPLE_RATE;
-}
 
 /**
  * Reputation weights are **placeholders pending pilot data**: every value is

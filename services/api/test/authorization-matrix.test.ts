@@ -37,6 +37,9 @@ import { ReportsAdminController } from "../src/reports/admin.controller.js";
 import { DrizzleReportsService } from "../src/reports/drizzle-reports.service.js";
 import { ReportsController } from "../src/reports/reports.controller.js";
 import { REPORTS_SERVICE } from "../src/reports/reports.tokens.js";
+import { AdminConfigController } from "../src/admin-config/config.controller.js";
+import { CONFIG_SERVICE } from "../src/admin-config/config.tokens.js";
+import { DrizzleConfigService } from "../src/admin-config/drizzle-config.service.js";
 import { AuditController } from "../src/audit/audit.controller.js";
 import { AUDIT_SERVICE } from "../src/audit/audit.tokens.js";
 import { DrizzleAuditService } from "../src/audit/drizzle-audit.service.js";
@@ -195,6 +198,27 @@ const MATRIX: Requirement[] = [
   },
   // The audit read: platform admin, second factor, and a pure read (D-135).
   { route: /^GET \/v1\/admin\/audit$/, access: "PLATFORM_ADMIN" },
+  { route: /^GET \/v1\/admin\/config$/, access: "PLATFORM_ADMIN" },
+  // The payload is complete so an admin's probe reaches the handler, not a 422.
+  {
+    route: /^POST \/v1\/admin\/config$/,
+    access: "PLATFORM_ADMIN",
+    mutating: true,
+    body: {
+      reason: "matrix probe",
+      cooling_days: 14,
+      difficulty_weights: {
+        ADMISSION: 1,
+        INTERNSHIP: 1,
+        JOB_OFFER: 1,
+        SKILL_MILESTONE: 1,
+        INTERVIEW: 1,
+      },
+      tier_multipliers: { "0": 1, "1": 1, "2": 1 },
+      contribution_multipliers: { DIRECTLY_ENABLED: 1, HELPED: 1, MINOR: 1 },
+      audit_sample_rate: 0.25,
+    },
+  },
   {
     // A break-glass read of a private thread: platform admin, second factor,
     // and a stated reason (D-120, D-121).
@@ -254,6 +278,7 @@ before(async () => {
       AttestationController,
       InstitutionsController,
       AuditController,
+      AdminConfigController,
     ],
     requestIdRoutes: [
       AuthController,
@@ -277,6 +302,7 @@ before(async () => {
       AttestationController,
       InstitutionsController,
       AuditController,
+      AdminConfigController,
     ],
     providers: (database) => [
       { provide: PROFILES_SERVICE, useValue: new DrizzleProfilesService(database) },
@@ -299,6 +325,7 @@ before(async () => {
       { provide: ATTESTATIONS_SERVICE, useValue: new DrizzleAttestationsService(database) },
       { provide: INSTITUTIONS_SERVICE, useValue: new DrizzleInstitutionsService(database) },
       { provide: AUDIT_SERVICE, useValue: new DrizzleAuditService(database) },
+      { provide: CONFIG_SERVICE, useValue: new DrizzleConfigService(database) },
     ],
   });
   if (started.skipped) {

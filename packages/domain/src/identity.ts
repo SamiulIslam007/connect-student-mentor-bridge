@@ -233,7 +233,9 @@ export type IdentityErrorCode =
   /** A domain is already registered to an institution (any letter case). */
   | "INSTITUTION_DOMAIN_TAKEN"
   /** A lift was asked for an account that is not SUSPENDED (D-141). */
-  | "ACCOUNT_NOT_SUSPENDED";
+  | "ACCOUNT_NOT_SUSPENDED"
+  /** Two writers assigned the same configuration version number (design R4). */
+  | "CONFIG_VERSION_CONFLICT";
 
 /** A failure a feature module may map to a response, with no library detail. */
 export class IdentityError extends Error {
