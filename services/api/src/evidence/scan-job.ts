@@ -2,11 +2,13 @@ import { and, eq, isNotNull, isNull } from "drizzle-orm";
 
 import type { Database } from "../db/database.js";
 import { outcomeEvidence, outcomes } from "../db/schema/index.js";
+import { appendEvent } from "../outcomes/drizzle-outcome.service.js";
 import { scanBytes, type ScanResult } from "./scan.js";
 import type { EvidenceStorage } from "./storage.js";
 
 /** The scan runs on its own two-minute pass over quarantined rows (design R5). */
 export const EVIDENCE_SCAN_QUEUE = "evidence-scan";
+export const EVIDENCE_SCAN_REQUEST_ID = "system:evidence-scan";
 export const EVIDENCE_SCAN_CRON = "*/2 * * * *";
 export const EVIDENCE_SCAN_BATCH = 10;
 
@@ -80,7 +82,9 @@ export async function scanQuarantinedEvidence(
       continue;
     }
     if (!scanned.clean) {
-      await db
+      // Guarded like the clean branch: a stale detection must never reverse a
+      // committed clear result.
+      const [rejected] = await db
         .update(outcomeEvidence)
         .set({
           status: "REJECTED",
@@ -88,8 +92,13 @@ export async function scanQuarantinedEvidence(
           scanDetail: `detected ${scanned.signature}`,
           updatedAt: now(),
         })
-        .where(eq(outcomeEvidence.id, row.id));
-      result.rejected += 1;
+        .where(
+          and(eq(outcomeEvidence.id, row.id), eq(outcomeEvidence.status, "QUARANTINED")),
+        )
+        .returning({ id: outcomeEvidence.id });
+      if (rejected) {
+        result.rejected += 1;
+      }
       continue;
     }
 
@@ -105,11 +114,26 @@ export async function scanQuarantinedEvidence(
         // Another pass settled this row first; the tier is already right.
         return false;
       }
-      // The `evidence_tier = 0` predicate makes a second clean scan a no-op.
-      await tx
+      // The `evidence_tier = 0` predicate makes a second clean scan a no-op, and
+      // the update locks the outcome row the event's `seq` is allocated under.
+      const [tiered] = await tx
         .update(outcomes)
         .set({ evidenceTier: 1, updatedAt: now() })
-        .where(and(eq(outcomes.id, updated.outcomeId), eq(outcomes.evidenceTier, 0)));
+        .where(and(eq(outcomes.id, updated.outcomeId), eq(outcomes.evidenceTier, 0)))
+        .returning({ status: outcomes.status });
+      if (tiered) {
+        // A tier change is a fact about the outcome, so it belongs in the ledger.
+        await appendEvent(tx, {
+          outcomeId: updated.outcomeId,
+          eventType: "TIER_CHANGED",
+          fromStatus: tiered.status,
+          toStatus: tiered.status,
+          actorUserId: null,
+          actorRole: "SYSTEM",
+          requestId: EVIDENCE_SCAN_REQUEST_ID,
+          payload: { evidence_tier: 1, evidence_id: row.id },
+        });
+      }
       return true;
     });
     if (settled) {

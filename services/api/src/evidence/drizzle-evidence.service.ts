@@ -247,13 +247,20 @@ export class DrizzleEvidenceService implements EvidenceService {
         return recordOf(rejected);
       }
 
-      await storage.put(row.objectKey, input.bytes, row.contentType);
-      const [completed] = await tx
-        .update(outcomeEvidence)
-        .set({ uploadedAt: now, updatedAt: now })
-        .where(eq(outcomeEvidence.id, row.id))
-        .returning(recordColumns);
-      return recordOf(completed);
+      try {
+        await storage.put(row.objectKey, input.bytes, row.contentType);
+        const [completed] = await tx
+          .update(outcomeEvidence)
+          .set({ uploadedAt: now, updatedAt: now })
+          .where(eq(outcomeEvidence.id, row.id))
+          .returning(recordColumns);
+        return recordOf(completed);
+      } catch (error) {
+        // An object store cannot join the transaction: drop the bytes if the row
+        // is not going to name them, so no unscanned orphan is left behind.
+        await storage.delete(row.objectKey).catch(() => undefined);
+        throw error;
+      }
     });
   }
 
@@ -302,6 +309,9 @@ export class DrizzleEvidenceService implements EvidenceService {
         objectType: "outcome_evidence",
         objectId: record.id,
         requestId: input.requestId,
+        // An admin reading a student's private document is a read that widens
+        // access, which is what the break-glass flag marks (D-124).
+        breakGlass: true,
         metadata: { outcome_id: record.outcomeId },
       });
     }

@@ -287,7 +287,8 @@ async function decisionsFor(executor: Executor, outcomeId: string): Promise<Outc
 }
 
 /** One append-only event per transition, with a gap-free per-outcome `seq`. */
-async function appendEvent(
+/** Shared with the evidence scan job, which writes `TIER_CHANGED` (design R5). */
+export async function appendEvent(
   tx: Transaction,
   entry: {
     outcomeId: string;

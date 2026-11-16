@@ -138,3 +138,20 @@ Detected, so the scan gate is proven.
 **0.4 Versions pinned.** `@aws-sdk/client-s3@3.1161.0` and `@aws-sdk/s3-request-presigner@3.1161.0`, both published 2026-10-30 (17 days old at the time of the run, past the two-week rule) and the same minor line as each other. `pnpm-lock.yaml` is committed.
 
 **0.5 The 413 shape.** `ProblemDetailsFilter` already maps `rawStatus === 413` and `entity.too.large` to `413 PAYLOAD_TOO_LARGE` in the standard problem body, so the raw parser's oversize answer needs no new mapping; a test asserts it on both the binary route and a JSON route.
+
+## Independent review, and what it changed (2026-11-16)
+
+A fresh-context review of the branch diff returned six findings. Three were fixed, three are accepted with the reason recorded here.
+
+**Fixed.**
+
+1. A late detection could reverse a committed clean result: the `REJECTED` update was unconditional while the `CLEAN` one was guarded. Both are now conditional on `status = 'QUARANTINED'`, and a rejection only counts when a row comes back. `evidence.integration.test.ts` reproduces the race with a storage client that clears the row while the scan is fetching the bytes.
+2. Raising `evidence_tier` was a bare projection update. A tier change is a fact about the outcome and `TIER_CHANGED` already exists in the event enum, so the scan's transaction now appends one `TIER_CHANGED` event (`SYSTEM` actor, the evidence id in its payload) under the outcome row lock the tier update takes.
+3. An object written inside the transaction could survive a failed commit, because an object store cannot join a transaction. The completion route now deletes the object it just wrote when the row update or the commit fails, so no unscanned orphan is left with no row naming it.
+4. The `EVIDENCE_VIEWED` row now carries `breakGlass: true`: an admin reading a student's private document is a read that widens access, which is what that flag marks (D-124).
+
+**Accepted, with the reason.**
+
+- **A platform admin read is not routed through a case-linked break-glass decision.** The owner fixed the reader set (the student, that mentorship's mentor, a platform admin with an enrolled second factor) and the audit action in the brief, and the spec's scenario states an admin read writes `EVIDENCE_VIEWED`. Requiring a linked case and a reason would be a behaviour the approved spec does not ask for; it is named here so the owner can decide otherwise.
+- **The 5 MiB raw parser is content-type scoped, not path scoped.** The brief asks for `API_MAX_BODY_BYTES` to stay 100 KiB and for the exception to be a content-type one; the JSON cap is untouched and a test proves it. A path-scoped mount would need `body-parser` imported directly, which is not a declared dependency. The residual effect is that a PDF, PNG or JPEG body to any route is buffered up to 5 MiB before the route answers; those types are throttled by the default bucket and no route parses them.
+- **The audit row is committed before the link is produced.** That is the design's stated order (R6, the D-120 pattern): if signing then fails, the log records an attempted read rather than missing one. An over-audited refusal is the safe direction.

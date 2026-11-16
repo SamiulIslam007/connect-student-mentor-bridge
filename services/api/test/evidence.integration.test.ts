@@ -441,6 +441,17 @@ test("a PDF is attached, scanned clean, and served to the student with no audit 
   assert.equal(summary.status, "clean");
   assert.equal(summary.sha256, sha256(PDF));
 
+  const events = await current.client.query<{ event_type: string; actor_role: string }>(
+    "SELECT event_type, actor_role FROM outcome_events WHERE outcome_id = $1 ORDER BY seq",
+    [outcomeId],
+  );
+  assert.deepEqual(
+    events.rows.map((row) => row.event_type).slice(-1),
+    ["TIER_CHANGED"],
+    "a tier change is an append-only fact",
+  );
+  assert.equal(events.rows.at(-1)?.actor_role, "SYSTEM");
+
   const again = await scan(current);
   assert.equal(again.examined, 0, "a clean row is never scanned twice");
   assert.equal(
@@ -563,6 +574,40 @@ test("an infected file is rejected, never served, and the tier stays 0", async (
   assert.equal(tier.rows[0]?.evidence_tier, 0);
 });
 
+test("a stale detection never reverses a row another pass already cleared", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const { student, outcomeId } = await reportedOutcome(current, ".race");
+  const evidenceId = await intentFor(current, outcomeId, student);
+  assert.equal((await completeUpload(current, outcomeId, evidenceId, PDF, student)).status, 200);
+
+  // A standing stand-in for the other pass: it clears the row while this one is
+  // still fetching the bytes, so the detection below arrives too late.
+  const racing: EvidenceStorage = {
+    put: (key, bytes) => storage.put(key, bytes),
+    presignGet: (key) => storage.presignGet(key),
+    delete: (key) => storage.delete(key),
+    get: async (key) => {
+      await current.client.query(
+        "UPDATE outcome_evidence SET status = 'CLEAN', scanned_at = now() WHERE id = $1",
+        [evidenceId],
+      );
+      return await storage.get(key);
+    },
+  };
+  const raced = await scanQuarantinedEvidence(current.database.db, {
+    storage: racing,
+    scan: async () => ({ clean: false, signature: "Eicar-Test-Signature" }),
+  });
+
+  assert.equal(raced.rejected, 0, "a late detection does not count");
+  const row = await current.client.query<{ status: string }>(
+    "SELECT status FROM outcome_evidence WHERE id = $1",
+    [evidenceId],
+  );
+  assert.equal(row.rows[0]?.status, "CLEAN", "the committed result stands");
+});
+
 test("a scanner outage leaves the row quarantined, and the next pass recovers it", async (context) => {
   const current = requireStack(context);
   if (!current) return;
@@ -667,10 +712,14 @@ test("a platform admin read writes exactly one EVIDENCE_VIEWED row before the li
   assert.equal(read.status, 200, read.text);
   assert.ok(read.body?.url);
 
-  const rows = await current.client.query<{ object_type: string; object_id: string }>(
-    "SELECT object_type, object_id FROM audit_logs WHERE action = 'EVIDENCE_VIEWED'",
-  );
-  assert.deepEqual(rows.rows, [{ object_type: "outcome_evidence", object_id: evidenceId }]);
+  const rows = await current.client.query<{
+    object_type: string;
+    object_id: string;
+    break_glass: boolean;
+  }>("SELECT object_type, object_id, break_glass FROM audit_logs WHERE action = 'EVIDENCE_VIEWED'");
+  assert.deepEqual(rows.rows, [
+    { object_type: "outcome_evidence", object_id: evidenceId, break_glass: true },
+  ]);
 
   const filtered = await apiRequest(
     current,
