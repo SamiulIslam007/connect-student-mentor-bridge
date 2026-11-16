@@ -15,6 +15,7 @@ export * from "./audit-sample.js";
 export * from "./account-status.js";
 export * from "./config-payload.js";
 export * from "./availability.js";
+export * from "./evidence-retention.js";
 export * from "./fields.js";
 export * from "./identity.js";
 export * from "./match.js";

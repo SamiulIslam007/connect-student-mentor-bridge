@@ -48,7 +48,7 @@ Sensitivity classes: **High**, **Medium**, **Low** (from `data-model.md`). Lawfu
 | 8 | Thread messages | Guidance | Contract | High | PostgreSQL | Participants only; platform admin break-glass (audited) |
 | 9 | Session records (time, meeting link, held confirmations) | Session history | Contract | Medium | PostgreSQL | Participants |
 | 10 | Outcomes (type, description, contribution level, state) | Verification and reputation | Contract + Consent | Medium | PostgreSQL (append-only events) | Student; mentor; platform admin; aggregates to institution |
-| 11 | Evidence files (offer letter, admission letter) | Verification Tier 1 and above | Consent | **High** | Private object storage; hash and metadata in PostgreSQL | Student; mentor; platform admin (signed URL, audited) |
+| 11 | Evidence files (offer letter, admission letter) | Verification Tier 1 and above | Consent | **High** | Private object storage; hash and metadata in PostgreSQL. The object is deleted 90 days after the outcome counts or is rejected; the row, its SHA-256 and its `deleted_at` stay | Student; mentor; platform admin (five-minute signed URL; an admin's read writes `EVIDENCE_VIEWED`) |
 | 12 | Disputes and reviewer notes | Dispute resolution | Contract | High | PostgreSQL | Parties; platform admin |
 | 13 | Reputation events and impact snapshots | Reputation | Contract | Medium | PostgreSQL (events append-only; snapshots derived) | Mentor; other verified users see counts and confidence tier |
 | 14 | Private session feedback | Quality operations | Consent | Medium | PostgreSQL | Platform admin; revealed to parties only under simultaneous-reveal rule (Phase 1b, optional) |
@@ -85,7 +85,7 @@ All values are **Proposed defaults**, to be confirmed by counsel.
 | Mentorship requests and threads | Life of the mentorship plus 12 months, then deleted or archived without message text | **Open decision**: whether threads are retained after a mentorship ends |
 | Session records | Life of the mentorship plus 12 months | Meeting links removed earlier (30 days after the session) |
 | Outcome events, verification records, reputation events | Life of the account; after deletion kept only with **pseudonymous references** (section 9) | Needed for auditability and clawback |
-| Evidence files | **Deleted 90 days after the outcome is counted**; hash and metadata kept | Proposed default from research 5.7; faster if the user withdraws consent |
+| Evidence files | **Deleted 90 days after the outcome counts or is rejected** by the hourly `evidence-retention` job; hash and metadata kept. The job **ships in dry run**: it reports what it would delete and deletes nothing until `EVIDENCE_RETENTION_DRY_RUN` is exactly `false`. `REVERSED` and `WITHDRAWN` outcomes keep their file (DEBT-66), and an early deletion on consent withdrawal is not built (DEBT-64) | Built 2026-11-16 (`FR-PRIV-03`); the 90-day period is the research 5.7 default and is one named constant |
 | Disputes | 24 months after resolution, then deleted or reduced to the decision and reason | Counsel to confirm |
 | Consent records | Life of the account plus the legal limitation period (to be confirmed) | Proof of consent |
 | Audit log | 24 months online, then archived or deleted per counsel | Admin actions, exports, break-glass |

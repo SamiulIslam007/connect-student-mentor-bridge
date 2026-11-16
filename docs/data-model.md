@@ -482,7 +482,7 @@ The payload is exactly the five values that price a ledger row, each with a rang
 | `status` | `evidence_scan_status` | Default `QUARANTINED`; a partial index on `QUARANTINED` is the scan job's queue |
 | `uploaded_at` | `timestamptz?` | Null until the bytes landed; only an uploaded, quarantined row is scanned |
 | `scanned_at`, `scan_detail` | `timestamptz?`, `text?` | When the scan settled and what it said (a signature, or the failure) |
-| `deleted_at` | `timestamptz?` | Set when the retention sweeper deletes the object (`FR-PRIV-03`); the row and its SHA-256 outlive the file |
+| `deleted_at` | `timestamptz?` | Set by the hourly retention job when it deletes the object (`FR-PRIV-03`); the row, its SHA-256, its size and its content type outlive the file, and a row with `deleted_at` is never swept again |
 
 Grants: `SELECT, INSERT, UPDATE` to `connect_app` — no `DELETE`, because retention deletes the object and marks the row. Nothing else references the table, so the row is the audit trail for a file that no longer exists.
 

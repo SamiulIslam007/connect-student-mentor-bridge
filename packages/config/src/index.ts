@@ -26,6 +26,17 @@ export const READINESS_TIMEOUT_MS = 2_000;
 export const OUTCOME_COOLING_PERIOD_DAYS = 14;
 
 /**
+ * How long an outcome's evidence file is kept after the outcome settles
+ * (FR-PRIV-03; `docs/data-privacy-and-retention.md` section 6 states the same
+ * period). One seam, so a configuration version can carry the value later.
+ */
+export const EVIDENCE_RETENTION_DAYS = 90;
+
+export function evidenceRetentionDays(): number {
+  return EVIDENCE_RETENTION_DAYS;
+}
+
+/**
  * Audit sampling (`FR-ADM-03`, D-178): a `CONFIRMED` outcome is held for review
  * before it counts. 25% is a working value the owner can lower before the pilot;
  * the three always-sampled types are named because every difficulty weight is
