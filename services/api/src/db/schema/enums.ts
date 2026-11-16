@@ -210,6 +210,17 @@ export const verifierDecision = pgEnum("verifier_decision", [
 /** Reputation events; `REVERSAL` is reserved for the clawback change. */
 export const reputationEventType = pgEnum("reputation_event_type", ["COUNTED", "REVERSAL"]);
 
+/**
+ * An evidence object's scan state (evidence-upload-and-scan, design R4). A row
+ * is served only while `CLEAN`; a scanner failure leaves it `QUARANTINED`.
+ */
+export const evidenceScanStatus = pgEnum("evidence_scan_status", [
+  "QUARANTINED",
+  "CLEAN",
+  "REJECTED",
+]);
+
+
 /** Canonical role values (docs/data-model.md §4.1). `EMPLOYER` is reserved. */
 export const role = pgEnum("role", [
   "STUDENT",

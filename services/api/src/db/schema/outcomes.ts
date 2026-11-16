@@ -18,6 +18,7 @@ import { users } from "./auth.js";
 import { timestamps } from "./columns.js";
 import {
   contributionLevel,
+  evidenceScanStatus,
   outcomeEventType,
   outcomeStatus,
   outcomeType,
@@ -147,4 +148,50 @@ export const verificationRecords = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [index("verification_records_outcome_idx").on(table.outcomeId)],
+);
+
+/**
+ * One private file per outcome (evidence-upload-and-scan). The bytes live in the
+ * object store under `objectKey`; a row is served only while it is `CLEAN` and
+ * `deletedAt` is null, and the retention sweeper keeps the row after the object
+ * is deleted (FR-PRIV-03).
+ */
+export const outcomeEvidence = pgTable(
+  "outcome_evidence",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    outcomeId: uuid("outcome_id")
+      .notNull()
+      .references(() => outcomes.id, { onDelete: "restrict" }),
+    uploadedByUserId: text("uploaded_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    objectKey: text("object_key").notNull(),
+    sha256: text("sha256").notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    contentType: text("content_type").notNull(),
+    status: evidenceScanStatus("status").default("QUARANTINED").notNull(),
+    scannedAt: timestamp("scanned_at", { withTimezone: true }),
+    scanDetail: text("scan_detail"),
+    /** When the bytes landed; null until the intent is completed. */
+    uploadedAt: timestamp("uploaded_at", { withTimezone: true }),
+    /** Set when the object is deleted; the metadata row outlives the file. */
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("outcome_evidence_object_key_unique").on(table.objectKey),
+    // One file per outcome (D-191).
+    uniqueIndex("outcome_evidence_outcome_unique").on(table.outcomeId),
+    // The scan job's queue: quarantined, undeleted rows only.
+    index("outcome_evidence_pending_idx")
+      .on(table.status)
+      .where(sql`${table.status} = 'QUARANTINED'`),
+    check("outcome_evidence_sha256_shape", sql`${table.sha256} ~ '^[0-9a-f]{64}$'`),
+    check("outcome_evidence_size_bounds", sql`${table.sizeBytes} BETWEEN 1 AND 5242880`),
+    check(
+      "outcome_evidence_content_type_known",
+      sql`${table.contentType} IN ('application/pdf', 'image/png', 'image/jpeg')`,
+    ),
+  ],
 );

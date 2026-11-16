@@ -22,12 +22,23 @@ export interface OutcomeRecord {
   withdrawnAt: Date | null;
   /** Present on the single-outcome read only (platform-review change). */
   decisions?: OutcomeDecision[];
+  /** Present on the single-outcome read only; never a link (evidence change). */
+  evidence?: EvidenceSummary | null;
   createdAt: Date;
   studentProfileId: string;
   mentorProfileId: string;
   fieldId: string;
   studentName: string;
   mentorName: string;
+}
+
+/** Whether a file is attached, without minting a link (evidence change, R1). */
+export interface EvidenceSummary {
+  id: string;
+  status: string;
+  content_type: string;
+  size_bytes: number;
+  sha256: string;
 }
 
 export interface OutcomeDecision {
@@ -169,6 +180,7 @@ export function outcomePayload(outcome: OutcomeRecord): Record<string, unknown> 
     field_id: outcome.fieldId,
     student_name: outcome.studentName,
     mentor_name: outcome.mentorName,
+    ...(outcome.evidence !== undefined ? { evidence: outcome.evidence } : {}),
     ...(outcome.decisions
       ? {
           decisions: outcome.decisions.map((decision) => ({

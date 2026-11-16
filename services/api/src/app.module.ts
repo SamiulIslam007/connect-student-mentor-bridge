@@ -7,6 +7,8 @@ import { RATE_LIMITS } from "@connect/config";
 import { AdminConfigController } from "./admin-config/config.controller.js";
 import { AdminConfigModule } from "./admin-config/admin-config.module.js";
 import { AvailabilityController } from "./availability/availability.controller.js";
+import { EvidenceController } from "./evidence/evidence.controller.js";
+import { EvidenceModule } from "./evidence/evidence.module.js";
 import { AvailabilityModule } from "./availability/availability.module.js";
 import { AffiliationsController } from "./affiliations/affiliations.controller.js";
 import { AffiliationsModule } from "./affiliations/affiliations.module.js";
@@ -83,6 +85,7 @@ import { RequestsModule } from "./requests/requests.module.js";
     MatchingModule,
     InstitutionsModule,
     AdminConfigModule,
+    EvidenceModule,
   ],
   controllers: [HealthController],
   providers: [
@@ -128,6 +131,7 @@ export class AppModule implements NestModule {
         ConsentController,
         InstitutionsController,
         AdminThreadController,
+        EvidenceController,
       );
   }
 }

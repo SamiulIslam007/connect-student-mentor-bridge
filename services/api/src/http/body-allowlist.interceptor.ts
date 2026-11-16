@@ -20,6 +20,11 @@ export class BodyAllowlistInterceptor implements NestInterceptor {
       .getRequest<Request & { route?: { path?: string } }>();
 
     if (request.method !== "GET" && request.method !== "HEAD" && request.method !== "DELETE") {
+      // A binary body (an evidence upload) has no top-level keys to allowlist;
+      // its byte indices would otherwise read as "unknown property: 0" (R9).
+      if (Buffer.isBuffer(request.body)) {
+        return next.handle();
+      }
       const path = request.route?.path ?? request.path;
       const allowed = ROUTE_BODY_KEYS[`${request.method} ${path}`];
       if (allowed) {

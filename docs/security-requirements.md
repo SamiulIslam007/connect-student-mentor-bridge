@@ -146,11 +146,11 @@ Each requirement has an ID, a priority (**Must**, **Should**, **Could**), and th
 
 | ID | Requirement | Priority | Verification |
 |---|---|---|---|
-| SEC-FILE-1 | Private bucket only; access through short-lived signed URLs (**Proposed default: 5 minutes**) | Must | Test |
+| SEC-FILE-1 | Private bucket only; access through short-lived signed URLs (**Built** by `evidence-upload-and-scan`, 2026-11-16: a key authenticated PUT, and a five-minute presigned GET minted only for a clean file by the reporting student, that mentorship's mentor or a platform admin with MFA) | Must | Test |
 | SEC-FILE-2 | Allowed file types and size limits are enforced server-side by content inspection, not just file extension | Must | Test |
-| SEC-FILE-3 | Files are scanned for malware before they are made available; unscanned files are never served | Must | Test |
+| SEC-FILE-3 | Files are scanned for malware before they are made available; unscanned files are never served. **Built** by `evidence-upload-and-scan` (2026-11-16): quarantine-first, clamd `INSTREAM`, and `evidence.integration.test.ts` proves a scanner error, a timeout and a detection all leave the file unserved and the tier at `0` | Must | Test |
 | SEC-FILE-4 | Original file names are not used as storage keys; images are re-encoded where practical to remove hidden content | Should | Review |
-| SEC-FILE-5 | A file hash is stored at upload time | Must | Test |
+| SEC-FILE-5 | A file hash is stored at upload time. **Built** by `evidence-upload-and-scan` (2026-11-16): the server hashes the bytes it received, and a mismatch with the declared digest marks the evidence `rejected` instead of storing it | Must | Test |
 
 ### 5.7 Audit and logging
 
@@ -165,7 +165,7 @@ Each requirement has an ID, a priority (**Must**, **Should**, **Could**), and th
 
 | ID | Requirement | Priority | Verification |
 |---|---|---|---|
-| SEC-ABUSE-1 | Rate limits on sign-up, sign-in, password reset, request creation, outcome reporting, and file upload, per account and per IP; bot protection on sign-up | Must | **Built for both keys** by `request-validation-and-rate-limits` (2026-11-09) and `per-account-rate-limit` (2026-11-12): per-IP limits on sign-in, register, password reset, request creation, messages, and outcome writes, plus a second `account` bucket keyed by the body email, then a session credential, then the address (sign-in 10 per hour, password reset 5 per hour, 120 per minute elsewhere), with the key hashed and the longest wait reported. Both stores are process memory, so the limit is per instance (ADR-006 defers a shared store). Bot protection on sign-up and the upload route (which does not exist yet) remain outside; DEBT-27 closes, DEBT-03 stays open |
+| SEC-ABUSE-1 | Rate limits on sign-up, sign-in, password reset, request creation, outcome reporting, and file upload, per account and per IP; bot protection on sign-up | Must | **Built for both keys** by `request-validation-and-rate-limits` (2026-11-09) and `per-account-rate-limit` (2026-11-12): per-IP limits on sign-in, register, password reset, request creation, messages, and outcome writes, plus a second `account` bucket keyed by the body email, then a session credential, then the address (sign-in 10 per hour, password reset 5 per hour, 120 per minute elsewhere), with the key hashed and the longest wait reported. Both stores are process memory, so the limit is per instance (ADR-006 defers a shared store). Bot protection on sign-up and on the evidence upload route (which now exists, rate-limited by the standard write bucket but not bot-protected) remain outside; DEBT-27 closes, DEBT-03 stays open |
 | SEC-ABUSE-2 | Users can report abuse or off-platform pressure; reports reach a moderator with a visible status | Must | Test |
 | SEC-ABUSE-3 | Suspension and removal paths exist, with reasons. Appeals are **Later**; in the MVP a Platform Admin reviews each case once | Should | Process test |
 | SEC-ABUSE-4 | Default limits are stored in configuration, not hard-coded | Should | Review |

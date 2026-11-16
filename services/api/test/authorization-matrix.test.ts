@@ -25,6 +25,9 @@ import { DrizzleMentorshipService } from "../src/mentorships/drizzle-mentorship.
 import { AdminThreadController } from "../src/mentorships/admin-thread.controller.js";
 import { MentorshipsController, SessionsController } from "../src/mentorships/mentorships.controller.js";
 import { MENTORSHIP_SERVICE } from "../src/mentorships/mentorships.tokens.js";
+import { DrizzleEvidenceService } from "../src/evidence/drizzle-evidence.service.js";
+import { EvidenceController } from "../src/evidence/evidence.controller.js";
+import { EVIDENCE_SERVICE } from "../src/evidence/evidence.tokens.js";
 import { DrizzleOutcomeService } from "../src/outcomes/drizzle-outcome.service.js";
 import { OutcomesController } from "../src/outcomes/outcomes.controller.js";
 import { ReviewQueueController } from "../src/outcomes/review-queue.controller.js";
@@ -155,6 +158,11 @@ const MATRIX: Requirement[] = [
   { route: /^POST \/v1\/outcomes\/:id\/confirm$/, access: "signed-in", mutating: true },
   { route: /^POST \/v1\/outcomes\/:id\/dispute$/, access: "signed-in", mutating: true },
   { route: /^POST \/v1\/outcomes\/:id\/withdraw$/, access: "signed-in", mutating: true },
+  // Evidence (FR-OUT-02): the service resolves which participant may act, so the
+  // matrix only says a signed-in caller reaches it.
+  { route: /^POST \/v1\/outcomes\/:id\/evidence$/, access: "signed-in", mutating: true },
+  { route: /^POST \/v1\/outcomes\/:id\/evidence\/:evidence_id\/complete$/, access: "signed-in", mutating: true },
+  { route: /^GET \/v1\/outcomes\/:id\/evidence\/:evidence_id$/, access: "signed-in" },
   { route: /^POST \/v1\/outcomes\/:id\/review$/, access: "PLATFORM_ADMIN", mutating: true, body: { decision: "valid", reason: "matrix probe" } },
   { route: /^GET \/v1\/review-queue$/, access: "PLATFORM_ADMIN" },
   // Counts-only impact reads: a session, and the mentor-profile 404 (absent or
@@ -268,6 +276,7 @@ before(async () => {
       AdminThreadController,
       SessionsController,
       OutcomesController,
+      EvidenceController,
       ReviewQueueController,
       ReputationController,
       ConsentController,
@@ -292,6 +301,7 @@ before(async () => {
       AdminThreadController,
       SessionsController,
       OutcomesController,
+      EvidenceController,
       ReviewQueueController,
       ReputationController,
       ConsentController,
@@ -311,6 +321,7 @@ before(async () => {
       { provide: REQUESTS_SERVICE, useValue: new DrizzleRequestsService(database) },
       { provide: MENTORSHIP_SERVICE, useValue: new DrizzleMentorshipService(database) },
       { provide: OUTCOME_SERVICE, useValue: new DrizzleOutcomeService(database) },
+      { provide: EVIDENCE_SERVICE, useValue: new DrizzleEvidenceService(database, null) },
       { provide: REPUTATION_SERVICE, useValue: new DrizzleReputationService(database) },
       { provide: CONSENT_SERVICE, useValue: new DrizzleConsentService(database) },
       {

@@ -31,6 +31,12 @@ import {
   REPUTATION_COUNT_QUEUE,
 } from "../../reputation/counting-job.js";
 import {
+  EVIDENCE_SCAN_CRON,
+  EVIDENCE_SCAN_QUEUE,
+  scanQuarantinedEvidence,
+} from "../../evidence/scan-job.js";
+import { createEvidenceStorage } from "../../evidence/storage.js";
+import {
   ACCOUNT_SANCTION_CRON,
   ACCOUNT_SANCTION_QUEUE,
   liftExpiredSuspensions,
@@ -73,6 +79,7 @@ export class OutboxWorker implements OnApplicationBootstrap, OnApplicationShutdo
     await boss.createQueue(REPUTATION_COUNT_QUEUE);
     await boss.createQueue(ACCOUNT_SANCTION_QUEUE);
     await boss.createQueue(AUDIT_SAMPLE_QUEUE);
+    await boss.createQueue(EVIDENCE_SCAN_QUEUE);
     await boss.work(REQUEST_SWEEP_QUEUE, { batchSize: 1 }, async () => {
       const result = await sweepRequests(this.database);
       if (result.reminded > 0 || result.expired > 0) {
@@ -107,6 +114,18 @@ export class OutboxWorker implements OnApplicationBootstrap, OnApplicationShutdo
       }
     });
     await boss.schedule(AUDIT_SAMPLE_QUEUE, AUDIT_SAMPLE_CRON);
+    await boss.work(EVIDENCE_SCAN_QUEUE, { batchSize: 1 }, async () => {
+      const storage = createEvidenceStorage();
+      if (!storage) {
+        log("evidence.scan_skipped", { reason: "no object store is configured" });
+        return;
+      }
+      const result = await scanQuarantinedEvidence(this.database, { storage });
+      if (result.examined > 0) {
+        log("evidence.scanned", { ...result });
+      }
+    });
+    await boss.schedule(EVIDENCE_SCAN_QUEUE, EVIDENCE_SCAN_CRON);
     await boss.work(
       OUTBOX_QUEUE,
       { batchSize: 1, pollingIntervalSeconds: 2 },

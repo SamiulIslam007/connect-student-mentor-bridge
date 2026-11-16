@@ -44,7 +44,9 @@ export type AuditAction =
   | "ACCOUNT_REINSTATED"
   | "DATA_EXPORTED"
   | "PERMISSION_DENIED"
-  | "CONFIGURATION_CHANGED";
+  | "CONFIGURATION_CHANGED"
+  /** A platform admin obtained a download link for evidence (FR-OUT-02, R6). */
+  | "EVIDENCE_VIEWED";
 
 export interface AuditEntry {
   action: AuditAction;

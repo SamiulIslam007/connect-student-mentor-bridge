@@ -2480,6 +2480,158 @@ paths:
           $ref: "#/components/responses/Problem"
         "409":
           $ref: "#/components/responses/Problem"
+  /v1/outcomes/{id}/evidence:
+    post:
+      operationId: createOutcomeEvidence
+      summary: Create the upload intent for an outcome's one evidence file
+      description: >-
+        The reporting student only. Declares the content type, the size and the
+        SHA-256 of the bytes the complete route will carry; the answer carries
+        the evidence id. PDF, PNG and JPEG only, 5 MiB at most, one file per
+        outcome, which answers 409 EVIDENCE_ALREADY_ATTACHED. A mentor on that
+        mentorship gets 403 and anyone else 404. 503 EVIDENCE_UNAVAILABLE when
+        the deployment carries no object store.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EvidenceIntent"
+      responses:
+        "201":
+          description: The quarantined evidence intent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OutcomeEvidence"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+        "413":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        "429":
+          $ref: "#/components/responses/Problem"
+        "503":
+          $ref: "#/components/responses/Problem"
+  /v1/outcomes/{id}/evidence/{evidence_id}/complete:
+    post:
+      operationId: completeOutcomeEvidence
+      summary: Complete the upload with the file's bytes
+      description: >-
+        The body is the file itself, under one of three content types and capped
+        at 5 MiB; every JSON body on every other route stays at 100 KiB. The
+        bytes are hashed and sniffed: a declared type, size or digest that does
+        not match the received bytes marks the evidence REJECTED and stores no
+        object. A scan then runs in the background and only a clean result makes
+        the file readable. A second completion answers 409 EVIDENCE_ALREADY_COMPLETED.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: evidence_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/pdf:
+            schema:
+              type: string
+              format: binary
+          image/png:
+            schema:
+              type: string
+              format: binary
+          image/jpeg:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "200":
+          description: The completed, still quarantined evidence
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OutcomeEvidence"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+        "413":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        "429":
+          $ref: "#/components/responses/Problem"
+        "503":
+          $ref: "#/components/responses/Problem"
+  /v1/outcomes/{id}/evidence/{evidence_id}:
+    get:
+      operationId: readOutcomeEvidence
+      summary: Read the evidence metadata and, when clean, a short-lived link
+      description: >-
+        The reporting student, that mentorship's mentor, and a platform admin
+        with an enrolled second factor may read it; anyone else gets 404. A file
+        that is QUARANTINED, REJECTED or already deleted answers 409
+        EVIDENCE_NOT_READY and no link. An admin's read writes one
+        EVIDENCE_VIEWED audit entry before the link is returned; a student's and
+        a mentor's read are not audited. The link expires five minutes after it
+        is minted.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: evidence_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The evidence and, for a clean file, its download link
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OutcomeEvidence"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+        "503":
+          $ref: "#/components/responses/Problem"
   /v1/me/consents:
     get:
       operationId: readOwnConsents
@@ -4423,6 +4575,24 @@ components:
           type: string
         mentor_name:
           type: string
+        evidence:
+          description: Present on the single-outcome read only; never a link.
+          type: object
+          nullable: true
+          additionalProperties: false
+          required: [id, status, content_type, size_bytes, sha256]
+          properties:
+            id:
+              type: string
+            status:
+              type: string
+              enum: [quarantined, clean, rejected]
+            content_type:
+              type: string
+            size_bytes:
+              type: integer
+            sha256:
+              type: string
         decisions:
           type: array
           description: Present on the single-outcome read only.
@@ -4439,6 +4609,65 @@ components:
               decided_at:
                 type: string
                 format: date-time
+    EvidenceIntent:
+      type: object
+      additionalProperties: false
+      required: [content_type, size_bytes, sha256]
+      properties:
+        content_type:
+          type: string
+          enum: [application/pdf, image/png, image/jpeg]
+        size_bytes:
+          type: integer
+          minimum: 1
+          maximum: 5242880
+        sha256:
+          type: string
+          pattern: "^[0-9a-fA-F]{64}$"
+    OutcomeEvidence:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - outcome_id
+        - status
+        - content_type
+        - size_bytes
+        - sha256
+        - scanned_at
+        - uploaded_at
+        - created_at
+        - url
+      properties:
+        id:
+          type: string
+        outcome_id:
+          type: string
+        status:
+          type: string
+          enum: [quarantined, clean, rejected]
+        content_type:
+          type: string
+          enum: [application/pdf, image/png, image/jpeg]
+        size_bytes:
+          type: integer
+        sha256:
+          type: string
+        scanned_at:
+          type: string
+          format: date-time
+          nullable: true
+        uploaded_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        url:
+          type: string
+          nullable: true
+          description: A five-minute presigned link, only for a CLEAN file.
     OutcomeCreate:
       type: object
       additionalProperties: false

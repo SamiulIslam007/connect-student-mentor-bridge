@@ -155,6 +155,13 @@
       "when": 1794768446335,
       "tag": "0021_absent_morbius",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1794809648968,
+      "tag": "0022_futuristic_nico_minoru",
+      "breakpoints": true
     }
   ]
 }
