@@ -1582,3 +1582,59 @@ date: 2026-10-29
 - Reason: the spec fixes no state gate for attaching evidence, so adding one would invent a rule; the seams are how the repo avoids a mocking library, and a test stack that does not mirror production wiring would have hidden the body-parser bug the change exists to handle.
 - Status: Decided
 - Affects: `services/api/test/support/api-stack.ts`, `packages/contracts/test/openapi.test.ts`
+
+### D-204: The retention clock starts at the terminal instant, not at the upload
+
+- Date: 2026-11-16
+- Decision: an evidence file is due for deletion `EVIDENCE_RETENTION_DAYS` (90) after `counted_at` for a `COUNTED` outcome, or after `rejected_at` for a `REJECTED` one. The predicate is a pure `evidenceRetentionDue` in `@connect/domain`, inclusive at the boundary, and a terminal row with no instant is never due.
+- Reason: measuring from the upload would delete a document while its outcome is still in review — the one outcome that must keep its evidence — and a pure function is testable without a database.
+- Status: Decided
+- Affects: `packages/domain/src/evidence-retention.ts`, `packages/config/src/index.ts`, `services/api/src/evidence/retention.ts`
+
+### D-205: A reversed or withdrawn outcome keeps its file
+
+- Date: 2026-11-16
+- Decision: only `COUNTED` and `REJECTED` start the retention clock. `REVERSED` and `WITHDRAWN` outcomes keep their evidence indefinitely, and DEBT-66 records that policy gap rather than hiding it.
+- Reason: a clawback or a dispute is exactly when the material matters, and a withdrawal is the student's own retraction whose file is the only proof the report was made. Treating either as terminal for retention is a policy decision, not an implementation detail, so it is named for the owner.
+- Status: Decided
+- Affects: `packages/domain/src/evidence-retention.ts`, `docs/known-debt.md` (DEBT-66)
+
+### D-206: The scan status does not gate deletion
+
+- Date: 2026-11-16
+- Decision: an evidence row marked `REJECTED` by the scanner (a detection) is deleted on the same clock as a clean one.
+- Reason: keeping known malware for 90 days "for analysis" is a retention policy nobody asked for, there is no analysis path in the product, and it is a liability. The row keeps the signature in `scan_detail`, so the fact survives the bytes.
+- Status: Decided
+- Affects: `services/api/src/evidence/retention.ts`
+
+### D-207: The object goes first, the row second, and the audit row in the row's transaction
+
+- Date: 2026-11-16
+- Decision: per file, `storage.delete(key)` runs first; on success one transaction sets `deleted_at` under an `IS NULL` predicate and appends one `EVIDENCE_RETENTION_DELETED` row with `actorRole: SYSTEM` and `requestId: system:evidence-retention`. A delete failure is counted, logged, and leaves the row eligible for the next run.
+- Reason: marking first and deleting second leaves a row claiming a deletion that may not have happened, and an audit log that lies is worse than a job that lags.
+- Status: Decided
+- Affects: `services/api/src/evidence/retention.ts`, `services/api/src/identity/audit-log.ts`, `services/api/src/audit/audit.service.ts`
+
+### D-208: Dry run is the shipped default, and only the exact string `false` turns it off
+
+- Date: 2026-11-16
+- Decision: `retentionDryRun()` returns `true` unless `EVIDENCE_RETENTION_DRY_RUN` is exactly `false`. Unset, empty, `FALSE`, `False`, `0`, `no` and any other value keep the job dry. The sweep takes `dryRun` as a parameter so the real path is fully tested while the shipped default deletes nothing.
+- Reason: the mirror of `WEB_CSP_MODE` (D-170) — there one exact value disables a protection, here one exact value enables a deletion, so a typo must never destroy a document. The parameter is what makes "tested but off" honest.
+- Status: Decided
+- Affects: `services/api/src/evidence/retention-job.ts`, `.env.example`, `docs/local-setup.md`
+
+### D-209: The dry-run report is a returned count and one log line
+
+- Date: 2026-11-16
+- Decision: `sweepExpiredEvidence` returns `{ examined, eligible, deleted, failed, dryRun }` and the worker logs it as one JSON line per run. No table, no route, no page.
+- Reason: an `evidence_retention_runs` table would be a second source of truth for a fact the audit rows carry once a real run happens, and the operator needs one number to read, not a schema.
+- Status: Decided
+- Affects: `services/api/src/evidence/retention.ts`, `services/api/src/platform/outbox/outbox-worker.ts`
+
+### D-210: Hourly, one hundred files, oldest first
+
+- Date: 2026-11-16
+- Decision: `0 * * * *`, batch 100, ordered by `coalesce(counted_at, rejected_at)` ascending.
+- Reason: the oldest file goes first so a backlog drains predictably, and a batch that fails part-way needs no whole-run retry: each file is independent and the next run re-examines whatever still has `deleted_at` null.
+- Status: Decided
+- Affects: `services/api/src/evidence/retention-job.ts`, `services/api/src/evidence/retention.ts`

@@ -51,6 +51,7 @@ const AUDIT_ACTION_MAP: Record<AuditAction, true> = {
   PERMISSION_DENIED: true,
   CONFIGURATION_CHANGED: true,
   EVIDENCE_VIEWED: true,
+  EVIDENCE_RETENTION_DELETED: true,
 };
 
 export const AUDIT_ACTIONS: readonly AuditAction[] = Object.keys(

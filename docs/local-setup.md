@@ -237,3 +237,9 @@ branches and open pull requests; the owner merges.
   a resolvable, reachable URL in deployment. A missing `S3_BUCKET`,
   `S3_ACCESS_KEY_ID` or `S3_SECRET_ACCESS_KEY` makes the three evidence routes
   answer `503 EVIDENCE_UNAVAILABLE` rather than failing the API's boot.
+- The evidence retention job (`evidence-retention`, hourly) **ships in dry run**: it
+  reports what it would delete and deletes nothing. Only the exact value `false` in
+  `EVIDENCE_RETENTION_DRY_RUN` enables deletion; unset, empty, `FALSE`, `0` and every
+  other value keep it dry. Read one run's `evidence.retention_swept` line before
+  flipping it, and know that a real deletion is final — the row keeps the hash, the
+  object does not come back.

@@ -46,7 +46,9 @@ export type AuditAction =
   | "PERMISSION_DENIED"
   | "CONFIGURATION_CHANGED"
   /** A platform admin obtained a download link for evidence (FR-OUT-02, R6). */
-  | "EVIDENCE_VIEWED";
+  | "EVIDENCE_VIEWED"
+  /** The retention sweeper deleted an evidence object (FR-PRIV-03). */
+  | "EVIDENCE_RETENTION_DELETED";
 
 export interface AuditEntry {
   action: AuditAction;

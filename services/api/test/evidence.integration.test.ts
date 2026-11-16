@@ -17,6 +17,7 @@ import {
   type ScanJobResult,
 } from "../src/evidence/scan-job.js";
 import type { ScanResult } from "../src/evidence/scan.js";
+import { sweepExpiredEvidence } from "../src/evidence/retention.js";
 import type { EvidenceStorage } from "../src/evidence/storage.js";
 import { AuthController } from "../src/identity/auth.controller.js";
 import { MeController } from "../src/me/me.controller.js";
@@ -801,4 +802,213 @@ test("a clean tier does not move a reputation number", async (context) => {
     1,
     "tier 1 and tier 0 count the same points today",
   );
+});
+
+/** One outcome with a clean file, settled `daysAgo` days back (FR-PRIV-03 fixtures). */
+async function settledOutcome(
+  current: TestApiStack,
+  suffix: string,
+  status: "COUNTED" | "REJECTED",
+  daysAgo: number,
+): Promise<{ outcomeId: string; evidenceId: string; sha256: string }> {
+  const { student, outcomeId } = await reportedOutcome(current, suffix);
+  const evidenceId = await attachedClean(current, outcomeId, student);
+  await current.client.query(
+    status === "COUNTED"
+      ? "UPDATE outcomes SET status = 'COUNTED', counted_basis = 'MENTOR_CONFIRMED', counted_at = now() - make_interval(days => $2) WHERE id = $1"
+      : "UPDATE outcomes SET status = 'REJECTED', rejected_at = now() - make_interval(days => $2) WHERE id = $1",
+    [outcomeId, daysAgo],
+  );
+  return { outcomeId, evidenceId, sha256: sha256(PDF) };
+}
+
+async function sweep(
+  current: TestApiStack,
+  options: { dryRun: boolean; windowDays?: number },
+) {
+  return await sweepExpiredEvidence(current.database.db, {
+    storage,
+    dryRun: options.dryRun,
+    windowDays: options.windowDays ?? 90,
+  });
+}
+
+async function retentionAudit(current: TestApiStack) {
+  const rows = await current.client.query<{ object_id: string | null; actor_role: string }>(
+    "SELECT object_id, actor_role FROM audit_logs WHERE action = 'EVIDENCE_RETENTION_DELETED'",
+  );
+  return rows.rows;
+}
+
+test("a counted outcome's file is deleted after the window and its metadata survives", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const settled = await settledOutcome(current, ".retain.counted", "COUNTED", 91);
+  assert.equal(storage.objects.size, 1, "the file exists before the sweep");
+
+  const first = await sweep(current, { dryRun: false });
+  assert.deepEqual(first, { examined: 1, eligible: 1, deleted: 1, failed: 0, dryRun: false });
+  assert.equal(storage.objects.size, 0, "the object is gone");
+  assert.equal(storage.deleted.length, 1);
+
+  const row = await current.client.query<{
+    sha256: string;
+    size_bytes: number;
+    content_type: string;
+    deleted_at: Date | null;
+  }>("SELECT sha256, size_bytes, content_type, deleted_at FROM outcome_evidence WHERE id = $1", [
+    settled.evidenceId,
+  ]);
+  assert.equal(row.rows[0]?.sha256, settled.sha256, "the hash survives the file");
+  assert.equal(row.rows[0]?.size_bytes, PDF.length);
+  assert.equal(row.rows[0]?.content_type, "application/pdf");
+  assert.ok(row.rows[0]?.deleted_at, "the deletion instant is recorded");
+
+  assert.deepEqual(await retentionAudit(current), [
+    { object_id: settled.evidenceId, actor_role: "SYSTEM" },
+  ]);
+
+  const second = await sweep(current, { dryRun: false });
+  assert.equal(second.examined, 0, "a deleted row is not even read again");
+  assert.equal(second.deleted, 0, "a deleted file is not deleted again");
+  assert.equal(storage.deleted.length, 1, "no second object call");
+  assert.equal((await retentionAudit(current)).length, 1, "no second audit row");
+});
+
+test("a rejected outcome's file is deleted on the same clock", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  await settledOutcome(current, ".retain.rejected", "REJECTED", 91);
+  const result = await sweep(current, { dryRun: false });
+  assert.equal(result.deleted, 1);
+  assert.equal(storage.objects.size, 0);
+});
+
+test("a live outcome keeps its file, however old the row is", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const { student, outcomeId } = await reportedOutcome(current, ".retain.live");
+  await attachedClean(current, outcomeId, student);
+
+  const result = await sweep(current, { dryRun: false });
+  assert.deepEqual(result, { examined: 0, eligible: 0, deleted: 0, failed: 0, dryRun: false });
+  assert.equal(storage.objects.size, 1, "an unsettled outcome keeps its evidence");
+});
+
+test("the window is measured from the terminal instant, not earlier", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const settled = await settledOutcome(current, ".retain.boundary", "COUNTED", 89);
+
+  const inside = await sweep(current, { dryRun: false });
+  assert.deepEqual(inside, { examined: 1, eligible: 0, deleted: 0, failed: 0, dryRun: false });
+  assert.equal(storage.objects.size, 1, "one day inside the window is untouched");
+
+  await current.client.query(
+    "UPDATE outcomes SET counted_at = now() - make_interval(days => 90) WHERE id = $1",
+    [settled.outcomeId],
+  );
+  const atBoundary = await sweep(current, { dryRun: false });
+  assert.equal(atBoundary.deleted, 1, "the boundary itself is due");
+});
+
+test("a store failure leaves the row eligible and does not stop the batch", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const failing = await settledOutcome(current, ".retain.fail", "COUNTED", 91);
+  const fine = await settledOutcome(current, ".retain.pass", "COUNTED", 95);
+  const failingKey = (
+    await current.client.query<{ object_key: string }>(
+      "SELECT object_key FROM outcome_evidence WHERE id = $1",
+      [failing.evidenceId],
+    )
+  ).rows[0]?.object_key;
+  assert.ok(failingKey);
+  storage.failDelete = new Set([failingKey]);
+
+  const result = await sweep(current, { dryRun: false });
+  assert.equal(result.failed, 1);
+  assert.equal(result.deleted, 1, "the other file still goes");
+
+  const rows = await current.client.query<{ id: string; deleted_at: Date | null }>(
+    "SELECT id, deleted_at FROM outcome_evidence ORDER BY id",
+  );
+  const failedRow = rows.rows.find((row) => row.id === failing.evidenceId);
+  assert.equal(failedRow?.deleted_at, null, "the failed row keeps deleted_at null");
+  assert.deepEqual(
+    (await retentionAudit(current)).map((row) => row.object_id),
+    [fine.evidenceId],
+    "no audit row claims the failed deletion",
+  );
+});
+
+test("a dry run reports what it would delete and changes nothing", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const settled = await settledOutcome(current, ".retain.dry", "COUNTED", 91);
+
+  const report = await sweep(current, { dryRun: true });
+  assert.deepEqual(report, { examined: 1, eligible: 1, deleted: 0, failed: 0, dryRun: true });
+  assert.equal(storage.objects.size, 1, "nothing is deleted");
+  assert.equal(storage.deleted.length, 0, "no object call at all");
+  assert.deepEqual(await retentionAudit(current), [], "no audit row in dry run");
+  const row = await current.client.query<{ deleted_at: Date | null }>(
+    "SELECT deleted_at FROM outcome_evidence WHERE id = $1",
+    [settled.evidenceId],
+  );
+  assert.equal(row.rows[0]?.deleted_at, null, "the row is unchanged");
+});
+
+test("a reversal and an intent with no bytes both keep their file", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const reversed = await settledOutcome(current, ".retain.reversed", "COUNTED", 91);
+  await current.client.query("UPDATE outcomes SET status = 'REVERSED' WHERE id = $1", [
+    reversed.outcomeId,
+  ]);
+
+  // An intent whose bytes never landed: no object exists, and the sweep ignores it.
+  const pending = await reportedOutcome(current, ".retain.intent");
+  await current.client.query(
+    "INSERT INTO outcome_evidence (outcome_id, uploaded_by_user_id, object_key, sha256, size_bytes, content_type) SELECT $1, sp.user_id, $2, repeat('b', 64), 4, 'application/pdf' FROM outcomes o JOIN student_profiles sp ON sp.id = o.student_profile_id WHERE o.id = $1",
+    [pending.outcomeId, `outcome-evidence/${pending.outcomeId}/intent-probe`],
+  );
+  await current.client.query(
+    "UPDATE outcomes SET status = 'COUNTED', counted_basis = 'MENTOR_CONFIRMED', counted_at = now() - make_interval(days => 120) WHERE id = $1",
+    [pending.outcomeId],
+  );
+
+  const result = await sweep(current, { dryRun: false });
+  assert.deepEqual(result, { examined: 0, eligible: 0, deleted: 0, failed: 0, dryRun: false });
+  assert.equal(storage.objects.size, 1, "the reversed outcome keeps its file");
+  assert.deepEqual(await retentionAudit(current), []);
+});
+
+test("the retention action is filterable in the audit log", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  await settledOutcome(current, ".retain.audit", "COUNTED", 91);
+  await sweep(current, { dryRun: false });
+
+  const adminEmail = "retention.admin@example.com";
+  const adminToken = await tokenFor(current, adminEmail);
+  const admin = await current.client.query<{ id: string }>("SELECT id FROM users WHERE email = $1", [
+    adminEmail,
+  ]);
+  const adminId = String(admin.rows[0]?.id);
+  await current.client.query(
+    "INSERT INTO role_assignments (user_id, role) VALUES ($1, 'PLATFORM_ADMIN')",
+    [adminId],
+  );
+  await current.client.query("UPDATE users SET two_factor_enabled = true WHERE id = $1", [adminId]);
+
+  const filtered = await apiRequest(
+    current,
+    "GET",
+    "/v1/admin/audit?action=EVIDENCE_RETENTION_DELETED",
+    undefined,
+    adminToken,
+  );
+  assert.equal(filtered.status, 200, filtered.text);
+  assert.equal((filtered.body?.data as unknown[]).length, 1);
 });
