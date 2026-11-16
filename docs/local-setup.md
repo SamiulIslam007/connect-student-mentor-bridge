@@ -228,3 +228,12 @@ branches and open pull requests; the owner merges.
   (`S3_*` variables, path-style addressing) is unchanged.
 - Compose files live at the repository root so plain `docker compose up` works
   (design.md D3); Dockerfiles live in `infra/docker/`.
+- Evidence uploads need the `connect-local` bucket to exist. The dev stack
+  does not create it; create it once with any S3 client against
+  `http://localhost:7070` using the `S3_*` values from `.env`. `S3_ENDPOINT`
+  is the container's address (`http://objectstore:7070`) while
+  `S3_PUBLIC_ENDPOINT` is the host a browser can reach: a download link is
+  signed against the second, so it must be `http://localhost:7070` locally and
+  a resolvable, reachable URL in deployment. A missing `S3_BUCKET`,
+  `S3_ACCESS_KEY_ID` or `S3_SECRET_ACCESS_KEY` makes the three evidence routes
+  answer `503 EVIDENCE_UNAVAILABLE` rather than failing the API's boot.

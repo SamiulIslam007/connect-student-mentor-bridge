@@ -235,7 +235,15 @@ export type IdentityErrorCode =
   /** A lift was asked for an account that is not SUSPENDED (D-141). */
   | "ACCOUNT_NOT_SUSPENDED"
   /** Two writers assigned the same configuration version number (design R4). */
-  | "CONFIG_VERSION_CONFLICT";
+  | "CONFIG_VERSION_CONFLICT"
+  /** An outcome already carries its one evidence file (D-191). */
+  | "EVIDENCE_ALREADY_ATTACHED"
+  /** The upload intent was already completed with bytes. */
+  | "EVIDENCE_ALREADY_COMPLETED"
+  /** The file exists but no clean scan has released it yet. */
+  | "EVIDENCE_NOT_READY"
+  /** Object storage is not configured on this deployment (design R8). */
+  | "EVIDENCE_UNAVAILABLE";
 
 /** A failure a feature module may map to a response, with no library detail. */
 export class IdentityError extends Error {

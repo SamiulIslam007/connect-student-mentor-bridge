@@ -22,7 +22,7 @@ import { createDatabaseConnection, type Database, type DatabaseConnection } from
 import type { EmailMessage, EmailSender } from "../../src/email/email-sender.js";
 import { ProblemDetailsFilter } from "../../src/http/problem-details.filter.js";
 import { BodyAllowlistInterceptor } from "../../src/http/body-allowlist.interceptor.js";
-import { API_MAX_BODY_BYTES } from "../../src/http/request-body.js";
+import { API_MAX_BODY_BYTES, EVIDENCE_CONTENT_TYPES, EVIDENCE_MAX_BYTES } from "../../src/http/request-body.js";
 import { accountTracker } from "../../src/http/account-throttler.js";
 import { RequestIdMiddleware } from "../../src/http/request-id.middleware.js";
 import {
@@ -183,6 +183,8 @@ export async function startApiStack(
     logger: ["error"],
     bodyParser: false,
   });
+  // Mirrors `main.ts`: the binary exception is content-type scoped, so the JSON cap holds.
+  app.useBodyParser("raw", { type: [...EVIDENCE_CONTENT_TYPES], limit: EVIDENCE_MAX_BYTES });
   app.useBodyParser("json", { limit: API_MAX_BODY_BYTES, strict: false });
   app.useGlobalFilters(new ProblemDetailsFilter(connection.db));
   app.useGlobalInterceptors(new BodyAllowlistInterceptor());

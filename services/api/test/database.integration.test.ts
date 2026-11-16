@@ -44,7 +44,7 @@ async function expectPermissionDenied(client: TestDatabase["client"], sql: strin
   }
 }
 
-test("the migrations create the thirty-two tables and protect the ledger", async (context) => {
+test("the migrations create the thirty-three tables and protect the ledger", async (context) => {
   const current = requireDatabase(context);
   if (!current) {
     return;
@@ -74,6 +74,7 @@ test("the migrations create the thirty-two tables and protect the ledger", async
       "mentorships",
       "outbox_events",
       "outcome_events",
+      "outcome_evidence",
       "outcomes",
       "privacy_requests",
       "reports",
@@ -331,6 +332,21 @@ test("the application role can use every profile table and nothing else", async 
       "INSERT INTO verification_records (outcome_id, kind, decision, attester_user_id) VALUES ($1, 'MENTOR_CONFIRMATION', 'CONFIRMED', 'user-grants')",
       [outcome.rows[0].id],
     );
+    // `0022` grants the evidence table, without DELETE (the row outlives the file).
+    const evidence = await client.query<{ id: string }>(
+      "INSERT INTO outcome_evidence (outcome_id, uploaded_by_user_id, object_key, sha256, size_bytes, content_type) VALUES ($1, 'user-grants', 'probe/evidence.pdf', repeat('a', 64), 3, 'application/pdf') RETURNING id",
+      [outcome.rows[0].id],
+    );
+    await client.query("UPDATE outcome_evidence SET status = 'CLEAN', uploaded_at = now() WHERE id = $1", [
+      evidence.rows[0].id,
+    ]);
+    await client.query("SAVEPOINT evidence_grant");
+    await assert.rejects(client.query("DELETE FROM outcome_evidence"), (error: unknown) => {
+      assert.equal((error as { code?: string }).code, "42501", "connect_app must not delete an evidence row");
+      return true;
+    });
+    await client.query("ROLLBACK TO SAVEPOINT evidence_grant");
+
     // `0014` grants the reputation ledger and the snapshot table.
     const ledger = await client.query<{ id: string }>(
       "INSERT INTO reputation_events (outcome_id, mentor_profile_id, student_profile_id, field_id, config_version_id, outcome_type, event_type, difficulty_weight, tier_multiplier, contribution_multiplier, pair_factor, points, occurred_at) VALUES ($1, $2, $3, $4, (SELECT id FROM config_versions WHERE version = 1), 'INTERNSHIP', 'COUNTED', 1, 1, 1, 1, 1, now()) RETURNING id",

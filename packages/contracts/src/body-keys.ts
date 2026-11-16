@@ -111,4 +111,8 @@ export const ROUTE_BODY_KEYS: Readonly<Record<string, readonly string[]>> = {
   "POST /v1/outcomes/:id/dispute": ["reason"],
   "POST /v1/outcomes/:id/review": ["decision", "reason"],
   "POST /v1/outcomes/:id/withdraw": [],
+  "POST /v1/outcomes/:id/evidence": ["content_type", "size_bytes", "sha256"],
+  // A binary upload has no top-level keys; the read route takes no body either.
+  "POST /v1/outcomes/:id/evidence/:evidence_id/complete": [],
+  "GET /v1/outcomes/:id/evidence/:evidence_id": [],
 };

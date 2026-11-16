@@ -16,6 +16,9 @@ import { DrizzleMentorshipService } from "../src/mentorships/drizzle-mentorship.
 import { AdminThreadController } from "../src/mentorships/admin-thread.controller.js";
 import { MentorshipsController, SessionsController } from "../src/mentorships/mentorships.controller.js";
 import { MENTORSHIP_SERVICE } from "../src/mentorships/mentorships.tokens.js";
+import { DrizzleEvidenceService } from "../src/evidence/drizzle-evidence.service.js";
+import { EvidenceController } from "../src/evidence/evidence.controller.js";
+import { EVIDENCE_SERVICE } from "../src/evidence/evidence.tokens.js";
 import { DrizzleOutcomeService } from "../src/outcomes/drizzle-outcome.service.js";
 import { OutcomesController } from "../src/outcomes/outcomes.controller.js";
 import { OUTCOME_SERVICE } from "../src/outcomes/outcomes.tokens.js";
@@ -71,6 +74,7 @@ const CONTROLLERS = [
   AdminThreadController,
   SessionsController,
   OutcomesController,
+  EvidenceController,
   ConsentController,
   PrivacyController,
   ReportsController,
@@ -105,6 +109,7 @@ before(async () => {
       { provide: REQUESTS_SERVICE, useValue: new DrizzleRequestsService(database) },
       { provide: MENTORSHIP_SERVICE, useValue: new DrizzleMentorshipService(database) },
       { provide: OUTCOME_SERVICE, useValue: new DrizzleOutcomeService(database) },
+      { provide: EVIDENCE_SERVICE, useValue: new DrizzleEvidenceService(database, null) },
       {
         provide: MATCHING_SERVICE,
         useValue: new DrizzleMatchingService(new DrizzleProfilesService(database)),

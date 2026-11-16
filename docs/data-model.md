@@ -131,7 +131,7 @@ The README's 11-entity diagram is preserved and extended. Section 11 lists every
 | `outcomes` | Outcome projection (current state) | outcomes | Mutable (state machine) | Medium |
 | `outcome_events` | **Append-only** lifecycle log | outcomes | Insert only | Medium |
 | `verification_records` | **Append-only** attestations | outcomes | Insert only | Medium |
-| `evidence_items` | Evidence files and links | outcomes | Mutable (purge) | **High** |
+| `outcome_evidence` | Evidence files (built as `outcome_evidence`; the plan's `evidence_items` never existed) | outcomes | Mutable (purge the object, keep the row) | **High** |
 | `third_party_confirmations` | Tier 2 one-time confirmations | outcomes | Mutable | Medium |
 | `disputes` | Review cases (disputes, escalations, audits, appeals) | trust | Mutable | **High** |
 | `reputation_events` | **Append-only** reputation ledger | reputation | Insert only | Medium |
@@ -174,6 +174,7 @@ Authentication internals are **library-native** better-auth tables in the same s
 | `mentorship_status` | `ACTIVE`, `COMPLETED`, `ENDED_EARLY`. **Built** by `mentorship-thread-and-sessions` (#8); `ENDED_EARLY` is a stored value with no participant route yet |
 | `mentorship_session_status` | `SCHEDULED`, `HELD`, `CANCELLED`. **Built** by #8; named `mentorship_session_status` so the auth library's `sessions` table keeps its own name |
 | `mentorship_cadence` | `WEEKLY`, `BIWEEKLY`, `MONTHLY`, `AD_HOC`. **Built** by #8 (`AD_HOC` is a stored value with no UI choice yet) |
+| `evidence_scan_status` | `QUARANTINED`, `CLEAN`, `REJECTED`. **Built** by `evidence-upload-and-scan` (2026-11-16): a row starts `QUARANTINED`, a clean scan sets `CLEAN`, a detection sets `REJECTED`, and a scanner failure leaves `QUARANTINED` for the next pass |
 | `outcome_status` | `PENDING_CONFIRMATION`, `CONFIRMED`, `IN_PLATFORM_REVIEW`, `COUNTED`, `REJECTED`, `WITHDRAWN`, `REVERSED`. **Built** by `outcomes-and-verification` (#9); `COUNTED` became reachable with the counting job (#10), and `REJECTED`/`REVERSED` with `platform-review-queue` (10b). Appeal-driven returns (T12) stay **Later** |
 | `dispute_status` | `OPEN`, `IN_REVIEW`, `RESOLVED`, `WITHDRAWN` |
 | `outcome_type` | `ADMISSION`, `INTERNSHIP`, `JOB_OFFER`, `SKILL_MILESTONE`, `INTERVIEW` |
@@ -459,13 +460,31 @@ The payload is exactly the five values that price a ledger row, each with a rang
 | `contribution_claimed` | `contribution_level` | Student's statement |
 | `contribution_confirmed` | `contribution_level?` | Mentor's separate confirmation |
 | `status` | `outcome_status` | Section 4.4 |
-| `evidence_tier` | `smallint` | 0, 1, or 2; derived from evidence and third-party confirmation |
+| `evidence_tier` | `smallint` | 0, 1, or 2. `1` is written by the evidence scan job on the first clean file (`evidence-upload-and-scan`, 2026-11-16); `2` (third-party confirmation) is still written by nothing |
 | `counted_basis` | enum? | `MENTOR_CONFIRMED` or `PLATFORM_DECISION`; required when `COUNTED` |
 | `coi_declared` | `bool` | Draft rule N9 |
 | `is_paid_relationship` | `bool` | Copied from `mentorships.is_paid` |
 | `mentor_decision_due_at` | `timestamptz` | Created + 7 days |
 | `confirmed_at`, `cooling_ends_at`, `counted_at`, `rejected_at`, `withdrawn_at`, `reversed_at` | `timestamptz?` | |
 | `version` | `int` | Optimistic lock |
+
+**`outcome_evidence`** (one private file per outcome, `evidence-upload-and-scan`)
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `uuid` PK | The object key is `outcome-evidence/{outcome_id}/{id}` |
+| `outcome_id` | `uuid` FK | `ON DELETE RESTRICT`; **unique**, so one file per outcome |
+| `uploaded_by_user_id` | `text` FK | The reporting student; `ON DELETE RESTRICT` |
+| `object_key` | `text` | Unique; never returned to a client |
+| `sha256` | `text` | Checked as 64 hex characters; the digest of the bytes actually received |
+| `size_bytes` | `int` | Checked 1 to 5242880 |
+| `content_type` | `text` | Checked to `application/pdf`, `image/png`, `image/jpeg` |
+| `status` | `evidence_scan_status` | Default `QUARANTINED`; a partial index on `QUARANTINED` is the scan job's queue |
+| `uploaded_at` | `timestamptz?` | Null until the bytes landed; only an uploaded, quarantined row is scanned |
+| `scanned_at`, `scan_detail` | `timestamptz?`, `text?` | When the scan settled and what it said (a signature, or the failure) |
+| `deleted_at` | `timestamptz?` | Set when the retention sweeper deletes the object (`FR-PRIV-03`); the row and its SHA-256 outlive the file |
+
+Grants: `SELECT, INSERT, UPDATE` to `connect_app` — no `DELETE`, because retention deletes the object and marks the row. Nothing else references the table, so the row is the audit trail for a file that no longer exists.
 
 **`outcome_events`** (append-only)
 

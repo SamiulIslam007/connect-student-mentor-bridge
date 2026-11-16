@@ -24,6 +24,7 @@ import {
   fields,
   mentorProfiles,
   mentorships,
+  outcomeEvidence,
   outcomeEvents,
   outcomes,
   reputationEvents,
@@ -238,6 +239,31 @@ function requireParticipant<T extends { studentUserId: string; mentorUserId: str
 }
 
 /** The participant-visible reviewer decisions, oldest first (design D7). */
+/** The outcome read's evidence summary; never a link, so a read has no side effect. */
+async function evidenceSummaryFor(executor: Executor, outcomeId: string) {
+  const [row] = await executor
+    .select({
+      id: outcomeEvidence.id,
+      status: outcomeEvidence.status,
+      contentType: outcomeEvidence.contentType,
+      sizeBytes: outcomeEvidence.sizeBytes,
+      sha256: outcomeEvidence.sha256,
+    })
+    .from(outcomeEvidence)
+    .where(eq(outcomeEvidence.outcomeId, outcomeId))
+    .limit(1);
+  if (!row) {
+    return null;
+  }
+  return {
+    id: row.id,
+    status: row.status.toLowerCase(),
+    content_type: row.contentType,
+    size_bytes: row.sizeBytes,
+    sha256: row.sha256,
+  };
+}
+
 async function decisionsFor(executor: Executor, outcomeId: string): Promise<OutcomeDecision[]> {
   const rows = await executor
     .select({
@@ -261,7 +287,8 @@ async function decisionsFor(executor: Executor, outcomeId: string): Promise<Outc
 }
 
 /** One append-only event per transition, with a gap-free per-outcome `seq`. */
-async function appendEvent(
+/** Shared with the evidence scan job, which writes `TIER_CHANGED` (design R5). */
+export async function appendEvent(
   tx: Transaction,
   entry: {
     outcomeId: string;
@@ -406,7 +433,11 @@ export class DrizzleOutcomeService implements OutcomeService {
     uuidOf(outcomeId, "outcome id");
     requireParticipant(await readOutcomeParticipants(this.db, outcomeId), userId);
     const record = await readRecord(this.db, outcomeId);
-    return { ...record, decisions: await decisionsFor(this.db, outcomeId) };
+    return {
+      ...record,
+      decisions: await decisionsFor(this.db, outcomeId),
+      evidence: await evidenceSummaryFor(this.db, outcomeId),
+    };
   }
 
   async confirm(input: ConfirmOutcomeInput): Promise<OutcomeRecord> {

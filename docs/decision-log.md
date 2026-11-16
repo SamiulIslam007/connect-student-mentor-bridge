@@ -1486,3 +1486,99 @@ date: 2026-10-29
 - Reason: the seam existed so this change could replace the source without touching the draw logic, and a second read path through a module constant would let the two disagree.
 - Status: Decided
 - Affects: `services/api/src/outcomes/audit-sampler.ts`, `packages/config/src/index.ts`
+
+### D-192: Evidence has three routes, and the third is the read that mints the link
+
+- Date: 2026-11-16
+- Decision: `POST /v1/outcomes/{id}/evidence` creates the intent, `POST /v1/outcomes/{id}/evidence/{evidence_id}/complete` carries the bytes, and `GET /v1/outcomes/{id}/evidence/{evidence_id}` returns the metadata plus a short-lived link for a clean file.
+- Reason: minting a link inside `GET /v1/outcomes/{id}` would either audit every outcome read or audit none, and the admin-audit mandate needs exactly one shape where an admin's read is written and a student's is not.
+- Status: Decided
+- Affects: `packages/contracts/openapi.yaml`, `services/api/src/evidence/`, `docs/api-contracts.md` §5.6
+
+### D-193: The bytes travel through the API, not through a presigned PUT
+
+- Date: 2026-11-16
+- Decision: the `complete` route accepts the file as a raw body and the API writes it with `PutObject`.
+- Reason: a presigned PUT needs the object store reachable from a browser, a CORS policy on a gateway whose capabilities were unproven, and a public endpoint baked into a signature — three unverified things for at most 5 MiB. Downloads do presign, because the contract promises short-lived URLs and a download has no quarantine step left.
+- Status: Decided
+- Affects: `services/api/src/evidence/storage.ts`, `services/api/src/main.ts`
+
+### D-194: A download link is signed against a browser-reachable host
+
+- Date: 2026-11-16
+- Decision: the service builds two clients from one credential set — the internal endpoint for put/get/delete and `S3_PUBLIC_ENDPOINT` (defaulting to `S3_ENDPOINT`) for signing — with a 300-second expiry. The proof against versitygw v1.10.0 passed, so the streaming fallback was not needed.
+- Reason: `getSignedUrl` signs the host header, so a URL signed against `objectstore:7070` is unusable from a browser.
+- Status: Decided
+- Affects: `services/api/src/evidence/storage.ts`, `.env.example`, `compose.yaml`, `docs/local-setup.md`
+
+### D-195: Quarantine is a status on one object, not a second object
+
+- Date: 2026-11-16
+- Decision: an upload lands at `outcome-evidence/{outcome_id}/{evidence_id}` with `status = QUARANTINED`; a clean scan sets `CLEAN`, a detection sets `REJECTED`, and a scanner failure leaves it quarantined. A row also records `uploaded_at`, because an intent with no bytes must never be scanned. A declared type, size or digest that disagrees with the received bytes is marked `REJECTED` by the completion route itself, before anything is stored.
+- Reason: a `quarantine/` prefix plus `CopyObject` needs a store capability nobody proved and doubles the bytes written for no security gain; the status is what the read path consults. Rejecting a mismatch at completion is the same fail-closed outcome as the design's "the scan job rejects it", one step earlier, and it avoids storing bytes the server already knows are not what was declared.
+- Status: Decided
+- Affects: `services/api/src/db/schema/outcomes.ts`, migration `0022`, `services/api/src/evidence/drizzle-evidence.service.ts`
+
+### D-196: The scan is an INSTREAM conversation in a worker pass, not a per-upload job
+
+- Date: 2026-11-16
+- Decision: an `evidence-scan` queue runs every two minutes and scans up to ten uploaded, quarantined, undeleted rows with clamd's `INSTREAM` protocol over `node:net` (30-second timeout). The API does not enqueue a job per upload.
+- Reason: the query is the same one a retry needs, the API holds no pg-boss handle (only the worker does), and a per-upload enqueue would mean a second delivery path for retries. The cost is up to two minutes of latency before a file is readable, which the contract states. No new dependency; `node:net` is enough.
+- Status: Decided
+- Affects: `services/api/src/evidence/scan.ts`, `services/api/src/evidence/scan-job.ts`, `services/api/src/platform/outbox/outbox-worker.ts`
+
+### D-197: One new audit action, in both unions
+
+- Date: 2026-11-16
+- Decision: `EVIDENCE_VIEWED` joins the writer union and the reader map, and is written in the same request that mints an admin's link, before the URL is produced. No `EVIDENCE_UPLOADED` and no `EVIDENCE_SCAN_FAILED` action is added; the row's `status`, `scanned_at` and `scan_detail` record the scan.
+- Reason: one fact must not produce two audit rows (D-168), and §12 documents no upload event.
+- Status: Decided
+- Affects: `services/api/src/identity/audit-log.ts`, `services/api/src/audit/audit.service.ts`
+
+### D-198: The "or a link" half of FR-OUT-02 is not built
+
+- Date: 2026-11-16
+- Decision: only a file is evidence. A link is recorded as DEBT-65 with the decisions it needs.
+- Reason: a link is an untrusted URL that is displayed and clicked, and it needs a host allowlist, `rel`/`target` handling and a disclosure that it opens outside connect — the same treatment `mentorship_sessions.meeting_url` got. Inventing that policy inside an upload change would be a second feature.
+- Status: Decided
+- Affects: `docs/api-contracts.md` §5.6, `docs/known-debt.md` (DEBT-65)
+
+### D-199: Missing storage configuration fails the route, never the boot
+
+- Date: 2026-11-16
+- Decision: when `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` or `S3_ENDPOINT` is absent, `createEvidenceStorage` returns no storage and the three routes answer `503 EVIDENCE_UNAVAILABLE`; the worker logs and skips. There is no `configured()` method on the client: the factory's `null` is the signal.
+- Reason: failing the API's boot would take auth, requests and outcomes down with an optional feature. The factory returning nothing is one branch instead of two ways to ask the same question.
+- Status: Decided
+- Affects: `services/api/src/evidence/storage.ts`, `services/api/src/evidence/drizzle-evidence.service.ts`
+
+### D-200: The body allowlist learns to skip a Buffer
+
+- Date: 2026-11-16
+- Decision: `BodyAllowlistInterceptor` returns early when the body is a `Buffer`; the route's allowlist entry is empty.
+- Reason: a Buffer is `typeof "object"`, so its byte indices would be refused as `unknown property: 0`. An early return is one line; a route list inside a security control would be a second registry to drift.
+- Status: Decided
+- Affects: `services/api/src/http/body-allowlist.interceptor.ts`, `packages/contracts/src/body-keys.ts`
+
+### D-201: The 5 MiB exception is scoped by content type, and the JSON cap stays 100 KiB
+
+- Date: 2026-11-16
+- Decision: `main.ts` registers a raw parser for `application/pdf`, `image/png` and `image/jpeg` at `EVIDENCE_MAX_BYTES` (5 MiB) before the JSON parser, which keeps `API_MAX_BODY_BYTES` (100 KiB). A test proves a 200 KiB JSON body is still refused with `413`.
+- Reason: `body-parser` selects by content type, so the exception cannot widen the cap any route's JSON body sees; `DEBT-01` anticipated exactly this exception.
+- Status: Decided
+- Affects: `services/api/src/main.ts`, `services/api/src/http/request-body.ts`, `docs/api-contracts.md` §5.6
+
+### D-202: FR-OUT-07 is built work, and D-156 no longer covers it
+
+- Date: 2026-11-16
+- Decision: `FR-OUT-07` stays `DONE`, now on the strength of code: a clean scan writes `evidence_tier = 1`. D-156's amendment of that row is superseded; its amendment of `FR-ADM-06` stands. Register 57.5 / 64 (89.8%) unchanged, code-only 55.5 / 64 (86.7%).
+- Reason: the row's own text is satisfied at Tier 1 for file evidence, and Tier 2 is `FR-OUT-08`'s row (a Could), so counting OUT-07 as built is honest rather than inflated. The register total does not move because `FR-OUT-02` is a Should row.
+- Status: Decided
+- Affects: `docs/functional-requirements.md` (FR-OUT-02, FR-OUT-07, §2.16), `docs/milestones-and-phases.md`
+
+### D-203: Two implementation choices that differ from the change's task list
+
+- Date: 2026-11-16
+- Decision: an upload is accepted whatever the outcome's state (no state gate), and the two test-facing seams are the evidence service's injected storage and the scan function's injected socket. The test stack (`services/api/test/support/api-stack.ts`) mirrors `main.ts`'s raw parser, and `packages/contracts/test/openapi.test.ts` now reads the evidence controller's decorators and tolerates a non-JSON request body.
+- Reason: the spec fixes no state gate for attaching evidence, so adding one would invent a rule; the seams are how the repo avoids a mocking library, and a test stack that does not mirror production wiring would have hidden the body-parser bug the change exists to handle.
+- Status: Decided
+- Affects: `services/api/test/support/api-stack.ts`, `packages/contracts/test/openapi.test.ts`

@@ -50,6 +50,7 @@ const AUDIT_ACTION_MAP: Record<AuditAction, true> = {
   DATA_EXPORTED: true,
   PERMISSION_DENIED: true,
   CONFIGURATION_CHANGED: true,
+  EVIDENCE_VIEWED: true,
 };
 
 export const AUDIT_ACTIONS: readonly AuditAction[] = Object.keys(
@@ -72,6 +73,7 @@ export const AUDIT_OBJECT_TYPES = [
   "MENTOR_PROFILE",
   "CONSENT_RECORD",
   "outcomes",
+  "outcome_evidence",
   "reports",
 ] as const;
 

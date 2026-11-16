@@ -1,0 +1,1 @@
+export const EVIDENCE_SERVICE = "EVIDENCE_SERVICE";

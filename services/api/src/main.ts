@@ -4,7 +4,11 @@ import { NestFactory } from "@nestjs/core";
 import type { NestExpressApplication } from "@nestjs/platform-express";
 
 import { AppModule } from "./app.module.js";
-import { API_MAX_BODY_BYTES } from "./http/request-body.js";
+import {
+  API_MAX_BODY_BYTES,
+  EVIDENCE_CONTENT_TYPES,
+  EVIDENCE_MAX_BYTES,
+} from "./http/request-body.js";
 import { apiSecurityHeaders } from "./http/security-headers.js";
 
 async function bootstrap(): Promise<void> {
@@ -13,6 +17,8 @@ async function bootstrap(): Promise<void> {
   });
   // Before the body parser: a refused body still carries the security headers.
   app.use(apiSecurityHeaders);
+  // Content-type scoped (design R10): only an evidence upload gets 5 MiB.
+  app.useBodyParser("raw", { type: [...EVIDENCE_CONTENT_TYPES], limit: EVIDENCE_MAX_BYTES });
   app.useBodyParser("json", { limit: API_MAX_BODY_BYTES, strict: false });
   app.enableShutdownHooks();
 

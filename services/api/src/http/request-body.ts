@@ -8,6 +8,15 @@ import { IdentityError } from "@connect/domain";
 export const API_MAX_BODY_BYTES = 100 * 1024;
 
 /**
+ * The one documented exception to `API_MAX_BODY_BYTES` (FR-OUT-02, design R10):
+ * an evidence upload is a binary body under one of these content types, capped
+ * at 5 MiB. The JSON cap is untouched — `body-parser` selects by content type.
+ */
+export const EVIDENCE_MAX_BYTES = 5 * 1024 * 1024;
+export const EVIDENCE_CONTENT_TYPES = ["application/pdf", "image/png", "image/jpeg"] as const;
+
+
+/**
  * Refuses any top-level body key the route's contract does not document.
  * `undefined` is an absent body (allowed); any other non-object is refused.
  * The message names the first offending key in sorted order, so a test can

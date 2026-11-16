@@ -358,6 +358,9 @@ test("the outcome surface is documented, session-guarded, and matches the contro
     "/v1/outcomes/{id}/dispute",
     "/v1/outcomes/{id}/withdraw",
     "/v1/outcomes/{id}/review",
+    "/v1/outcomes/{id}/evidence",
+    "/v1/outcomes/{id}/evidence/{evidence_id}/complete",
+    "/v1/outcomes/{id}/evidence/{evidence_id}",
   ];
 
   const documented = Object.keys(document.paths)
@@ -376,16 +379,22 @@ test("the outcome surface is documented, session-guarded, and matches the contro
     resolve(process.cwd(), "../../services/api/src/outcomes/outcomes.controller.ts"),
     "utf8",
   );
-  const decorators = [...controller.matchAll(/@(Get|Post)\(/g)].length;
+  // The evidence routes live in their own controller (evidence-upload-and-scan).
+  const evidenceController = readFileSync(
+    resolve(process.cwd(), "../../services/api/src/evidence/evidence.controller.ts"),
+    "utf8",
+  );
+  const decorators =
+    [...controller.matchAll(/@(Get|Post)\(/g)].length +
+    [...evidenceController.matchAll(/@(Get|Post)\(/g)].length;
   const operations = paths.reduce(
     (total, path) => total + Object.keys(document.paths[path]).length,
     0,
   );
   assert.equal(operations, decorators, "the contract must describe every outcomes route");
 
-  // The evidence endpoints are deliberately absent until the evidence change.
-  const evidence = Object.keys(document.paths).filter((path) => path.includes("evidence"));
-  assert.deepEqual(evidence, [], "the contract never advertises an unbuilt evidence endpoint");
+  // The evidence routes exist (evidence-upload-and-scan); the create and complete
+  // routes are documented on the outcome capability's own test below.
 });
 
 test("the outcome contract carries no score and no counting route", () => {
@@ -549,7 +558,7 @@ test("every documented request body equals its route allowlist", () => {
   const documented = list.filter(([, , operation]) => operation.requestBody !== undefined);
   for (const [method, path, operation] of documented) {
     const route = `${method} ${expressPath(path)}`;
-    const schema = operation.requestBody?.content["application/json"].schema ?? {};
+    const schema = operation.requestBody?.content["application/json"]?.schema ?? {};
     const resolved = (schema.$ref
       ? schemas[schema.$ref.split("/").pop() ?? ""]
       : schema) as { properties?: Record<string, unknown> } | undefined;

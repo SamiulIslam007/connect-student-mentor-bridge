@@ -128,7 +128,7 @@ The reputation ledger is append-only so that reputation can be recomputed and au
 **Design (Recommendation, needs counsel):**
 
 1. On a verified deletion request, remove or pseudonymize direct identifiers: name, email, profile text, thread text, free-text descriptions.
-2. Delete evidence files immediately.
+2. Delete evidence files immediately (the object is deleted by the `evidence-retention` job when the outcome settles; an early deletion on consent withdrawal is not built, DEBT-64).
 3. Keep ledger rows with **pseudonymous references** (random IDs with no link to a person once the mapping is removed) so counted outcomes remain auditable and mentor reputation does not change unfairly.
 4. Keep only aggregated institution metrics.
 5. Write a `DeletionRequest` record (what was requested, when, what was done). This record contains no deleted content.
@@ -141,7 +141,7 @@ The reputation ledger is append-only so that reputation can be recomputed and au
 - **Removed:** the raw email (replaced by the application's keyed HMAC-SHA256 hash, the same value the 12-month signup block uses), the display name and every personal profile text column (empty placeholders, because they are `NOT NULL`), the messages the deleted user wrote (replaced by a fixed tombstone string), the avatar image and last-seen timestamp, the provider password and tokens, every session row, every second-factor row (secret and backup codes), every availability window, and a deleted mentor's place in discovery (`mentor_profiles.status = REMOVED`).
 - **Kept, unchanged:** `outcomes`, `outcome_events`, `verification_records`, `reputation_events`, `field_impact_snapshots`, `consent_records`, and `audit_logs` — every foreign key from them still resolves to the tombstoned `users` row. That is what makes a counted outcome auditable after the person is gone.
 - **Recorded:** one `ACCOUNT_DELETED` audit entry and one `privacy_requests` row of kind `DELETE`, in the same transaction. The `privacy_requests` row itself contains no deleted content.
-- **Irreversible:** deletion is immediate, with no cooling window and no admin queue. Evidence files are not purged because no evidence file exists yet (DEBT-22).
+- **Irreversible:** deletion is immediate, with no cooling window and no admin queue. An outcome's evidence file is stored privately, scanned before it is served, and deleted 90 days after the outcome counts or is rejected by the hourly `evidence-retention` job, which **ships in dry run**: only the exact value `false` in `EVIDENCE_RETENTION_DRY_RUN` enables deletion, and the owner flips it after reading a dry-run report. The evidence row keeps its SHA-256, size and content type, so the outcome stays auditable after the file is gone.
 - **Export:** `POST /v1/privacy/export` returns the caller's own rows as one JSON document; it contains no password hash, second-factor material, session token, or provider token (D-84).
 
 ## 10. Processors and transfers
