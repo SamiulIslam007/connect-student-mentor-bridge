@@ -869,6 +869,7 @@ test("a counted outcome's file is deleted after the window and its metadata surv
   ]);
 
   const second = await sweep(current, { dryRun: false });
+  assert.equal(second.examined, 0, "a deleted row is not even read again");
   assert.equal(second.deleted, 0, "a deleted file is not deleted again");
   assert.equal(storage.deleted.length, 1, "no second object call");
   assert.equal((await retentionAudit(current)).length, 1, "no second audit row");
@@ -956,6 +957,31 @@ test("a dry run reports what it would delete and changes nothing", async (contex
     [settled.evidenceId],
   );
   assert.equal(row.rows[0]?.deleted_at, null, "the row is unchanged");
+});
+
+test("a reversal and an intent with no bytes both keep their file", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const reversed = await settledOutcome(current, ".retain.reversed", "COUNTED", 91);
+  await current.client.query("UPDATE outcomes SET status = 'REVERSED' WHERE id = $1", [
+    reversed.outcomeId,
+  ]);
+
+  // An intent whose bytes never landed: no object exists, and the sweep ignores it.
+  const pending = await reportedOutcome(current, ".retain.intent");
+  await current.client.query(
+    "INSERT INTO outcome_evidence (outcome_id, uploaded_by_user_id, object_key, sha256, size_bytes, content_type) SELECT $1, sp.user_id, $2, repeat('b', 64), 4, 'application/pdf' FROM outcomes o JOIN student_profiles sp ON sp.id = o.student_profile_id WHERE o.id = $1",
+    [pending.outcomeId, `outcome-evidence/${pending.outcomeId}/intent-probe`],
+  );
+  await current.client.query(
+    "UPDATE outcomes SET status = 'COUNTED', counted_basis = 'MENTOR_CONFIRMED', counted_at = now() - make_interval(days => 120) WHERE id = $1",
+    [pending.outcomeId],
+  );
+
+  const result = await sweep(current, { dryRun: false });
+  assert.deepEqual(result, { examined: 0, eligible: 0, deleted: 0, failed: 0, dryRun: false });
+  assert.equal(storage.objects.size, 1, "the reversed outcome keeps its file");
+  assert.deepEqual(await retentionAudit(current), []);
 });
 
 test("the retention action is filterable in the audit log", async (context) => {

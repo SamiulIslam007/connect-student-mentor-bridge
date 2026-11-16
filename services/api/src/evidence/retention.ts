@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 
 import { evidenceRetentionDue } from "@connect/domain";
 
@@ -26,11 +26,17 @@ export interface RetentionOptions {
   now?: Date;
 }
 
+type RowOutcome = "skip" | "eligible" | "deleted" | "failed";
+
 /**
  * Deletes the object of every evidence file whose outcome settled longer ago than
  * the window, keeps the row and its SHA-256, and writes one audit entry per
- * deletion (FR-PRIV-03, design R4). The object goes first: a row that claims a
- * deletion which did not happen would be an audit log that lies.
+ * deletion (FR-PRIV-03, design R4).
+ *
+ * Each file is handled in its own transaction that locks its evidence row and its
+ * outcome, re-reads both, and only then deletes the object and marks the row: a
+ * clawback that lands between the batch read and this point therefore keeps the
+ * evidence it needs, and two overlapping runs cannot delete the same object twice.
  */
 export async function sweepExpiredEvidence(
   db: Database,
@@ -45,60 +51,67 @@ export async function sweepExpiredEvidence(
     dryRun: options.dryRun,
   };
 
-  const rows = await db
-    .select({
-      id: outcomeEvidence.id,
-      objectKey: outcomeEvidence.objectKey,
-      outcomeId: outcomes.id,
-      status: outcomes.status,
-      countedAt: outcomes.countedAt,
-      rejectedAt: outcomes.rejectedAt,
-    })
+  const candidates = await db
+    .select({ id: outcomeEvidence.id })
     .from(outcomeEvidence)
     .innerJoin(outcomes, eq(outcomes.id, outcomeEvidence.outcomeId))
     .where(
       and(
         isNull(outcomeEvidence.deletedAt),
+        // An intent whose bytes never landed has no file to delete.
+        isNotNull(outcomeEvidence.uploadedAt),
         inArray(outcomes.status, ["COUNTED", "REJECTED"]),
       ),
     )
     .orderBy(asc(sql`coalesce(${outcomes.countedAt}, ${outcomes.rejectedAt})`))
     .limit(options.batch ?? 100);
 
-  for (const row of rows) {
+  for (const candidate of candidates) {
     result.examined += 1;
-    const due = evidenceRetentionDue({
-      outcomeStatus: row.status,
-      countedAt: row.countedAt,
-      rejectedAt: row.rejectedAt,
-      now,
-      windowDays: options.windowDays,
-    });
-    if (!due) {
-      continue;
-    }
-    result.eligible += 1;
-    if (options.dryRun) {
-      continue;
-    }
+    const outcome = await db.transaction(async (tx): Promise<RowOutcome> => {
+      const [row] = await tx
+        .select({
+          id: outcomeEvidence.id,
+          objectKey: outcomeEvidence.objectKey,
+          outcomeId: outcomes.id,
+          status: outcomes.status,
+          countedAt: outcomes.countedAt,
+          rejectedAt: outcomes.rejectedAt,
+          deletedAt: outcomeEvidence.deletedAt,
+          uploadedAt: outcomeEvidence.uploadedAt,
+        })
+        .from(outcomeEvidence)
+        .innerJoin(outcomes, eq(outcomes.id, outcomeEvidence.outcomeId))
+        .where(eq(outcomeEvidence.id, candidate.id))
+        .limit(1)
+        .for("update");
+      if (!row || row.deletedAt || !row.uploadedAt) {
+        return "skip";
+      }
+      const due = evidenceRetentionDue({
+        outcomeStatus: row.status,
+        countedAt: row.countedAt,
+        rejectedAt: row.rejectedAt,
+        now,
+        windowDays: options.windowDays,
+      });
+      if (!due) {
+        return "skip";
+      }
+      if (options.dryRun) {
+        return "eligible";
+      }
 
-    try {
-      await options.storage.delete(row.objectKey);
-    } catch {
-      // The row stays eligible: nothing was marked and no audit row claims it.
-      result.failed += 1;
-      continue;
-    }
-
-    const deleted = await db.transaction(async (tx) => {
-      const [updated] = await tx
+      try {
+        await options.storage.delete(row.objectKey);
+      } catch {
+        // The row keeps `deleted_at` null, so the next run tries again.
+        return "failed";
+      }
+      await tx
         .update(outcomeEvidence)
         .set({ deletedAt: now, updatedAt: now })
-        .where(and(eq(outcomeEvidence.id, row.id), isNull(outcomeEvidence.deletedAt)))
-        .returning({ id: outcomeEvidence.id });
-      if (!updated) {
-        return false;
-      }
+        .where(and(eq(outcomeEvidence.id, row.id), isNull(outcomeEvidence.deletedAt)));
       await appendAuditEntry(tx, {
         action: "EVIDENCE_RETENTION_DELETED",
         actorRole: "SYSTEM",
@@ -107,10 +120,17 @@ export async function sweepExpiredEvidence(
         requestId: EVIDENCE_RETENTION_AUDIT_REQUEST_ID,
         metadata: { outcome_id: row.outcomeId },
       });
-      return true;
+      return "deleted";
     });
-    if (deleted) {
+
+    if (outcome === "eligible") {
+      result.eligible += 1;
+    } else if (outcome === "deleted") {
+      result.eligible += 1;
       result.deleted += 1;
+    } else if (outcome === "failed") {
+      result.eligible += 1;
+      result.failed += 1;
     }
   }
 

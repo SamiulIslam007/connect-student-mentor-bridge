@@ -12,8 +12,8 @@ test("only the exact string false enables deletion", () => {
     [{ EVIDENCE_RETENTION_DRY_RUN: "0" }, true],
     [{ EVIDENCE_RETENTION_DRY_RUN: "no" }, true],
     [{ EVIDENCE_RETENTION_DRY_RUN: " true " }, true],
+    [{ EVIDENCE_RETENTION_DRY_RUN: " false " }, true],
     [{ EVIDENCE_RETENTION_DRY_RUN: "false" }, false],
-    [{ EVIDENCE_RETENTION_DRY_RUN: "  false  " }, false],
   ];
   for (const [env, expected] of cases) {
     assert.equal(retentionDryRun(env), expected, JSON.stringify(env));

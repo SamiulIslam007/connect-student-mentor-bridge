@@ -78,3 +78,12 @@ Hourly (`0 * * * *`), batch 100, ordered by the terminal instant ascending so th
 - The dry-run default is the primary protection. The second is that the operator flips one variable, once, after reading a dry-run count against a real database.
 - The retention window is a single constant; a wrong value deletes too much or too little, and the dry run is the rehearsal that makes the value checkable before it bites.
 - `FR-PRIV-03` reads `DONE` only when the register also states that the shipped default is dry run, so the claim is honest before the owner flips it.
+
+## Independent review, and what it changed (2026-11-16)
+
+A fresh-context review of the branch diff returned four findings, all fixed.
+
+1. **A clawback could lose its evidence.** The batch selected a `COUNTED` row and deleted the object later without re-reading the outcome, so an outcome reversed in between kept neither its file nor any record that it had one. Each file is now handled in its own transaction that locks the evidence row and its outcome, re-reads both, re-evaluates the predicate, and only then deletes and marks. The lock also serialises two overlapping runs.
+2. **An intent with no bytes was swept.** `uploaded_at` null meant no object existed, so the row could be marked deleted (and its later completion refused) on a clock that never started. Both the batch and the locked re-read now require `uploaded_at`.
+3. **Two overlapping workers could delete the same object twice.** The `IS NULL` predicate only deduplicated the update, not the object call; the row lock plus the in-lock re-read now prevent the second delete entirely.
+4. **`" false "` enabled deletion.** The job trimmed the value, which contradicted the documented "exactly `false`" rule and the unit test that asserted it. The comparison no longer trims, and the test now asserts `" false "` is a dry run.

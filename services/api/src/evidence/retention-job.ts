@@ -17,7 +17,9 @@ export const EVIDENCE_RETENTION_BATCH = 100;
 export function retentionDryRun(
   env: NodeJS.ProcessEnv = process.env,
 ): boolean {
-  return env.EVIDENCE_RETENTION_DRY_RUN?.trim() !== "false";
+  // Deliberately not trimmed: the documented rule is the exact string `false`,
+  // so `" false "` stays a dry run.
+  return env.EVIDENCE_RETENTION_DRY_RUN !== "false";
 }
 
 export function retentionWindowDays(): number {
