@@ -1,8 +1,9 @@
 # Unattended round, 2026-11-16 — evidence upload and retention
 
 Two changes, both merged and archived: `evidence-upload-and-scan` (change 4) and
-`evidence-retention-sweeper` (change 5). Final `main` is `5f1cf78`. Nothing is left open,
-unmerged or stopped.
+`evidence-retention-sweeper` (change 5). The final code and archive commit is `5f1cf78`; this
+report is the commit after it, landed through PR #94. Nothing is left open, unmerged or
+stopped.
 
 ## Per change
 
