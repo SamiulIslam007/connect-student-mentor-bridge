@@ -1772,7 +1772,7 @@ date: 2026-10-29
 
 - Date: 2026-11-20
 - Decision: the candidate selection is an optimisation only; each row is re-read inside its transaction and the whole predicate — status, own instant, consent instant, `deleted_at`, `uploaded_at` — is re-evaluated there before any delete.
-- Reason: a status can move between the selection and the delete, and the transaction is where the decision has to be true.
+- Reason: a status can move between the selection and the delete, and the transaction is where the decision has to be true. One clock decides both the selection and the re-read — the database's `now()`, unless a caller pins one — because app/DB skew of a few milliseconds turned an exactly-90-day-old row into a survivor on CI (fixed 2026-11-20, `fix/evidence-retention-clock`). The `deleted_at` written is the same instant the decision used.
 - Status: Decided
 - Affects: `services/api/src/evidence/retention.ts`
 

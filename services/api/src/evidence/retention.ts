@@ -65,7 +65,9 @@ export async function sweepExpiredEvidence(
   db: Database,
   options: RetentionOptions,
 ): Promise<RetentionResult> {
-  const now = options.now ?? new Date();
+  // One clock decides: the database's, unless a caller pins one. App/DB skew of a
+  // few milliseconds must not turn an exactly-90-day-old row into a survivor.
+  const clock = options.now ? sql`${options.now}::timestamptz` : sql`now()`;
   const result: RetentionResult = {
     examined: 0,
     eligible: 0,
@@ -88,7 +90,7 @@ export async function sweepExpiredEvidence(
         // the reporting student's earliest institution-sharing withdrawal when it
         // is earlier. `least` ignores nulls, so the null guard is explicit.
         sql`${ownInstant()} is not null`,
-        sql`least(${ownInstant()}, coalesce(${consentInstant()}, ${ownInstant()})) <= ${now}::timestamptz - (${options.windowDays}::int * interval '1 day')`,
+        sql`least(${ownInstant()}, coalesce(${consentInstant()}, ${ownInstant()})) <= ${clock} - (${options.windowDays}::int * interval '1 day')`,
       ),
     )
     .orderBy(asc(sql`least(${ownInstant()}, coalesce(${consentInstant()}, ${ownInstant()}))`))
@@ -108,6 +110,7 @@ export async function sweepExpiredEvidence(
           reversedAt: outcomes.reversedAt,
           withdrawnAt: outcomes.withdrawnAt,
           consentWithdrawnAt: sql<Date | null>`${consentInstant()}`,
+          decisionAt: sql<Date>`${clock}`,
           deletedAt: outcomeEvidence.deletedAt,
           uploadedAt: outcomeEvidence.uploadedAt,
         })
@@ -119,6 +122,7 @@ export async function sweepExpiredEvidence(
       if (!row || row.deletedAt || !row.uploadedAt) {
         return "skip";
       }
+      const decisionAt = new Date(row.decisionAt as unknown as string);
       const due = evidenceRetentionDue({
         outcomeStatus: row.status,
         countedAt: row.countedAt,
@@ -128,7 +132,7 @@ export async function sweepExpiredEvidence(
         consentWithdrawnAt: row.consentWithdrawnAt
           ? new Date(row.consentWithdrawnAt as unknown as string)
           : null,
-        now,
+        now: decisionAt,
         windowDays: options.windowDays,
       });
       if (!due) {
@@ -146,7 +150,7 @@ export async function sweepExpiredEvidence(
       }
       await tx
         .update(outcomeEvidence)
-        .set({ deletedAt: now, updatedAt: now })
+        .set({ deletedAt: decisionAt, updatedAt: decisionAt })
         .where(and(eq(outcomeEvidence.id, row.id), isNull(outcomeEvidence.deletedAt)));
       await appendAuditEntry(tx, {
         action: "EVIDENCE_RETENTION_DELETED",
