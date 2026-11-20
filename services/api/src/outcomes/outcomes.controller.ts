@@ -13,6 +13,8 @@ import {
 
 import { actingAccountWithRoles, requireRole } from "../authorization/authorize.js";
 import type { RequestWithId } from "../http/request-id.middleware.js";
+import { Idempotent } from "../platform/idempotency/idempotent.decorator.js";
+
 import { IDENTITY_SERVICE } from "../identity/identity.tokens.js";
 import { outcomePayload, type OutcomeService } from "./outcome.service.js";
 import { OUTCOME_SERVICE } from "./outcomes.tokens.js";
@@ -70,6 +72,7 @@ export class OutcomesController {
   @Throttle({ default: RATE_LIMITS.write })
   @Post()
   @HttpCode(201)
+  @Idempotent("outcome.report")
   async report(@Body() body: unknown, @Req() request: RequestWithId): Promise<Record<string, unknown>> {
     const acting = await actingAccountWithRoles(this.identity, request);
     const created = await this.outcomes.report({

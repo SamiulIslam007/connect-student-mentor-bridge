@@ -12,6 +12,8 @@ import {
 
 import { actingAccountWithRoles } from "../authorization/authorize.js";
 import type { RequestWithId } from "../http/request-id.middleware.js";
+import { Idempotent } from "../platform/idempotency/idempotent.decorator.js";
+
 import { IDENTITY_SERVICE } from "../identity/identity.tokens.js";
 import {
   mentorshipPayload,
@@ -157,6 +159,7 @@ export class MentorshipsController {
   @Throttle({ default: RATE_LIMITS.write })
   @Post(":id/messages")
   @HttpCode(201)
+  @Idempotent("message.create")
   async postMessage(
     @Param("id") id: string,
     @Body() body: unknown,

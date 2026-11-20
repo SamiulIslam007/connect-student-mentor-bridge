@@ -175,11 +175,15 @@ In the request record (section 2, `GET /v1/requests` and the single read), `expi
 
 ## 3. Idempotency
 
-- Every retryable `POST` requires `Idempotency-Key` (a client-generated UUID). Missing key returns `400` with code `IDEMPOTENCY_KEY_REQUIRED`.
-- The server stores the key, the request fingerprint, and the response for **48 hours** (**Proposed default**, matching `idempotency_keys.expires_at`).
-- Same key and same request: return the stored response (with `Idempotent-Replayed: true`).
-- Same key and a different request body: `409` with code `IDEMPOTENCY_KEY_REUSED`.
-- Same key while the first request is still running: `409` with code `REQUEST_IN_PROGRESS`.
+**Built** by `idempotency-key-on-writes` (2026-11-20, SEC-API-7, D-215 to D-220). The header is **optional** and applies to exactly three writes: `POST /v1/requests`, `POST /v1/outcomes` and `POST /v1/mentorships/{id}/messages`. A request without the header behaves exactly as before and stores no record (this supersedes the earlier draft that made the key mandatory with `400 IDEMPOTENCY_KEY_REQUIRED`).
+
+- A key is 8 to 128 characters of letters, digits, dot, underscore and hyphen; anything else is `422 IDEMPOTENCY_KEY_INVALID` and writes nothing.
+- The store is keyed on **(caller, operation, key)** — never the key alone, so a client-chosen string is never a cross-tenant signal. `operation` is a server literal: `message.create`, `outcome.report`, `request.create`.
+- The request fingerprint is a SHA-256 over a canonical JSON serialisation (recursively sorted keys), so a body whose keys are reordered is the same request.
+- Same key, same fingerprint, completed record: the stored status and body are replayed and no write is performed. No audit row is written for a replay (D-220).
+- Same key, different fingerprint: `409 IDEMPOTENCY_KEY_REUSED`, and the stored response is unchanged.
+- Same key while the first call is unfinished: `409 IDEMPOTENCY_IN_PROGRESS` (the earlier draft called this `REQUEST_IN_PROGRESS`).
+- Retention is **24 hours** for a completed record and **five minutes** for an unfinished one; the hourly `idempotency-sweep` queue deletes past either, so a crashed request frees its key and a swept key performs a fresh write.
 - State-machine actions are idempotent by nature: repeating `confirm` on an already confirmed outcome returns the current resource with `200` if the same actor made the same decision, otherwise `409`.
 
 ## 4. Shared types and enums

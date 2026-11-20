@@ -19,6 +19,7 @@ import { BetterAuthIdentityService } from "../../src/identity/better-auth-identi
 import { createIdentityAuth } from "../../src/identity/better-auth.js";
 import { IDENTITY_SERVICE } from "../../src/identity/identity.tokens.js";
 import { createDatabaseConnection, type Database, type DatabaseConnection } from "../../src/db/database.js";
+import { DATABASE } from "../../src/db/database.module.js";
 import type { EmailMessage, EmailSender } from "../../src/email/email-sender.js";
 import { ProblemDetailsFilter } from "../../src/http/problem-details.filter.js";
 import { BodyAllowlistInterceptor } from "../../src/http/body-allowlist.interceptor.js";
@@ -168,6 +169,9 @@ export async function startApiStack(
     controllers,
     providers: [
       { provide: IDENTITY_SERVICE, useValue: identity },
+      // The application modules import DatabaseModule; the test module mirrors it
+      // so a provider that injects DATABASE (an interceptor, for example) resolves.
+      { provide: DATABASE, useValue: connection.db },
       ...(options.providers ? options.providers(connection.db) : []),
       ...(options.throttle ? [{ provide: APP_GUARD, useClass: ThrottlerGuard }] : []),
     ],
@@ -222,8 +226,9 @@ export async function apiRequest(
   path: string,
   body?: unknown,
   sessionToken?: string,
+  extraHeaders: Record<string, string> = {},
 ): Promise<HttpResult> {
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = { ...extraHeaders };
   if (body !== undefined) {
     headers["content-type"] = "application/json";
   }

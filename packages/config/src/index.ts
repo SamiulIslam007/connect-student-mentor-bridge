@@ -118,6 +118,15 @@ export const IMPACT_RELIABILITY_MIN_SAMPLE = 3;
 export const INSTITUTION_COHORT_FLOOR = 5;
 
 /**
+ * Idempotency retention (SEC-API-7, D-216): a completed response is replayed for
+ * 24 hours; an unfinished intent expires after five minutes so a crashed request
+ * cannot wedge a key. Code constants, one seam for a configuration version.
+ */
+export const IDEMPOTENCY_TTL_HOURS = 24;
+export const IDEMPOTENCY_IN_PROGRESS_MINUTES = 5;
+export const IDEMPOTENCY_SWEEP_BATCH = 500;
+
+/**
  * Rate-limit starting values, **placeholders pending pilot traffic**
  * (`docs/api-contracts.md` §9 keeps the concrete values Open as SEC-O2). They
  * are configuration, so tuning needs no code change. `ttl` is milliseconds,

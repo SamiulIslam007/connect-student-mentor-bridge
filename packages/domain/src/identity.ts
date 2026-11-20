@@ -234,6 +234,12 @@ export type IdentityErrorCode =
   | "INSTITUTION_DOMAIN_TAKEN"
   /** The requested institution exists nowhere or is not in the caller's scope. */
   | "INSTITUTION_NOT_FOUND"
+  /** An `Idempotency-Key` was already used with a different body (SEC-API-7). */
+  | "IDEMPOTENCY_KEY_REUSED"
+  /** The first call under this key has not finished yet (SEC-API-7). */
+  | "IDEMPOTENCY_IN_PROGRESS"
+  /** The header is outside the documented shape (SEC-API-7). */
+  | "IDEMPOTENCY_KEY_INVALID"
   /** A lift was asked for an account that is not SUSPENDED (D-141). */
   | "ACCOUNT_NOT_SUSPENDED"
   /** Two writers assigned the same configuration version number (design R4). */
