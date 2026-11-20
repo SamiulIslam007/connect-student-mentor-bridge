@@ -72,6 +72,16 @@ export class AuthController {
   @Post("register")
   @HttpCode(200)
   async register(@Body() body: unknown, @Req() request: RequestWithId): Promise<{ status: string }> {
+    // The hidden field is refused before any other field is read, and before the
+    // consent gate: no user, consent or audit row is written for a bot (D-221,
+    // D-224). The message matches the web catalog copy exactly.
+    const honeypot = bodyRecord(body).contact_website;
+    if (typeof honeypot === "string" && honeypot.trim().length > 0) {
+      throw new IdentityError(
+        "REGISTRATION_REFUSED",
+        "This submission could not be processed. Reload the page and try again.",
+      );
+    }
     // Acceptance is the trust boundary, so it is read before any other field:
     // no user, session, or consent row is written without it (D-82).
     const consentAccepted = bodyRecord(body).consent_accepted === true;

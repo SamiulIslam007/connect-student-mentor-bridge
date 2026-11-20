@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 
 import { canSubmitSignUp } from "../../lib/consent-document";
 import { stateKey } from "../../lib/page-state";
@@ -20,6 +20,13 @@ export default function SignUpPage() {
   const [pending, setPending] = useState(false);
   const [success, setSuccess] = useState(false);
   const [consentAccepted, setConsentAccepted] = useState(false);
+
+  // Mint the intent marker once, when the form mounts (SEC-ABUSE-1, D-222). A
+  // failure here is not fatal: the submission is refused with the generic
+  // message and a reload mints a fresh marker.
+  useEffect(() => {
+    void fetch("/api/auth/register-intent").catch(() => undefined);
+  }, []);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -43,6 +50,8 @@ export default function SignUpPage() {
           email: form.get("email"),
           password: form.get("password"),
           date_of_birth: form.get("date_of_birth"),
+          // The honeypot travels so the API applies the same check (D-221).
+          contact_website: form.get("contact_website"),
           consent_accepted: consentAccepted,
         }),
       });
@@ -107,6 +116,14 @@ export default function SignUpPage() {
           <label htmlFor="date_of_birth">{strings.signUp.dateOfBirth}</label>
           <br />
           <input id="date_of_birth" name="date_of_birth" type="date" required />
+        </p>
+        {/* The honeypot: off-screen, out of the tab order, ignored by autofill. */}
+        <p
+          aria-hidden="true"
+          style={{ position: "absolute", left: "-10000px", top: "auto", width: 1, height: 1, overflow: "hidden" }}
+        >
+          <label htmlFor="contact_website">{strings.signUp.honeypotLabel}</label>
+          <input id="contact_website" name="contact_website" type="text" tabIndex={-1} autoComplete="off" />
         </p>
         <p>{strings.signUp.ageGateNote}</p>
         <p>

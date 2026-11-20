@@ -72,27 +72,78 @@ test("a failed sign-in passes the problem through and sets no cookie", async () 
   assert.equal(response.headers.get("set-cookie"), null);
 });
 
+/** A marker old enough to pass the two-second floor (SEC-ABUSE-1, D-223). */
+function intentCookie(secondsAgo = 10): string {
+  const value = new Date(Date.now() - secondsAgo * 1000).toISOString();
+  return `connect_signup_intent=${encodeURIComponent(value)}`;
+}
+
+function registrationRequest(body: Record<string, unknown>, cookie?: string): Request {
+  return new Request("http://localhost:3000/api/auth/register", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      ...(cookie ? { cookie } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+}
+
+const REGISTRATION = {
+  display_name: "Student",
+  email: "student@example.com",
+  password: "a long password",
+  date_of_birth: "2000-01-01",
+  consent_accepted: true,
+};
+
 test("registration is proxied to the API with no session cookie", async () => {
   const calls: string[] = [];
   stubFetch({ status: "verification_sent" }, 200, calls);
 
+  const response = await register(registrationRequest(REGISTRATION, intentCookie()));
+
+
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("set-cookie") ?? "", /connect_signup_intent=;/);
+  assert.equal(calls.length, 1);
+  assert.match(calls[0], /\/v1\/auth\/register$/);
+});
+
+test("a filled honeypot, a too-fast marker, a stale marker and a missing marker share one refusal", async () => {
+  const calls: string[] = [];
+  stubFetch({ status: "should-not-be-used" }, 200, calls);
+
+  const cases: { body: Record<string, unknown>; cookie?: string }[] = [
+    { body: { ...REGISTRATION, contact_website: "https://spam.example" }, cookie: intentCookie() },
+    { body: REGISTRATION, cookie: intentCookie(1) },
+    { body: REGISTRATION, cookie: intentCookie(3601) },
+    { body: REGISTRATION },
+  ];
+
+  const bodies: string[] = [];
+  for (const probe of cases) {
+    const response = await register(registrationRequest(probe.body, probe.cookie));
+    assert.equal(response.status, 422);
+    const text = await response.text();
+    assert.equal(JSON.parse(text).code, "REGISTRATION_REFUSED");
+    bodies.push(text);
+  }
+  // Byte-identical: nothing tells a bot which check fired (D-224).
+  assert.equal(new Set(bodies).size, 1, bodies.join(" | "));
+  assert.equal(calls.length, 0, "a refusal never reaches the API");
+});
+
+test("a valid marker with an empty honeypot proxies once and clears the marker", async () => {
+  const calls: string[] = [];
+  stubFetch({ status: "verification_sent" }, 200, calls);
+
   const response = await register(
-    new Request("http://localhost:3000/api/auth/register", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        display_name: "Student",
-        email: "student@example.com",
-        password: "a long password",
-        date_of_birth: "2000-01-01",
-      }),
-    }),
+    registrationRequest({ ...REGISTRATION, contact_website: "  " }, intentCookie(30)),
   );
 
   assert.equal(response.status, 200);
-  assert.equal(response.headers.get("set-cookie"), null);
   assert.equal(calls.length, 1);
-  assert.match(calls[0], /\/v1\/auth\/register$/);
 });
 
 test("sign-out-everywhere uses the session cookie and clears it", async () => {
@@ -145,13 +196,7 @@ test("an unreachable API returns a problem response instead of throwing", async 
     throw new TypeError("fetch failed");
   }) as typeof fetch;
 
-  const response = await register(
-    new Request("http://localhost:3000/api/auth/register", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ display_name: "Student", email: "s@example.com" }),
-    }),
-  );
+  const response = await register(registrationRequest({ display_name: "Student", email: "s@example.com" }, intentCookie()));
 
   assert.equal(response.status, 502);
   const body = (await response.json()) as { code?: string };
@@ -278,13 +323,7 @@ test("a non-JSON upstream error becomes a 502 problem body", async () => {
       headers: { "content-type": "text/html" },
     })) as typeof fetch;
 
-  const response = await register(
-    new Request("http://localhost:3000/api/auth/register", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ display_name: "Student", email: "s@example.com" }),
-    }),
-  );
+  const response = await register(registrationRequest({ display_name: "Student", email: "s@example.com" }, intentCookie()));
 
   assert.equal(response.status, 502);
   const text = await response.text();
@@ -296,13 +335,7 @@ test("a non-JSON upstream error becomes a 502 problem body", async () => {
 test("an empty successful upstream body is not reported as success", async () => {
   globalThis.fetch = (async () => new Response("", { status: 200 })) as typeof fetch;
 
-  const response = await register(
-    new Request("http://localhost:3000/api/auth/register", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ display_name: "Student", email: "s@example.com" }),
-    }),
-  );
+  const response = await register(registrationRequest({ display_name: "Student", email: "s@example.com" }, intentCookie()));
 
   assert.equal(response.status, 502);
   const payload = (await response.json()) as { code?: string };

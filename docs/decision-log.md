@@ -1719,3 +1719,35 @@ date: 2026-10-29
 - Status: Decided
 - Affects: `services/api/src/platform/idempotency/interceptor.ts`, `services/api/src/identity/audit-log.ts` (unchanged)
 
+### D-221: The honeypot is a documented body key
+
+- Date: 2026-11-20
+- Decision: `contact_website` is declared in the OpenAPI register schema and in `ROUTE_BODY_KEYS`, ignored by the identity service, and refused when non-empty by the BFF and by `AuthController`.
+- Reason: an undeclared key is refused by the body allowlist with the key named, which teaches a bot exactly which field to leave empty.
+- Status: Decided
+- Affects: `packages/contracts/openapi.yaml`, `packages/contracts/src/body-keys.ts`, `services/api/src/identity/auth.controller.ts`, `apps/web/app/api/auth/register/route.ts`
+
+### D-222: The intent marker is an unsigned httpOnly cookie
+
+- Date: 2026-11-20
+- Decision: `connect_signup_intent` holds the server's ISO instant, is `httpOnly`, `SameSite=Lax`, `Path=/`, one hour, and is minted by `GET /api/auth/register-intent` when the sign-up page mounts.
+- Reason: the cookie is httpOnly and same-site, and the threat priced is the cost of loading the form at all, not forgery by a browser that already runs the app's own JavaScript. An HMAC would buy nothing against that threat.
+- Status: Decided
+- Affects: `apps/web/lib/sign-up-intent.ts`, `apps/web/app/api/auth/register-intent/route.ts`
+
+### D-223: Two seconds and one hour, in config
+
+- Date: 2026-11-20
+- Decision: `SIGNUP_MIN_SUBMIT_SECONDS = 2` and `SIGNUP_INTENT_MAX_AGE_SECONDS = 3600` in `@connect/config`; the two-second floor is inclusive.
+- Reason: two seconds is longer than any paste-and-submit gesture and far shorter than a person reading a form; one hour covers a slow fill and refuses a marker scraped yesterday. A per-deploy random window would make a refusal unreproducible in support.
+- Status: Decided
+- Affects: `packages/config/src/index.ts`, `apps/web/lib/sign-up-intent.ts`
+
+### D-224: One generic refusal, and the check is logged server-side
+
+- Date: 2026-11-20
+- Decision: all three checks answer `422 REGISTRATION_REFUSED` with the same status, code, title and detail, and one log line carries only `{event: "registration.refused", check}`.
+- Reason: naming the check is an oracle. The sentence tells a person the one thing that works — reload and try again — and no email, address, body or user agent reaches the log (SEC-DATA-5).
+- Status: Decided
+- Affects: `apps/web/app/api/auth/register/route.ts`, `apps/web/lib/strings.ts`, `services/api/src/identity/auth.controller.ts`
+

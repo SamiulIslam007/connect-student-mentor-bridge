@@ -39,6 +39,9 @@ export const strings = {
     underAge: "You must be 18 or older to create an account. This address cannot be registered.",
     invalid: "Some of those details are not valid. Check each field and try again.",
     error: "Registration failed. Check the fields and try again.",
+    refused: "This submission could not be processed. Reload the page and try again.",
+    /** The honeypot's label is empty on purpose: it is hidden from people. */
+    honeypotLabel: "",
     network: "The form could not be sent. Check your connection and try again.",
     loading: "Creating your account…",
   },

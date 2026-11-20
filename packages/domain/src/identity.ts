@@ -240,6 +240,8 @@ export type IdentityErrorCode =
   | "IDEMPOTENCY_IN_PROGRESS"
   /** The header is outside the documented shape (SEC-API-7). */
   | "IDEMPOTENCY_KEY_INVALID"
+  /** A registration failed the bot checks; the check itself is never disclosed. */
+  | "REGISTRATION_REFUSED"
   /** A lift was asked for an account that is not SUSPENDED (D-141). */
   | "ACCOUNT_NOT_SUSPENDED"
   /** Two writers assigned the same configuration version number (design R4). */
