@@ -1339,6 +1339,48 @@ paths:
           $ref: "#/components/responses/Problem"
         "403":
           $ref: "#/components/responses/Problem"
+  /v1/institution/aggregates:
+    get:
+      operationId: readInstitutionAggregates
+      summary: The FR-INST-02 aggregate counts of one institution
+      description: >-
+        Institution-admin read with an enrolled second factor (D-211 to D-214).
+        `institution_id` is required and must name an institution the caller
+        administers: an id that exists nowhere and one outside the caller's scope
+        answer the same `404 INSTITUTION_NOT_FOUND`, so the parameter is not an
+        existence oracle. Every metric is a whole number — no percentage, share,
+        score or ranking — and no student identifier appears. A count below the
+        cohort floor of five is omitted from the payload and named in `suppressed`;
+        a by-field row below the floor is omitted entirely and no field id is named.
+        The response is `Cache-Control: no-store`, and the read writes no audit row
+        because it changes nothing and discloses no personal data.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: institution_id
+          in: query
+          required: true
+          description: The institution to report on; must be in the caller's scope.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The counts that are at or above the floor, plus the suppressed keys
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InstitutionAggregates"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        "429":
+          $ref: "#/components/responses/Problem"
   /v1/institution/affiliations/{id}/decide:
     post:
       operationId: decideInstitutionClaim
@@ -1542,11 +1584,30 @@ paths:
       operationId: listInstitutions
       summary: Every institution with its domains
       description: >-
-        Platform-admin read with an enrolled second factor (D-111). Returns every
-        institution ordered by name then id, with its status and its registered
-        domains. No pagination in this release (D-112, DEBT-51).
+        Platform-admin read with an enrolled second factor (D-111, D-214). Returns
+        institutions ordered by name then id, with each one's status and its
+        registered domains. Keyset-paginated: a caller that sends no `cursor` reads
+        the first page of 50, and a caller must follow `next_cursor` until it is
+        null to see every institution. A malformed cursor is a `422`, never an
+        empty page.
       security:
         - bearerAuth: []
+      parameters:
+        - name: cursor
+          in: query
+          required: false
+          description: The `next_cursor` of the previous page.
+          schema:
+            type: string
+            maxLength: 512
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
       responses:
         "200":
           description: Every institution
@@ -3205,12 +3266,65 @@ components:
     InstitutionList:
       type: object
       additionalProperties: false
-      required: [data]
+      required: [data, next_cursor]
       properties:
         data:
           type: array
           items:
             $ref: "#/components/schemas/Institution"
+        next_cursor:
+          type: string
+          nullable: true
+          description: Null on the last page; opaque, ordered by name then id.
+    InstitutionAggregates:
+      type: object
+      additionalProperties: false
+      required: [institution_id, counted_outcomes_by_field, suppressed]
+      description: >-
+        Whole-number counts only. A metric below the cohort floor of five is absent
+        from this object and named in `suppressed`; a by-field row below the floor is
+        absent and its field id is not named anywhere.
+      properties:
+        institution_id:
+          type: string
+          format: uuid
+        verified_alumni:
+          type: integer
+        active_mentors:
+          type: integer
+        requests_received:
+          type: integer
+        requests_accepted:
+          type: integer
+        requests_decided:
+          type: integer
+        requests_decided_in_time:
+          type: integer
+        requests_late_or_expired:
+          type: integer
+        outcomes_reported:
+          type: integer
+        outcomes_confirmed:
+          type: integer
+        counted_outcomes_by_field:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [field_id, field_name, counted]
+            properties:
+              field_id:
+                type: string
+                format: uuid
+              field_name:
+                type: string
+              counted:
+                type: integer
+        suppressed:
+          type: array
+          items:
+            type: string
+          description: The metric keys withheld for being below the floor.
     RoleList:
       type: object
       additionalProperties: false

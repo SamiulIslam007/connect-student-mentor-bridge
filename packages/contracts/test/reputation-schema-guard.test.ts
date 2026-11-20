@@ -54,6 +54,11 @@ const ALLOWLIST: Record<string, string> = {
   // the per-tier multipliers a configuration version fixes, admin-only and
   // copied onto a ledger row that no participant route returns (D-179)
   tier_multipliers: "tier",
+  // the institution's counts read: `aggregates` is the owner's name for the
+  // FR-INST-02 route (D-211 to D-214), every value is a whole-number count and
+  // the payload's own key-set test refuses a share, rate or score shape
+  "/v1/institution/aggregates": "aggregate",
+  InstitutionAggregates: "aggregate",
 };
 
 function words(name: string): string[] {

@@ -24,6 +24,7 @@ import { IdentityModule } from "./identity/identity.module.js";
 import { AuditController } from "./audit/audit.controller.js";
 import { ConsentController } from "./consent/consent.controller.js";
 import { AttestationController } from "./institutions/attestation.controller.js";
+import { InstitutionDashboardController } from "./institutions/institution-dashboard.controller.js";
 import { InstitutionsController } from "./institutions/institutions.controller.js";
 import { AdminThreadController } from "./mentorships/admin-thread.controller.js";
 import { InstitutionsModule } from "./institutions/institutions.module.js";
@@ -125,6 +126,7 @@ export class AppModule implements NestModule {
         ReportsAdminController,
         MatchingController,
         AttestationController,
+        InstitutionDashboardController,
         // Four controllers were missing here, so their responses carried no
         // X-Request-Id and their audit rows could not be correlated (D-154).
         AuditController,

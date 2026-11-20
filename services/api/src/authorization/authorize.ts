@@ -63,6 +63,35 @@ export async function requireInstitutionAdmin(
   return { ...acting, institutionIds };
 }
 
+export interface ScopedInstitutionAdmin extends ActingInstitutionAdmin {
+  /** The one institution this request named, proven to be in scope. */
+  institutionId: string;
+}
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * The aggregates read is scoped to one institution the caller administers
+ * (D-212). An id that names nothing and an id the caller does not administer
+ * answer the same `404`, so the parameter cannot be an existence oracle; a
+ * missing or malformed id is a `422`, never a refusal by role.
+ */
+export async function requireScopedInstitution(
+  identity: IdentityService,
+  request: RequestWithId,
+  requestedId: unknown,
+): Promise<ScopedInstitutionAdmin> {
+  const acting = await requireInstitutionAdmin(identity, request);
+  const institutionId = typeof requestedId === "string" ? requestedId : "";
+  if (!UUID_PATTERN.test(institutionId)) {
+    throw new IdentityError("VALIDATION_ERROR", "institution_id must be a uuid");
+  }
+  if (!acting.institutionIds.includes(institutionId)) {
+    throw new IdentityError("INSTITUTION_NOT_FOUND", "no institution matches this request");
+  }
+  return { ...acting, institutionId };
+}
+
 export interface RequireRoleOptions {
   /** Refuse with `MFA_REQUIRED` when the account has no active second factor. */
   requiresMfa?: boolean;

@@ -11,9 +11,11 @@ export function describeDomain(): string {
 
 export * from "./age-gate.js";
 export * from "./affiliation.js";
+export * from "./aggregates.js";
 export * from "./audit-sample.js";
 export * from "./account-status.js";
 export * from "./config-payload.js";
+export * from "./cursor.js";
 export * from "./availability.js";
 export * from "./evidence-retention.js";
 export * from "./fields.js";

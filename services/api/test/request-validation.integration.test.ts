@@ -31,8 +31,11 @@ import { AuditController } from "../src/audit/audit.controller.js";
 import { AUDIT_SERVICE } from "../src/audit/audit.tokens.js";
 import { DrizzleAuditService } from "../src/audit/drizzle-audit.service.js";
 import { InstitutionsController } from "../src/institutions/institutions.controller.js";
+import { InstitutionDashboardController } from "../src/institutions/institution-dashboard.controller.js";
 import { INSTITUTIONS_SERVICE } from "../src/institutions/institutions.tokens.js";
+import { INSTITUTION_DASHBOARD_SERVICE } from "../src/institutions/institution-dashboard.service.js";
 import { DrizzleInstitutionsService } from "../src/institutions/drizzle-institutions.service.js";
+import { DrizzleInstitutionDashboardService } from "../src/institutions/drizzle-institution-dashboard.service.js";
 import { ATTESTATIONS_SERVICE } from "../src/institutions/attestation.tokens.js";
 import { DrizzleAttestationsService } from "../src/institutions/drizzle-attestation.service.js";
 import { DrizzleMatchingService } from "../src/matching/drizzle-matching.service.js";
@@ -82,6 +85,7 @@ const CONTROLLERS = [
   MatchingController,
   AttestationController,
   InstitutionsController,
+  InstitutionDashboardController,
   AuditController,
   AdminConfigController,
 ];
@@ -116,6 +120,10 @@ before(async () => {
       },
       { provide: ATTESTATIONS_SERVICE, useValue: new DrizzleAttestationsService(database) },
       { provide: INSTITUTIONS_SERVICE, useValue: new DrizzleInstitutionsService(database) },
+      {
+        provide: INSTITUTION_DASHBOARD_SERVICE,
+        useValue: new DrizzleInstitutionDashboardService(database),
+      },
       { provide: AUDIT_SERVICE, useValue: new DrizzleAuditService(database) },
       { provide: CONFIG_SERVICE, useValue: new DrizzleConfigService(database) },
     ],

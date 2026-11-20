@@ -74,7 +74,7 @@ Creating an institution SHALL append exactly one `INSTITUTION_CREATED` audit row
 
 ### Requirement: A platform admin lists the institutions with their domains
 
-The system SHALL return every institution with its status and its domains to a caller holding `PLATFORM_ADMIN` with an enrolled second factor, in a stable order, with no pagination in this release.
+The system SHALL return institutions with their status and their domains to a caller holding `PLATFORM_ADMIN` with an enrolled second factor, ordered by name then id, SHALL accept an opaque `cursor` and a `limit` from 1 to 100 defaulting to 50, SHALL return at most `limit` rows with a `next_cursor` present unless the page is the last, and SHALL refuse a malformed cursor with `422`.
 
 #### Scenario: The list carries domains and status
 
@@ -88,8 +88,8 @@ The system SHALL return every institution with its status and its domains to a c
 
 #### Scenario: The order is stable
 
-- **WHEN** the list is read twice with no intervening write
-- **THEN** both responses are in the same order
+- **WHEN** the list is read twice with no intervening write, and again with the `next_cursor` of the first page
+- **THEN** the first two responses are in the same order, and the second page continues after the last row of the first with no row repeated and none omitted
 
 ### Requirement: An institution admin is assigned by email from the institution page
 

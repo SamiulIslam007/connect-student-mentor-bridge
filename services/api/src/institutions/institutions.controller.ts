@@ -1,13 +1,15 @@
-import { Body, Controller, Get, Inject, Post, Req } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Post, Query, Req } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
 
 import { RATE_LIMITS } from "@connect/config";
-import type { IdentityService } from "@connect/domain";
+import { IdentityError, type IdentityService } from "@connect/domain";
 
 import { requireRole } from "../authorization/authorize.js";
 import type { RequestWithId } from "../http/request-id.middleware.js";
 import { IDENTITY_SERVICE } from "../identity/identity.tokens.js";
 import {
+  INSTITUTIONS_DEFAULT_PAGE_SIZE,
+  INSTITUTIONS_MAX_PAGE_SIZE,
   institutionPayload,
   type InstitutionsService,
 } from "./institutions.service.js";
@@ -15,6 +17,27 @@ import { INSTITUTIONS_SERVICE } from "./institutions.tokens.js";
 
 function bodyRecord(body: unknown): Record<string, unknown> {
   return typeof body === "object" && body !== null ? (body as Record<string, unknown>) : {};
+}
+
+/** `limit` is 1 to 100 and defaults to 50; anything else is a `422` (D-214). */
+function parsedLimit(value: unknown): number {
+  if (value === undefined) {
+    return INSTITUTIONS_DEFAULT_PAGE_SIZE;
+  }
+  if (typeof value !== "string" || !/^\d+$/.test(value)) {
+    throw new IdentityError(
+      "VALIDATION_ERROR",
+      `limit must be an integer from 1 to ${INSTITUTIONS_MAX_PAGE_SIZE}`,
+    );
+  }
+  const limit = Number(value);
+  if (limit < 1 || limit > INSTITUTIONS_MAX_PAGE_SIZE) {
+    throw new IdentityError(
+      "VALIDATION_ERROR",
+      `limit must be an integer from 1 to ${INSTITUTIONS_MAX_PAGE_SIZE}`,
+    );
+  }
+  return limit;
 }
 
 /**
@@ -30,10 +53,17 @@ export class InstitutionsController {
   ) {}
 
   @Get("institutions")
-  async list(@Req() request: RequestWithId): Promise<{ data: Record<string, unknown>[] }> {
+  async list(
+    @Query("cursor") cursor: unknown,
+    @Query("limit") limit: unknown,
+    @Req() request: RequestWithId,
+  ): Promise<{ data: Record<string, unknown>[]; next_cursor: string | null }> {
     await requireRole(this.identity, request, "PLATFORM_ADMIN", { requiresMfa: true });
-    const rows = await this.institutions.listInstitutions();
-    return { data: rows.map(institutionPayload) };
+    const page = await this.institutions.listInstitutions({
+      cursor: cursor === undefined ? undefined : String(cursor),
+      limit: parsedLimit(limit),
+    });
+    return { data: page.rows.map(institutionPayload), next_cursor: page.nextCursor };
   }
 
   @Post("institutions")

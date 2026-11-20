@@ -7,10 +7,16 @@ import { AttestationController } from "./attestation.controller.js";
 import { ATTESTATIONS_SERVICE } from "./attestation.tokens.js";
 import type { AttestationsService } from "./attestations.service.js";
 import { DrizzleAttestationsService } from "./drizzle-attestation.service.js";
+import { DrizzleInstitutionDashboardService } from "./drizzle-institution-dashboard.service.js";
+import { DrizzleInstitutionsService } from "./drizzle-institutions.service.js";
+import { InstitutionDashboardController } from "./institution-dashboard.controller.js";
+import {
+  INSTITUTION_DASHBOARD_SERVICE,
+  type InstitutionDashboardService,
+} from "./institution-dashboard.service.js";
 import { InstitutionsController } from "./institutions.controller.js";
 import { INSTITUTIONS_SERVICE } from "./institutions.tokens.js";
 import type { InstitutionsService } from "./institutions.service.js";
-import { DrizzleInstitutionsService } from "./drizzle-institutions.service.js";
 
 const attestationsServiceProvider: Provider = {
   provide: ATTESTATIONS_SERVICE,
@@ -19,10 +25,10 @@ const attestationsServiceProvider: Provider = {
     new DrizzleAttestationsService(database),
 };
 
-/** Institution-scoped affiliation decisions, the platform-admin grant, and onboarding. */
+/** Institution-scoped affiliation decisions, the platform-admin grant, onboarding and the aggregate read. */
 @Module({
   imports: [DatabaseModule, IdentityModule],
-  controllers: [AttestationController, InstitutionsController],
+  controllers: [AttestationController, InstitutionsController, InstitutionDashboardController],
   providers: [
     attestationsServiceProvider,
     {
@@ -30,6 +36,12 @@ const attestationsServiceProvider: Provider = {
       inject: [DATABASE],
       useFactory: (database: Database): InstitutionsService =>
         new DrizzleInstitutionsService(database),
+    },
+    {
+      provide: INSTITUTION_DASHBOARD_SERVICE,
+      inject: [DATABASE],
+      useFactory: (database: Database): InstitutionDashboardService =>
+        new DrizzleInstitutionDashboardService(database),
     },
   ],
 })
