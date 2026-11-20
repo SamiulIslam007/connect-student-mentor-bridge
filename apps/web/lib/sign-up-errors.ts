@@ -18,5 +18,10 @@ export function signUpErrorMessage(status: number, code: string | undefined): st
   if (status === 422 && code === "VALIDATION_FAILED") {
     return strings.signUp.invalid;
   }
+  // One generic sentence for every bot-protection refusal (D-224): naming the
+  // check would tell a bot what to change.
+  if (status === 422 && code === "REGISTRATION_REFUSED") {
+    return strings.signUp.refused;
+  }
   return strings.signUp.error;
 }

@@ -52,6 +52,9 @@ sources: README.md (sections 8, 12.1); connect-research-report.md (Sections 5.4,
 
 ### 4.1 Methods
 
+- **Registration refuses an automated submission** before any row exists (`signup-bot-protection`, 2026-11-20, D-221 to D-224). The Next BFF refuses a filled hidden field (`contact_website`) and a submission younger than two seconds or older than one hour than the httpOnly `connect_signup_intent` marker that `GET /api/auth/register-intent` mints on mount; the API refuses the same hidden field on a direct call. All three answers are one `422 REGISTRATION_REFUSED` body, and one structured log line names the check server-side. Timing lives in the BFF only, because the API is bearer-only and parses no session cookie.
+
+
 | Method | Phase | Notes |
 |---|---|---|
 | Email and password with email verification | 1 | Required before any request can be sent. Forgot-password flow included |

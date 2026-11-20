@@ -127,6 +127,14 @@ export const IDEMPOTENCY_IN_PROGRESS_MINUTES = 5;
 export const IDEMPOTENCY_SWEEP_BATCH = 500;
 
 /**
+ * Sign-up bot protection (SEC-ABUSE-1, D-223): a submission younger than two
+ * seconds is automation, one older than an hour is a stale marker. Code
+ * constants so a refusal is reproducible in support.
+ */
+export const SIGNUP_MIN_SUBMIT_SECONDS = 2;
+export const SIGNUP_INTENT_MAX_AGE_SECONDS = 3600;
+
+/**
  * Rate-limit starting values, **placeholders pending pilot traffic**
  * (`docs/api-contracts.md` §9 keeps the concrete values Open as SEC-O2). They
  * are configuration, so tuning needs no code change. `ttl` is milliseconds,

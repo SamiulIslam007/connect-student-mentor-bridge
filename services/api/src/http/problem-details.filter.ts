@@ -52,6 +52,7 @@ const PROBLEMS: Record<IdentityErrorCode, ProblemMapping> = {
   IDEMPOTENCY_KEY_REUSED: { status: 409, code: "IDEMPOTENCY_KEY_REUSED", title: "This Idempotency-Key was used with a different request" },
   IDEMPOTENCY_IN_PROGRESS: { status: 409, code: "IDEMPOTENCY_IN_PROGRESS", title: "This Idempotency-Key is still being processed" },
   IDEMPOTENCY_KEY_INVALID: { status: 422, code: "IDEMPOTENCY_KEY_INVALID", title: "The Idempotency-Key is not valid" },
+  REGISTRATION_REFUSED: { status: 422, code: "REGISTRATION_REFUSED", title: "Registration refused" },
   ACCOUNT_NOT_SUSPENDED: { status: 409, code: "ACCOUNT_NOT_SUSPENDED", title: "This account is not suspended" },
   CONFIG_VERSION_CONFLICT: { status: 409, code: "CONFIG_VERSION_CONFLICT", title: "Another version was created at the same moment" },
   EVIDENCE_ALREADY_ATTACHED: { status: 409, code: "EVIDENCE_ALREADY_ATTACHED", title: "This outcome already has an evidence file" },

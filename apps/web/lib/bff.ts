@@ -167,9 +167,13 @@ function nonJsonProblem(status: number): UpstreamOutcome {
 export async function proxyJson(
   path: string,
   request: Request,
-  options: { sessionToken?: string; method?: string } = {},
+  options: { sessionToken?: string; method?: string; body?: unknown } = {},
 ): Promise<NextResponse> {
-  const parsed = await readJsonBody(request);
+  // A route that already read and checked the body hands it in (design R7 of
+  // `signup-bot-protection`): the stream cannot be read twice, and cloning it
+  // would double the buffer on the one route an attacker can drive at will.
+  const parsed =
+    options.body === undefined ? await readJsonBody(request) : { ok: true as const, value: options.body };
   if (!parsed.ok) {
     return parsed.response;
   }

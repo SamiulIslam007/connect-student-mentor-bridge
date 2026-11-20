@@ -55,7 +55,9 @@ paths:
         The date of birth is evaluated in the request and is never stored. An
         under-18 attempt returns 422 UNDER_MINIMUM_AGE and stores only a keyed
         email hash in signup_blocks. Registration returns no session and the
-        response does not reveal whether the address already exists.
+        response does not reveal whether the address already exists. A filled
+        `contact_website` is refused with `422 REGISTRATION_REFUSED` before any row
+        is written, and the refusal never names the check (D-224).
       security: []
       requestBody:
         required: true
@@ -2933,6 +2935,12 @@ components:
             notice published at `/terms` and `/privacy`. Absent or false is refused
             with `422 VALIDATION_FAILED` naming `consent_accepted`, and no user row
             and no consent record is written (D-82).
+        contact_website:
+          type: string
+          description: >-
+            A hidden field a person never fills. It is documented so the body
+            allowlist never names an unknown key; a non-empty value is refused
+            with `422 REGISTRATION_REFUSED` and writes nothing (D-221).
         timezone:
           type: string
           default: Asia/Dhaka

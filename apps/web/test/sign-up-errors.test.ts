@@ -20,3 +20,10 @@ test("network and unknown failures fall back without claiming an age problem", (
   assert.equal(signUpErrorMessage(500, "INTERNAL_ERROR"), strings.signUp.error);
   assert.equal(signUpErrorMessage(403, "FORBIDDEN"), strings.signUp.error);
 });
+
+test("the bot-protection refusal has its own actionable message", () => {
+  assert.equal(signUpErrorMessage(422, "REGISTRATION_REFUSED"), strings.signUp.refused);
+  assert.notEqual(strings.signUp.refused, strings.signUp.invalid);
+  assert.notEqual(strings.signUp.refused, strings.signUp.error);
+  assert.match(strings.signUp.refused, /Reload the page and try again\./);
+});
