@@ -28,6 +28,29 @@ export interface RetentionOptions {
 
 type RowOutcome = "skip" | "eligible" | "deleted" | "failed";
 
+/** The state's own clock column (design R1): never a coalesce across states. */
+function ownInstant() {
+  return sql`case ${outcomes.status}
+    when 'COUNTED' then ${outcomes.countedAt}
+    when 'REJECTED' then ${outcomes.rejectedAt}
+    when 'REVERSED' then ${outcomes.reversedAt}
+    else ${outcomes.withdrawnAt}
+  end`;
+}
+
+/**
+ * The reporting student's earliest `INSTITUTION_DATA_SHARING` withdrawal, by the
+ * student's own user id — never the mentor's (design R3). One indexed lookup.
+ */
+function consentInstant() {
+  return sql`(select min(cr.occurred_at)
+    from consent_records cr
+    join student_profiles sp on sp.user_id = cr.user_id
+    where sp.id = ${outcomes.studentProfileId}
+      and cr.purpose = 'INSTITUTION_DATA_SHARING'
+      and cr.action = 'WITHDRAWN')`;
+}
+
 /**
  * Deletes the object of every evidence file whose outcome settled longer ago than
  * the window, keeps the row and its SHA-256, and writes one audit entry per
@@ -60,10 +83,15 @@ export async function sweepExpiredEvidence(
         isNull(outcomeEvidence.deletedAt),
         // An intent whose bytes never landed has no file to delete.
         isNotNull(outcomeEvidence.uploadedAt),
-        inArray(outcomes.status, ["COUNTED", "REJECTED"]),
+        inArray(outcomes.status, ["COUNTED", "REJECTED", "REVERSED", "WITHDRAWN"]),
+        // The origin mirrors `evidenceRetentionDue`: each state's own instant, and
+        // the reporting student's earliest institution-sharing withdrawal when it
+        // is earlier. `least` ignores nulls, so the null guard is explicit.
+        sql`${ownInstant()} is not null`,
+        sql`least(${ownInstant()}, coalesce(${consentInstant()}, ${ownInstant()})) <= ${now}::timestamptz - (${options.windowDays}::int * interval '1 day')`,
       ),
     )
-    .orderBy(asc(sql`coalesce(${outcomes.countedAt}, ${outcomes.rejectedAt})`))
+    .orderBy(asc(sql`least(${ownInstant()}, coalesce(${consentInstant()}, ${ownInstant()}))`))
     .limit(options.batch ?? 100);
 
   for (const candidate of candidates) {
@@ -77,6 +105,9 @@ export async function sweepExpiredEvidence(
           status: outcomes.status,
           countedAt: outcomes.countedAt,
           rejectedAt: outcomes.rejectedAt,
+          reversedAt: outcomes.reversedAt,
+          withdrawnAt: outcomes.withdrawnAt,
+          consentWithdrawnAt: sql<Date | null>`${consentInstant()}`,
           deletedAt: outcomeEvidence.deletedAt,
           uploadedAt: outcomeEvidence.uploadedAt,
         })
@@ -92,6 +123,11 @@ export async function sweepExpiredEvidence(
         outcomeStatus: row.status,
         countedAt: row.countedAt,
         rejectedAt: row.rejectedAt,
+        reversedAt: row.reversedAt,
+        withdrawnAt: row.withdrawnAt,
+        consentWithdrawnAt: row.consentWithdrawnAt
+          ? new Date(row.consentWithdrawnAt as unknown as string)
+          : null,
         now,
         windowDays: options.windowDays,
       });

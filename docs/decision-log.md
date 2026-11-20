@@ -1751,3 +1751,35 @@ date: 2026-10-29
 - Status: Decided
 - Affects: `apps/web/app/api/auth/register/route.ts`, `apps/web/lib/strings.ts`, `services/api/src/identity/auth.controller.ts`
 
+### D-230: A reversal and a withdrawal start their own retention clock
+
+- Date: 2026-11-20
+- Decision: `evidenceRetentionDue` reads the settled state's **own** instant — `counted_at`, `rejected_at`, `reversed_at`, `withdrawn_at` — and never a coalesce across states. A settled row whose own instant is null is never due.
+- Reason: a single `coalesce(counted_at, rejected_at)` dated a reversal by the year-old count it clawed back, so the material the clawback was decided on could be deleted the day it was needed. A null instant is a projection bug; deleting on it would turn a bug into data loss.
+- Supersedes: D-204's third clause ("`REVERSED` and `WITHDRAWN` keep their file"), which this reverses deliberately.
+- Status: Decided (owner-approved reversal)
+- Affects: `packages/domain/src/evidence-retention.ts`, `services/api/src/evidence/retention.ts`
+
+### D-231: A consent withdrawal can only move the origin earlier
+
+- Date: 2026-11-20
+- Decision: the reporting student's earliest `INSTITUTION_DATA_SHARING` `WITHDRAWN` record, joined through the outcome's `student_profile_id`, becomes the origin when it precedes that state's own instant, and is ignored otherwise. The mentor's consent is never consulted.
+- Reason: the promise is "sooner if you withdraw"; a later withdrawal must not extend a file's life, and the mentor's record describes a different person.
+- Status: Decided
+- Affects: `services/api/src/evidence/retention.ts`
+
+### D-232: The sweep re-checks every condition under the row lock
+
+- Date: 2026-11-20
+- Decision: the candidate selection is an optimisation only; each row is re-read inside its transaction and the whole predicate — status, own instant, consent instant, `deleted_at`, `uploaded_at` — is re-evaluated there before any delete.
+- Reason: a status can move between the selection and the delete, and the transaction is where the decision has to be true.
+- Status: Decided
+- Affects: `services/api/src/evidence/retention.ts`
+
+### D-233: The dry run keeps covering the extended set
+
+- Date: 2026-11-20
+- Decision: `EVIDENCE_RETENTION_DRY_RUN` still defaults to true and the dry run reports `examined`, `eligible`, `deleted: 0` and `failed` for the extended set, including the reversal and withdrawal cases.
+- Reason: the owner flips the variable after reading one honest report; a dry run that only counted the old two states would under-report the first live sweep.
+- Status: Decided
+- Affects: `services/api/src/evidence/retention.ts`, `docs/data-privacy-and-retention.md`
