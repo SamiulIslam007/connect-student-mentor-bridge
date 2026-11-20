@@ -44,6 +44,12 @@ import {
   retentionDryRun,
   retentionWindowDays,
 } from "../../evidence/retention-job.js";
+import { sweepExpired } from "../idempotency/store.js";
+import {
+  IDEMPOTENCY_SWEEP_CRON,
+  IDEMPOTENCY_SWEEP_LIMIT,
+  IDEMPOTENCY_SWEEP_QUEUE,
+} from "../idempotency/sweep-job.js";
 import {
   ACCOUNT_SANCTION_CRON,
   ACCOUNT_SANCTION_QUEUE,
@@ -89,6 +95,7 @@ export class OutboxWorker implements OnApplicationBootstrap, OnApplicationShutdo
     await boss.createQueue(AUDIT_SAMPLE_QUEUE);
     await boss.createQueue(EVIDENCE_SCAN_QUEUE);
     await boss.createQueue(EVIDENCE_RETENTION_QUEUE);
+    await boss.createQueue(IDEMPOTENCY_SWEEP_QUEUE);
     await boss.work(REQUEST_SWEEP_QUEUE, { batchSize: 1 }, async () => {
       const result = await sweepRequests(this.database);
       if (result.reminded > 0 || result.expired > 0) {
@@ -152,6 +159,13 @@ export class OutboxWorker implements OnApplicationBootstrap, OnApplicationShutdo
       log("evidence.retention_swept", { ...result });
     });
     await boss.schedule(EVIDENCE_RETENTION_QUEUE, EVIDENCE_RETENTION_CRON);
+    await boss.work(IDEMPOTENCY_SWEEP_QUEUE, { batchSize: 1 }, async () => {
+      const deleted = await sweepExpired(this.database, { batch: IDEMPOTENCY_SWEEP_LIMIT });
+      if (deleted > 0) {
+        log("idempotency.swept", { deleted });
+      }
+    });
+    await boss.schedule(IDEMPOTENCY_SWEEP_QUEUE, IDEMPOTENCY_SWEEP_CRON);
     await boss.work(
       OUTBOX_QUEUE,
       { batchSize: 1, pollingIntervalSeconds: 2 },

@@ -44,7 +44,7 @@ async function expectPermissionDenied(client: TestDatabase["client"], sql: strin
   }
 }
 
-test("the migrations create the thirty-three tables and protect the ledger", async (context) => {
+test("the migrations create the thirty-four tables and protect the ledger", async (context) => {
   const current = requireDatabase(context);
   if (!current) {
     return;
@@ -65,6 +65,7 @@ test("the migrations create the thirty-three tables and protect the ledger", asy
       "consent_records",
       "field_impact_snapshots",
       "fields",
+      "idempotency_keys",
       "institution_domains",
       "institutions",
       "mentor_fields",
@@ -166,6 +167,18 @@ test("the application role can use every profile table and nothing else", async 
       [report.rows[0].id],
     );
     await client.query("DELETE FROM reports WHERE id = $1", [report.rows[0].id]);
+
+    // `0023` grants the idempotency store including DELETE: the hourly sweep
+    // depends on it, and a store the application role cannot delete would grow
+    // without a bound.
+    const intent = await client.query<{ id: string }>(
+      "INSERT INTO idempotency_keys (actor_user_id, operation, key, request_digest, expires_at) VALUES ('user-grants', 'probe.operation', 'probe-key-1234', 'digest', now() + interval '5 minutes') RETURNING id",
+    );
+    await client.query(
+      "UPDATE idempotency_keys SET status = 'COMPLETED', response_status = 201, response_body = '{}'::jsonb WHERE id = $1",
+      [intent.rows[0].id],
+    );
+    await client.query("DELETE FROM idempotency_keys WHERE id = $1", [intent.rows[0].id]);
 
     // `0007` grants the role table; registration writes the default role through it.
     const assignment = await client.query<{ id: string }>(

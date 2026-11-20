@@ -162,6 +162,13 @@
       "when": 1794809648968,
       "tag": "0022_futuristic_nico_minoru",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1795177300285,
+      "tag": "0023_aberrant_drax",
+      "breakpoints": true
     }
   ]
 }

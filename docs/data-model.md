@@ -599,7 +599,7 @@ Shape (Proposed, policy governs): `points = difficulty_weight x tier_multiplier 
 **`notifications`**: `user_id`, `template_key`, `channel` (`EMAIL`, `IN_APP`), `payload jsonb` (ids only), `status` (`QUEUED`, `SENT`, `FAILED`, `SUPPRESSED`), `dedupe_key text` unique, `provider_message_id?`, `attempts`, `send_after`, `sent_at?`, `read_at?`.
 **`notification_preferences`**: (`user_id`, `category`) key, `email_enabled`, `in_app_enabled`. Security and dispute categories cannot be disabled.
 **`email_suppressions`**: `email citext` unique, `reason` (`HARD_BOUNCE`, `COMPLAINT`).
-**`idempotency_keys`**: key (`user_id`, `key`, `endpoint`), `request_hash bytea`, `response_status`, `response_body jsonb`, `expires_at` (about 48 hours).
+**`idempotency_keys`** (mutable; **built** by `idempotency-key-on-writes`, 2026-11-20; migration `0023`): `id uuid PK`, `actor_user_id text` (FK to `users.id`, `ON DELETE CASCADE`), `operation text` (the server-chosen literal `message.create`, `outcome.report` or `request.create`), `key text` (the client's `Idempotency-Key`), `request_digest text` (SHA-256 over the canonical JSON of the body), `status text` (`IN_PROGRESS` or `COMPLETED`, a check rather than a pg enum because it is transport plumbing and never reaches a payload), `response_status integer?`, `response_body jsonb?`, `expires_at timestamptz`, timestamps. Unique index on (`actor_user_id`, `operation`, `key`), index on `expires_at`. `expires_at` is five minutes at insert and twenty-four hours on completion, and the hourly `idempotency-sweep` deletes past it. The application role holds `SELECT, INSERT, UPDATE, DELETE` — the one new table it may delete from, because the sweep is a delete (D-215 to D-220).
 
 ---
 

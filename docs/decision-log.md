@@ -1670,3 +1670,52 @@ date: 2026-10-29
 - Reason: offset pagination repeats or skips a row when an institution is created mid-walk, and the pilot holds a handful of institutions, so the default page is one page. A page needs an approved visual direction this round cannot produce, so it is `DEBT-68` rather than a hidden gap.
 - Status: Decided
 - Affects: `packages/domain/src/cursor.ts`, `services/api/src/institutions/drizzle-institutions.service.ts`, `packages/contracts/openapi.yaml`, `docs/known-debt.md`
+
+### D-215: The key is scoped to caller and operation
+
+- Date: 2026-11-20
+- Decision: the unique index is (`actor_user_id`, `operation`, `key`), and `operation` is a server literal chosen by the decorator (`message.create`, `outcome.report`, `request.create`).
+- Reason: a global unique key would let one caller's key collide with another's and turn a client-chosen string into a cross-tenant signal.
+- Status: Decided
+- Affects: `services/api/src/db/schema/idempotency.ts`, `services/api/src/platform/idempotency/store.ts`
+
+### D-216: Two retentions on one column
+
+- Date: 2026-11-20
+- Decision: `expires_at` is five minutes at insert and twenty-four hours on completion; one hourly sweep deletes every row past it.
+- Reason: one 24-hour value for both states would leave a crashed request answering `409` for a day. Five minutes is longer than any handler here and short enough that a client's retry succeeds without support.
+- Status: Decided
+- Affects: `services/api/src/platform/idempotency/store.ts`, `services/api/src/platform/idempotency/sweep-job.ts`
+
+### D-217: The digest is canonical JSON, not raw bytes
+
+- Date: 2026-11-20
+- Decision: the body is serialised with recursively sorted keys and hashed with `node:crypto` `createHash("sha256")`.
+- Reason: hashing `rawBody` needs a `verify` hook on the JSON parser every route shares, which keeps a copy of every request body in memory for a check three routes need.
+- Status: Decided
+- Affects: `packages/domain/src/idempotency.ts`, `services/api/src/platform/idempotency/interceptor.ts`
+
+### D-218: Status is text with a check, not a pg enum
+
+- Date: 2026-11-20
+- Decision: `idempotency_keys.status` is `text` with `check (status in ('IN_PROGRESS','COMPLETED'))`.
+- Reason: `docs/data-model.md` §4.1 enumerates the enums the product speaks; this one is plumbing that never reaches a payload, and adding it there would be a contract change for nothing.
+- Status: Decided
+- Affects: `services/api/src/db/schema/idempotency.ts`, `docs/data-model.md`
+
+### D-219: An interceptor, applied by decorator on three routes
+
+- Date: 2026-11-20
+- Decision: `@Idempotent(operation)` applies one interceptor to exactly the three handlers; the intent row is inserted in its own autocommit statement before the handler runs.
+- Reason: the interceptor must see the response body, which a guard cannot, and the decorator keeps the set visible in the controller. An intent row that rolled back with a failed write would let a retry re-execute a write that may already have committed.
+- Status: Decided
+- Affects: `services/api/src/platform/idempotency/interceptor.ts`, `services/api/src/platform/idempotency/idempotent.decorator.ts`, the three controllers
+
+### D-220: A replay writes no audit row
+
+- Date: 2026-11-20
+- Decision: no `IDEMPOTENCY_REPLAYED` audit action exists. The first call writes its own row inside its transaction; a replay appends nothing.
+- Reason: an audit row per replay would put a client's retry in an append-only compliance log and grow it without a fact behind each row.
+- Status: Decided
+- Affects: `services/api/src/platform/idempotency/interceptor.ts`, `services/api/src/identity/audit-log.ts` (unchanged)
+

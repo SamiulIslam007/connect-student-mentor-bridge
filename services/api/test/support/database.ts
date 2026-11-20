@@ -124,7 +124,7 @@ export async function seedConfigBaseline(client: Client): Promise<void> {
 
 export async function truncateAll(client: Client): Promise<void> {
   await client.query(
-    "TRUNCATE TABLE reports, privacy_requests, audit_logs, consent_records, signup_blocks, two_factors, sessions, accounts, verification_records, reputation_events, field_impact_snapshots, outcome_events, outcome_evidence, outcomes, verifications, student_field_interests, student_profiles, mentor_fields, mentor_profiles, fields, thread_read_states, mentorship_sessions, thread_messages, mentorships, users RESTART IDENTITY CASCADE",
+    "TRUNCATE TABLE reports, privacy_requests, audit_logs, consent_records, signup_blocks, two_factors, sessions, accounts, verification_records, reputation_events, field_impact_snapshots, outcome_events, outcome_evidence, outcomes, verifications, student_field_interests, student_profiles, mentor_fields, mentor_profiles, fields, thread_read_states, idempotency_keys, mentorship_sessions, thread_messages, mentorships, users RESTART IDENTITY CASCADE",
   );
   await seedConfigBaseline(client);
 }

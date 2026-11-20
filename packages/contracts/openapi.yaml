@@ -827,9 +827,25 @@ paths:
         At most one PENDING request per student/mentor pair, at most three PENDING
         per student, and slots in use (pending + accepted in the last 7 days) must
         stay under the mentor's weekly capacity. The request expires 48 hours
-        after creation and a reminder is sent at 24 hours.
+        after creation and a reminder is sent at 24 hours. A caller may send an
+        `Idempotency-Key` header to make a retry safe (SEC-API-7).
       security:
         - bearerAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: >-
+            Optional. A repeat of the same key with the same body replays the first
+            response and performs no write; the same key with a different body is
+            `409 IDEMPOTENCY_KEY_REUSED`; a repeat while the first call is unfinished
+            is `409 IDEMPOTENCY_IN_PROGRESS`; a key outside 8 to 128 characters of
+            letters, digits, dot, underscore and hyphen is `422
+            IDEMPOTENCY_KEY_INVALID`. A stored response is kept for 24 hours.
+          schema:
+            type: string
+            minLength: 8
+            maxLength: 128
       requestBody:
         required: true
         content:
@@ -2087,7 +2103,8 @@ paths:
       description: >-
         The body is trimmed and must be 1 to 2000 characters. Exactly one
         notification email is queued per message, keyed on the message id. There
-        is no update or delete route: messages are immutable.
+        is no update or delete route: messages are immutable. A caller may send an
+        `Idempotency-Key` header to make a retry safe (SEC-API-7).
       security:
         - bearerAuth: []
       parameters:
@@ -2096,6 +2113,20 @@ paths:
           required: true
           schema:
             type: string
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: >-
+            Optional. A repeat of the same key with the same body replays the first
+            response and performs no write; the same key with a different body is
+            `409 IDEMPOTENCY_KEY_REUSED`; a repeat while the first call is unfinished
+            is `409 IDEMPOTENCY_IN_PROGRESS`; a key outside 8 to 128 characters of
+            letters, digits, dot, underscore and hyphen is `422
+            IDEMPOTENCY_KEY_INVALID`. A stored response is kept for 24 hours.
+          schema:
+            type: string
+            minLength: 8
+            maxLength: 128
       requestBody:
         required: true
         content:
@@ -2112,6 +2143,8 @@ paths:
         "401":
           $ref: "#/components/responses/Problem"
         "404":
+          $ref: "#/components/responses/Problem"
+        "409":
           $ref: "#/components/responses/Problem"
         "422":
           $ref: "#/components/responses/Problem"
@@ -2252,8 +2285,25 @@ paths:
         Creates a PENDING_CONFIRMATION outcome with the field copied from the
         mentorship, a seven-day mentor decision deadline, one REPORTED event, and
         one queued email to the mentor. A non-participant or the mentor gets 404.
+        A caller may send an `Idempotency-Key` header to make a retry safe
+        (SEC-API-7).
       security:
         - bearerAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: >-
+            Optional. A repeat of the same key with the same body replays the first
+            response and performs no write; the same key with a different body is
+            `409 IDEMPOTENCY_KEY_REUSED`; a repeat while the first call is unfinished
+            is `409 IDEMPOTENCY_IN_PROGRESS`; a key outside 8 to 128 characters of
+            letters, digits, dot, underscore and hyphen is `422
+            IDEMPOTENCY_KEY_INVALID`. A stored response is kept for 24 hours.
+          schema:
+            type: string
+            minLength: 8
+            maxLength: 128
       requestBody:
         required: true
         content:
@@ -2270,6 +2320,8 @@ paths:
         "401":
           $ref: "#/components/responses/Problem"
         "404":
+          $ref: "#/components/responses/Problem"
+        "409":
           $ref: "#/components/responses/Problem"
         "422":
           $ref: "#/components/responses/Problem"

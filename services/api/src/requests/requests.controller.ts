@@ -11,6 +11,8 @@ import {
 } from "@connect/domain";
 
 import type { RequestWithId } from "../http/request-id.middleware.js";
+import { Idempotent } from "../platform/idempotency/idempotent.decorator.js";
+
 import { actingAccountWithRoles, requireRole } from "../authorization/authorize.js";
 import { IDENTITY_SERVICE } from "../identity/identity.tokens.js";
 import { requestPayload, type RequestsService } from "./requests.service.js";
@@ -91,6 +93,7 @@ export class RequestsController {
   @Throttle({ default: RATE_LIMITS.write })
   @Post()
   @HttpCode(201)
+  @Idempotent("request.create")
   async create(@Body() body: unknown, @Req() request: RequestWithId): Promise<Record<string, unknown>> {
     const acting = await requireRole(this.identity, request, "STUDENT");
     const created = await this.requests.create({
