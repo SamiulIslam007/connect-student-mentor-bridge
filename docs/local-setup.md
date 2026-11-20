@@ -4,6 +4,8 @@ The local environment is the Docker Compose stack at the repository root plus th
 pnpm workspace. Everything here runs from a clean checkout with one Compose
 command after one file copy.
 
+Deployment-only steps — migrate a real database, create the object-store bucket, flip the evidence-retention dry run, the first `PLATFORM_ADMIN` and the backup/restore drill — are in [runbook.md](runbook.md); the compose stack does not create the bucket.
+
 ## Prerequisites
 
 | Tool | Version / note |
