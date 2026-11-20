@@ -154,7 +154,7 @@ OpenTelemetry tracing is Later (multi-service need).
 - [ ] Daily automated backups and point-in-time recovery enabled on managed Postgres.
 - [ ] Object storage versioning or replication for evidence files (or accepted loss, documented).
 - [ ] **A restore is actually performed** into a scratch environment before Gate 2 and repeated every quarter. The date, duration, and result are written down.
-- [ ] Recovery steps are written in the runbook (section 12).
+- [x] Recovery steps are written in the runbook (section 12) — `docs/runbook.md` §4.
 - [ ] Backup failure triggers an alert.
 
 ## 11. Release process
@@ -175,6 +175,9 @@ Agent rule: agents may branch and commit on feature branches only. A human appro
 ## 12. Operations: runbook and support
 
 ### 12.1 One-page runbook (must exist before Gate 2)
+
+- [x] **Written:** `docs/runbook.md` (2026-11-20, `pilot-runbook-and-docs-truth`) — bring-up, migrate, object store, the retention dry-run switch, incident and support path, the first `PLATFORM_ADMIN` procedure with its record table, and the backup/restore drill with its record table.
+- [ ] **Rehearsed at Gate 2:** the provider-specific values (host, region, bucket, TLS) and one real restore are filled in at deployment; the untested steps are marked UNVERIFIED in the runbook.
 
 1. Deploy and rollback.
 2. Rotate secrets and keys.
@@ -211,8 +214,8 @@ All Gate 1 items plus **only** these, which are truly required before a real per
 - [ ] **Terms of use** published (owner draft; counsel review recommended and desirable, but its absence is a Deferred item and not a Gate 2 blocker).
 - [ ] **Privacy Notice** published, matching `data-privacy-and-retention.md`.
 - [ ] **Consent screens** live for the five MVP purposes (`TERMS`, `PRIVACY_NOTICE`, `VOLUNTEER_AGREEMENT`, `COMMUNITY_GUIDELINES`, `INSTITUTION_DATA_SHARING`), append-only records tested.
-- [ ] **Backup restore performed** and documented.
-- [ ] **Runbook** (section 12.1) written and rehearsed at least once.
+- [ ] **Backup restore performed** and documented — the drill and its record table are in `docs/runbook.md` §5.
+- [ ] **Runbook** (section 12.1) written — `docs/runbook.md` exists; **rehearsal at Gate 2** still open — and the **backup restore drill** in it performed once and recorded in its table.
 
 **Deferred (owner decision), so not Gate 2 conditions:** legal entity, counsel engagement as a blocker, data-residency answer, DPIA, institution MoU signing, trust-and-safety reviewer hire, pilot partner type, willingness-to-pay work, brand clearance. These are tracked in `assumptions-and-open-questions.md` and revisited after the pilot.
 

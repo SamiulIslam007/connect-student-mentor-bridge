@@ -1783,3 +1783,43 @@ date: 2026-10-29
 - Reason: the owner flips the variable after reading one honest report; a dry run that only counted the old two states would under-report the first live sweep.
 - Status: Decided
 - Affects: `services/api/src/evidence/retention.ts`, `docs/data-privacy-and-retention.md`
+
+### D-225: The runbook lives at `docs/runbook.md` and is linked from two places
+
+- Date: 2026-11-20
+- Decision: `docs/runbook.md` carries the operator procedures; `README.md`'s status line and `docs/local-setup.md` link it. `production-requirements.md` §12.1 keeps the requirement and points at it.
+- Reason: §12.1 is a requirements document; mixing "what launch requires" with "how to do it" makes both harder to read. The file sits beside `local-setup.md`, where an operator looks first.
+- Status: Decided
+- Affects: `docs/runbook.md`, `README.md`, `docs/local-setup.md`, `docs/production-requirements.md`
+
+### D-226: The first `PLATFORM_ADMIN` is an INSERT, a verify SELECT and a written note
+
+- Date: 2026-11-20
+- Decision: the sanctioned statement already in `local-setup.md`, one `SELECT` that proves the user and the `role_assignments` row, MFA enrolment at `/account/security`, then one row in the runbook's bootstrap record table. `AGENTS.md` rule 12 is unchanged: no CLI script, no route.
+- Reason: the rule's real gap was the missing note, not the missing typing. A hand-run `INSERT` writes no `audit_logs` row, so the record table is the compensation (`DEBT-46`).
+- Status: Decided
+- Affects: `docs/runbook.md` §6
+
+### D-227: The restore record is a hand-filled table
+
+- Date: 2026-11-20
+- Decision: the drill is written in the runbook and its result recorded in a table (date, environment, duration, result, operator). No scripted drill.
+- Reason: the provider is undecided; a script for an unknown target is untested code, and the launch criterion is a *performed* restore with a record.
+- Status: Decided
+- Affects: `docs/runbook.md` §7, `docs/production-requirements.md` §13.2
+
+### D-228: A closed debt row's problem text is struck, not deleted
+
+- Date: 2026-11-20
+- Decision: every row whose `Status` cell says `Closed` and whose Debt cell is unstruck gets `~~...~~` around the Debt cell only; `Impact`, `Owner / target` and `Status` are untouched. Twenty rows were struck, including the five closed by round five.
+- Reason: the file's own convention (`DEBT-19`, `DEBT-25`, `DEBT-56`); deleting the text would lose the record of what was owed.
+- Status: Decided
+- Affects: `docs/known-debt.md`
+
+### D-229: Two Must rows reach `DONE` by amendment, and the counts say so
+
+- Date: 2026-11-20
+- Decision: `FR-INST-01` becomes `DONE` because its own Then clause is met and the extra scope (editing, status transitions, domain verification) appears in neither its acceptance nor `openspec/specs/institutions/onboarding`; `FR-ADM-03` loses the anomaly clause from its requirement text, which stays owed as `DEBT-62`, and becomes `DONE`. Both rows say "amended, not newly built". The register reads 59.5 / 64 = 93.0%; the code-only basis scores the three amendment-only rows (`FR-ADM-05`, `FR-ADM-06`, `FR-INST-01`) at 0.0 and `FR-ADM-03` at 0.5, giving 56.0 / 64 = 87.5%.
+- Reason: a register that scores a row against scope nobody required is wrong in both directions — it understates what is built and hides that no code is owed. Labelling the amendment is what keeps the number honest.
+- Status: Decided (owner-approved)
+- Affects: `docs/functional-requirements.md` (`FR-INST-01`, `FR-ADM-03`, §2.16)
