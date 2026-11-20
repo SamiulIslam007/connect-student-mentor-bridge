@@ -48,6 +48,7 @@ const PROBLEMS: Record<IdentityErrorCode, ProblemMapping> = {
   STUDENT_PROFILE_REQUIRED: { status: 422, code: "STUDENT_PROFILE_REQUIRED", title: "Save a student profile before asking for suggestions" },
   CLAIM_ALREADY_DECIDED: { status: 409, code: "CLAIM_ALREADY_DECIDED", title: "This claim has already been decided" },
   INSTITUTION_DOMAIN_TAKEN: { status: 409, code: "INSTITUTION_DOMAIN_TAKEN", title: "This domain already belongs to an institution" },
+  INSTITUTION_NOT_FOUND: { status: 404, code: "INSTITUTION_NOT_FOUND", title: "Not found" },
   ACCOUNT_NOT_SUSPENDED: { status: 409, code: "ACCOUNT_NOT_SUSPENDED", title: "This account is not suspended" },
   CONFIG_VERSION_CONFLICT: { status: 409, code: "CONFIG_VERSION_CONFLICT", title: "Another version was created at the same moment" },
   EVIDENCE_ALREADY_ATTACHED: { status: 409, code: "EVIDENCE_ALREADY_ATTACHED", title: "This outcome already has an evidence file" },

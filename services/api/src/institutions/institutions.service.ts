@@ -40,11 +40,28 @@ export interface CreateInstitutionInput {
   requestId: string;
 }
 
+export interface ListInstitutionsInput {
+  /** The opaque `next_cursor` of the previous page; absent starts at the first. */
+  cursor?: string;
+  /** 1 to 100; the controller defaults it to 50. */
+  limit?: number;
+}
+
+/** The list's page bounds (D-214), stated here and mirrored in the contract. */
+export const INSTITUTIONS_DEFAULT_PAGE_SIZE = 50;
+export const INSTITUTIONS_MAX_PAGE_SIZE = 100;
+
+export interface InstitutionPage {
+  rows: InstitutionRecord[];
+  /** Absent on the last page (D-214). */
+  nextCursor: string | null;
+}
+
 export interface InstitutionsService {
   /** Creates the institution, its domains and both audit kinds in one transaction. */
   createInstitution(input: CreateInstitutionInput): Promise<InstitutionRecord>;
-  /** Every institution with its domains, ordered by name then id. */
-  listInstitutions(): Promise<InstitutionRecord[]>;
+  /** One keyset page, ordered by name then id, with its next cursor. */
+  listInstitutions(input?: ListInstitutionsInput): Promise<InstitutionPage>;
 }
 
 /** The wire shape; the key set is asserted by the integration test. */

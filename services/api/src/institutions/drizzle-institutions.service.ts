@@ -1,13 +1,20 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { asc, inArray } from "drizzle-orm";
+import { asc, inArray, sql } from "drizzle-orm";
 
-import { IdentityError } from "@connect/domain";
+import {
+  decodeNameIdCursor,
+  encodeNameIdCursor,
+  IdentityError,
+  type NameIdCursor,
+} from "@connect/domain";
 
 import { DATABASE } from "../db/database.module.js";
 import type { Database } from "../db/database.js";
 import { institutionDomains, institutions } from "../db/schema/index.js";
 import { appendAuditEntry } from "../identity/audit-log.js";
 import {
+  INSTITUTIONS_DEFAULT_PAGE_SIZE,
+  INSTITUTIONS_MAX_PAGE_SIZE,
   INSTITUTION_DOMAIN_MAX_ENTRIES,
   INSTITUTION_DOMAIN_MAX_LENGTH,
   INSTITUTION_DOMAIN_MIN_LENGTH,
@@ -15,8 +22,10 @@ import {
   INSTITUTION_NAME_MAX_LENGTH,
   type CreateInstitutionInput,
   type InstitutionKindValue,
+  type InstitutionPage,
   type InstitutionRecord,
   type InstitutionsService,
+  type ListInstitutionsInput,
 } from "./institutions.service.js";
 
 const DOMAIN_PATTERN = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/;
@@ -185,7 +194,23 @@ export class DrizzleInstitutionsService implements InstitutionsService {
     }
   }
 
-  async listInstitutions(): Promise<InstitutionRecord[]> {
+  async listInstitutions(input: ListInstitutionsInput = {}): Promise<InstitutionPage> {
+    const limit = input.limit ?? INSTITUTIONS_DEFAULT_PAGE_SIZE;
+    if (!Number.isInteger(limit) || limit < 1 || limit > INSTITUTIONS_MAX_PAGE_SIZE) {
+      throw new IdentityError(
+        "VALIDATION_ERROR",
+        `limit must be between 1 and ${INSTITUTIONS_MAX_PAGE_SIZE}`,
+      );
+    }
+    let cursor: NameIdCursor | null = null;
+    if (input.cursor !== undefined) {
+      cursor = decodeNameIdCursor(input.cursor);
+      if (!cursor) {
+        throw new IdentityError("VALIDATION_ERROR", "cursor is malformed");
+      }
+    }
+
+    // One row beyond the page decides whether a `next_cursor` exists.
     const rows = await this.db
       .select({
         id: institutions.id,
@@ -196,10 +221,21 @@ export class DrizzleInstitutionsService implements InstitutionsService {
         mouSignedOn: institutions.mouSignedOn,
       })
       .from(institutions)
-      .orderBy(asc(institutions.name), asc(institutions.id));
+      .where(
+        cursor
+          ? sql`(${institutions.name} > ${cursor.name} or (${institutions.name} = ${cursor.name} and ${institutions.id} > ${cursor.id}::uuid))`
+          : undefined,
+      )
+      .orderBy(asc(institutions.name), asc(institutions.id))
+      .limit(limit + 1);
 
-    if (rows.length === 0) {
-      return [];
+    const page = rows.slice(0, limit);
+    const last = page.at(-1);
+    const nextCursor =
+      rows.length > limit && last ? encodeNameIdCursor({ name: last.name, id: last.id }) : null;
+
+    if (page.length === 0) {
+      return { rows: [], nextCursor: null };
     }
 
     const domainRows = await this.db
@@ -208,7 +244,7 @@ export class DrizzleInstitutionsService implements InstitutionsService {
       .where(
         inArray(
           institutionDomains.institutionId,
-          rows.map((row) => row.id),
+          page.map((row) => row.id),
         ),
       )
       .orderBy(asc(institutionDomains.domain));
@@ -220,14 +256,17 @@ export class DrizzleInstitutionsService implements InstitutionsService {
       byInstitution.set(domain.institutionId, collected);
     }
 
-    return rows.map((row) => ({
-      id: row.id,
-      name: row.name,
-      kind: row.kind as InstitutionKindValue,
-      countryCode: row.countryCode,
-      status: row.status,
-      mouSignedOn: row.mouSignedOn ?? null,
-      domains: byInstitution.get(row.id) ?? [],
-    }));
+    return {
+      rows: page.map((row) => ({
+        id: row.id,
+        name: row.name,
+        kind: row.kind as InstitutionKindValue,
+        countryCode: row.countryCode,
+        status: row.status,
+        mouSignedOn: row.mouSignedOn ?? null,
+        domains: byInstitution.get(row.id) ?? [],
+      })),
+      nextCursor,
+    };
   }
 }

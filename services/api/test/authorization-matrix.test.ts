@@ -15,8 +15,11 @@ import { MeRolesController } from "../src/me/roles.controller.js";
 import { AttestationController } from "../src/institutions/attestation.controller.js";
 import { ATTESTATIONS_SERVICE } from "../src/institutions/attestation.tokens.js";
 import { InstitutionsController } from "../src/institutions/institutions.controller.js";
+import { InstitutionDashboardController } from "../src/institutions/institution-dashboard.controller.js";
 import { INSTITUTIONS_SERVICE } from "../src/institutions/institutions.tokens.js";
+import { INSTITUTION_DASHBOARD_SERVICE } from "../src/institutions/institution-dashboard.service.js";
 import { DrizzleInstitutionsService } from "../src/institutions/drizzle-institutions.service.js";
+import { DrizzleInstitutionDashboardService } from "../src/institutions/drizzle-institution-dashboard.service.js";
 import { DrizzleAttestationsService } from "../src/institutions/drizzle-attestation.service.js";
 import { DrizzleMatchingService } from "../src/matching/drizzle-matching.service.js";
 import { MatchingController } from "../src/matching/matching.controller.js";
@@ -198,6 +201,10 @@ const MATRIX: Requirement[] = [
   // Institution attestation: the queue and the decision need an institution
   // scope and an enrolled second factor; the grant is platform-admin only.
   { route: /^GET \/v1\/institution\/affiliations$/, access: "INSTITUTION_ADMIN" },
+  // The aggregates read is scoped to one administered institution; the matrix
+  // probe sends no query, so the admin's own probe is a 422 and every other
+  // principal is refused by the role before the parameter is read.
+  { route: /^GET \/v1\/institution\/aggregates$/, access: "INSTITUTION_ADMIN" },
   {
     route: /^POST \/v1\/institution\/affiliations\/:id\/decide$/,
     access: "INSTITUTION_ADMIN",
@@ -286,6 +293,7 @@ before(async () => {
       MatchingController,
       AttestationController,
       InstitutionsController,
+      InstitutionDashboardController,
       AuditController,
       AdminConfigController,
     ],
@@ -311,6 +319,7 @@ before(async () => {
       MatchingController,
       AttestationController,
       InstitutionsController,
+      InstitutionDashboardController,
       AuditController,
       AdminConfigController,
     ],
@@ -335,6 +344,10 @@ before(async () => {
       },
       { provide: ATTESTATIONS_SERVICE, useValue: new DrizzleAttestationsService(database) },
       { provide: INSTITUTIONS_SERVICE, useValue: new DrizzleInstitutionsService(database) },
+      {
+        provide: INSTITUTION_DASHBOARD_SERVICE,
+        useValue: new DrizzleInstitutionDashboardService(database),
+      },
       { provide: AUDIT_SERVICE, useValue: new DrizzleAuditService(database) },
       { provide: CONFIG_SERVICE, useValue: new DrizzleConfigService(database) },
     ],

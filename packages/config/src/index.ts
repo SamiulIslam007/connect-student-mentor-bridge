@@ -111,6 +111,13 @@ export const MATCH_ALUMNI_BATCH_DISTANCE = 0;
 export const IMPACT_RELIABILITY_MIN_SAMPLE = 3;
 
 /**
+ * The small-cohort suppression floor (FR-INST-02, D-213): a count below five is
+ * withheld and named. A code constant, not a configuration payload, because
+ * limits stay in code (D-184); one seam if that changes.
+ */
+export const INSTITUTION_COHORT_FLOOR = 5;
+
+/**
  * Rate-limit starting values, **placeholders pending pilot traffic**
  * (`docs/api-contracts.md` §9 keeps the concrete values Open as SEC-O2). They
  * are configuration, so tuning needs no code change. `ttl` is milliseconds,

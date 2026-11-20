@@ -1638,3 +1638,35 @@ date: 2026-10-29
 - Reason: the oldest file goes first so a backlog drains predictably, and a batch that fails part-way needs no whole-run retry: each file is independent and the next run re-examines whatever still has `deleted_at` null.
 - Status: Decided
 - Affects: `services/api/src/evidence/retention-job.ts`, `services/api/src/evidence/retention.ts`
+
+### D-211: The institution aggregate ships counts, never rates
+
+- Date: 2026-11-20
+- Decision: `GET /v1/institution/aggregates` returns whole-number counts only. Acceptance and timeliness ship as integer pairs (`requests_accepted` with `requests_decided`, `requests_decided_in_time` with `requests_late_or_expired`); no percentage, share, score or ranking is computed or sent.
+- Reason: the shape `D-114` to `D-116` removed from the reputation read, for the same two reasons — a rounded percentage is a lie at pilot volumes, and a share of one in four is a count of one, so it cannot be suppressed correctly.
+- Status: Decided
+- Affects: `services/api/src/institutions/institution-dashboard.service.ts`, `packages/contracts/openapi.yaml`, `docs/api-contracts.md` §5.7
+
+### D-212: `institution_id` is required, and both misses are one `404`
+
+- Date: 2026-11-20
+- Decision: the read takes a required `institution_id` (a uuid, `422` otherwise), and an id that names nothing and an id the caller does not administer answer the same `404 INSTITUTION_NOT_FOUND` body. The scope is `requireScopedInstitution`, which wraps `requireInstitutionAdmin` and returns the scoped id.
+- Reason: deriving the institution from the caller's single assignment would publish a wrong answer the day an admin holds two, and a different answer for the two misses would turn the parameter into an existence oracle. A platform admin holds no institution scope, so a platform admin is `403 ROLE_REQUIRED` here.
+- Status: Decided
+- Affects: `services/api/src/authorization/authorize.ts`, `services/api/src/institutions/institution-dashboard.controller.ts`, `packages/domain/src/identity.ts`, `docs/auth-and-access-control.md`
+
+### D-213: A count below the floor is omitted and named; the floor lives in config
+
+- Date: 2026-11-20
+- Decision: a metric below `INSTITUTION_COHORT_FLOOR = 5` is absent from the payload and named in a `suppressed` array; a by-field row below the floor is omitted entirely and no field id is named. The rule is the pure `withholdBelowFloor` / `withheldMetrics` in `@connect/domain`.
+- Reason: a null renders as zero and a rounded value is a lie, and naming a field id in `suppressed` would confirm that a small slice exists. One constant and one helper keep the settled floor from being retyped per query (D-184 keeps the value in code).
+- Status: Decided
+- Affects: `packages/domain/src/aggregates.ts`, `packages/config/src/index.ts`, `services/api/src/institutions/institution-dashboard.service.ts`
+
+### D-214: Keyset on name then id, default page 50, and the page is a follow-up
+
+- Date: 2026-11-20
+- Decision: `GET /v1/institutions` paginates on the `(name, id)` pair it already orders by, through an opaque base64url cursor; `limit` is 1 to 100 defaulting to 50; a malformed cursor and an out-of-range limit are `422`; `next_cursor` is null on the last page. No aggregates page ships with this change, and `/admin/institutions` does not follow the cursor yet.
+- Reason: offset pagination repeats or skips a row when an institution is created mid-walk, and the pilot holds a handful of institutions, so the default page is one page. A page needs an approved visual direction this round cannot produce, so it is `DEBT-68` rather than a hidden gap.
+- Status: Decided
+- Affects: `packages/domain/src/cursor.ts`, `services/api/src/institutions/drizzle-institutions.service.ts`, `packages/contracts/openapi.yaml`, `docs/known-debt.md`

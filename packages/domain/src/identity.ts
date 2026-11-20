@@ -232,6 +232,8 @@ export type IdentityErrorCode =
   | "CLAIM_ALREADY_DECIDED"
   /** A domain is already registered to an institution (any letter case). */
   | "INSTITUTION_DOMAIN_TAKEN"
+  /** The requested institution exists nowhere or is not in the caller's scope. */
+  | "INSTITUTION_NOT_FOUND"
   /** A lift was asked for an account that is not SUSPENDED (D-141). */
   | "ACCOUNT_NOT_SUSPENDED"
   /** Two writers assigned the same configuration version number (design R4). */
