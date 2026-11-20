@@ -901,7 +901,9 @@ test("the window is measured from the terminal instant, not earlier", async (con
   const settled = await settledOutcome(current, ".retain.boundary", "COUNTED", 89);
 
   const inside = await sweep(current, { dryRun: false });
-  assert.deepEqual(inside, { examined: 1, eligible: 0, deleted: 0, failed: 0, dryRun: false });
+  // The candidate query now filters on the origin itself (D-232), so a row inside
+  // the window is never examined — it is not merely skipped after the re-read.
+  assert.deepEqual(inside, { examined: 0, eligible: 0, deleted: 0, failed: 0, dryRun: false });
   assert.equal(storage.objects.size, 1, "one day inside the window is untouched");
 
   await current.client.query(
@@ -1011,4 +1013,146 @@ test("the retention action is filterable in the audit log", async (context) => {
   );
   assert.equal(filtered.status, 200, filtered.text);
   assert.equal((filtered.body?.data as unknown[]).length, 1);
+});
+
+/** A settled outcome whose file is attached, moving through COUNTED first. */
+async function reversalOrWithdrawal(
+  current: TestApiStack,
+  suffix: string,
+  status: "REVERSED" | "WITHDRAWN",
+  settledDaysAgo: number,
+  countedDaysAgo = 200,
+): Promise<{ outcomeId: string; evidenceId: string; student: string }> {
+  const { student, outcomeId } = await reportedOutcome(current, suffix);
+  const evidenceId = await attachedClean(current, outcomeId, student);
+  await current.client.query(
+    "UPDATE outcomes SET status = 'COUNTED', counted_basis = 'MENTOR_CONFIRMED', counted_at = now() - make_interval(days => $2), confirmed_at = now() - make_interval(days => $2) WHERE id = $1",
+    [outcomeId, countedDaysAgo],
+  );
+  await current.client.query(
+    status === "REVERSED"
+      ? "UPDATE outcomes SET status = 'REVERSED', reversed_at = now() - make_interval(days => $2) WHERE id = $1"
+      : "UPDATE outcomes SET status = 'WITHDRAWN', withdrawn_at = now() - make_interval(days => $2) WHERE id = $1",
+    [outcomeId, settledDaysAgo],
+  );
+  return { outcomeId, evidenceId, student };
+}
+
+/** One institution-sharing withdrawal, by the reporting student or by the mentor. */
+async function withdrawSharing(
+  current: TestApiStack,
+  outcomeId: string,
+  daysAgo: number,
+  who: "student" | "mentor",
+): Promise<void> {
+  const join =
+    who === "student"
+      ? "JOIN student_profiles sp ON sp.id = o.student_profile_id"
+      : "JOIN mentor_profiles mp ON mp.id = o.mentor_profile_id";
+  const column = who === "student" ? "sp.user_id" : "mp.user_id";
+  await current.client.query(
+    `INSERT INTO consent_records (user_id, purpose, action, document_version, occurred_at)
+     SELECT ${column}, 'INSTITUTION_DATA_SHARING', 'WITHDRAWN', '2026-11', now() - make_interval(days => $2)
+       FROM outcomes o ${join} WHERE o.id = $1`,
+    [outcomeId, daysAgo],
+  );
+}
+
+test("a reversal starts its own clock: a year-old count reversed yesterday keeps its file", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  await reversalOrWithdrawal(current, ".reverse.young", "REVERSED", 1, 365);
+
+  const result = await sweep(current, { dryRun: false });
+  assert.deepEqual(result, { examined: 0, eligible: 0, deleted: 0, failed: 0, dryRun: false });
+  assert.equal(storage.objects.size, 1, "the material the clawback was decided on survives");
+});
+
+test("a reversal past the window deletes the file and keeps the metadata", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const settled = await reversalOrWithdrawal(current, ".reverse.old", "REVERSED", 91);
+
+  const result = await sweep(current, { dryRun: false });
+  assert.deepEqual(result, { examined: 1, eligible: 1, deleted: 1, failed: 0, dryRun: false });
+  assert.equal(storage.objects.size, 0);
+  const row = await current.client.query<{ sha256: string; deleted_at: Date | null }>(
+    "SELECT sha256, deleted_at FROM outcome_evidence WHERE id = $1",
+    [settled.evidenceId],
+  );
+  assert.equal(row.rows[0]?.sha256, sha256(PDF), "the hash survives the file");
+  assert.ok(row.rows[0]?.deleted_at);
+  assert.deepEqual(await retentionAudit(current), [
+    { object_id: settled.evidenceId, actor_role: "SYSTEM" },
+  ]);
+});
+
+test("a withdrawal past the window deletes on withdrawn_at", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  await reversalOrWithdrawal(current, ".withdraw.old", "WITHDRAWN", 91, 200);
+
+  const result = await sweep(current, { dryRun: false });
+  assert.equal(result.deleted, 1);
+  assert.equal(storage.objects.size, 0);
+});
+
+test("an earlier institution-sharing withdrawal brings a counted outcome due", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const settled = await settledOutcome(current, ".consent.early", "COUNTED", 10);
+  await withdrawSharing(current, settled.outcomeId, 100, "student");
+
+  const result = await sweep(current, { dryRun: false });
+  assert.equal(result.deleted, 1, "the withdrawal instant starts the clock sooner");
+  assert.equal(storage.objects.size, 0);
+});
+
+test("a later withdrawal changes nothing", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const settled = await settledOutcome(current, ".consent.late", "COUNTED", 10);
+  await withdrawSharing(current, settled.outcomeId, 5, "student");
+
+  const result = await sweep(current, { dryRun: false });
+  assert.equal(result.examined, 0);
+  assert.equal(storage.objects.size, 1);
+});
+
+test("only the reporting student's withdrawal counts", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const settled = await settledOutcome(current, ".consent.mentor", "COUNTED", 10);
+  await withdrawSharing(current, settled.outcomeId, 100, "mentor");
+
+  const result = await sweep(current, { dryRun: false });
+  assert.equal(result.examined, 0, "the mentor's own consent is not the student's");
+  assert.equal(storage.objects.size, 1);
+});
+
+test("a settled row with a null matching instant is never due", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const { student, outcomeId } = await reportedOutcome(current, ".null.instant");
+  await attachedClean(current, outcomeId, student);
+  await current.client.query(
+    "UPDATE outcomes SET status = 'REVERSED', reversed_at = NULL, counted_at = now() - interval '400 days' WHERE id = $1",
+    [outcomeId],
+  );
+
+  const result = await sweep(current, { dryRun: false });
+  assert.equal(result.examined, 0);
+  assert.equal(storage.objects.size, 1);
+});
+
+test("the dry run reports the new eligible rows and deletes nothing", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  await reversalOrWithdrawal(current, ".dry.reverse", "REVERSED", 91);
+  await reversalOrWithdrawal(current, ".dry.withdraw", "WITHDRAWN", 91);
+
+  const result = await sweep(current, { dryRun: true });
+  assert.deepEqual(result, { examined: 2, eligible: 2, deleted: 0, failed: 0, dryRun: true });
+  assert.equal(storage.objects.size, 2);
+  assert.deepEqual(await retentionAudit(current), []);
 });
