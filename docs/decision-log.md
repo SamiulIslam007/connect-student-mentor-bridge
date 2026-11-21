@@ -1913,7 +1913,6 @@ date: 2026-10-29
 - Status: Decided (owner-approved as the audit's V2 recommendation)
 - Affects: `apps/web/app/globals.css`, `e2e/visual-contract.spec.ts`, `README.md` section 7.5
 
-<<<<<<< HEAD
 ### D-246: The marker moves on open, once per load and once per focus window
 
 - Date: 2026-11-21
@@ -1930,7 +1929,6 @@ date: 2026-10-29
 - What would change this decision: a pilot user missing replies because they only open the app at the directory.
 - Status: Decided (owner-approved as the audit's R2 recommendation)
 - Affects: `apps/web/app/requests/page.tsx`, `apps/web/lib/read-state.ts`, `apps/web/lib/strings.ts`
-=======
 ### D-244: Serious and critical axe violations fail the run; moderate and minor are recorded
 
 - Date: 2026-11-21
@@ -1939,7 +1937,6 @@ date: 2026-10-29
 - What would change this decision: the pilot reporting a real barrier from a moderate rule, in which case that rule is promoted to the gate individually.
 - Status: Decided (owner-approved as the audit's A1 recommendation)
 - Affects: `e2e/accessibility.spec.ts`, `e2e/support/axe.ts`, the `e2e` CI job
-
 ### D-245: The manual pass is a dated record, and it is what makes a DONE claim legitimate
 
 - Date: 2026-11-21
@@ -1948,33 +1945,6 @@ date: 2026-10-29
 - What would change this decision: a third-party accessibility audit before the pilot, which would become the record's source.
 - Status: Decided (owner-approved as the audit's A2 recommendation)
 - Affects: `docs/audit/2026-11-21-accessibility-pass.md`, `docs/functional-requirements.md`, `docs/known-debt.md`
-<<<<<<< HEAD
-
-### D-250: The host is chosen by the documented one-day test, with Render first
-
-- Date: 2026-11-21
-- Decision: no host is chosen by this change. `production-requirements.md` §5's one-day test decides, with Render as the first candidate; the ADR records it as `Proposed`. The test measures response time from a Bangladesh mobile connection, confirms PITR and bucket privacy, and records the monthly cost.
-- Reason: picking a provider from documentation would be a guess, and the test is one day of work the owner can do; a script for an unknown target is untested code.
-- Status: Decided (owner-approved as the audit's R5 recommendation); the provider itself remains an owner action.
-
-### D-251: Error tracking is Sentry's free tier, inert without a DSN, with a shared scrub list
-
-- Date: 2026-11-21
-- Decision: `@sentry/node` 11.16.0 in the API and worker, `@sentry/nextjs` 11.16.0 in the web app, initialised only when `SENTRY_DSN` is set. One scrub list in `packages/domain/src/observability-scrub.ts` drops `authorization`, `cookie`, `set-cookie`, `x-csrf-token`, `x-api-key`, `proxy-authorization`, the query string, and every key named password, token, secret, content, message, body, text, html, question, answer, summary or note; the user's email and IP are removed.
-- Reason: the pilot needs error visibility before real users, the free tier covers that volume, and an inert default keeps local development and CI unchanged. Scrubbing is a pure function so it is tested rather than trusted.
-- Status: Decided (owner-approved as the audit's R5 recommendation)
-- Affects: `services/api/src/platform/observability.ts`, `apps/web/instrumentation.ts`, `packages/domain/src/observability-scrub.ts`
-
-### D-252: The restore drill is dump-and-restore first, point-in-time second
-
-- Date: 2026-11-21
-- Decision: the first drill is `pg_dump` and `pg_restore` into a scratch database with row counts for `users`, `outcomes` and `audit_logs` and one authenticated read through the API against the restored data. A point-in-time variant is a second row, added once PITR is confirmed on the chosen plan.
-- Reason: the dump-and-restore drill proves the backup is readable and the application works against it; PITR proves the window. Both are needed, in that order, and the first is possible on any provider.
-- Status: Decided (owner-approved as the audit's R5 recommendation)
-- Affects: `docs/runbook.md` §7, `infra/deploy/deploy.sh`
-=======
-<<<<<<< HEAD
-
 ### D-248: The breach check uses the keyless range endpoint, and only a prefix leaves
 
 - Date: 2026-11-21
@@ -1982,7 +1952,6 @@ date: 2026-10-29
 - Reason: the range endpoint is free and keyless, which the pilot's cost envelope allows; the keyed `/breachedaccount` endpoint and commercial feeds are the paid alternative and are out of scope. SHA-1 is the provider's index only, never storage, so it must not be "upgraded" to SHA-256 (that would match nothing).
 - Status: Decided (owner-approved as the audit's R3 recommendation)
 - Affects: `packages/domain/src/password-breach.ts`, `services/api/src/identity/password-breach.ts`
-
 ### D-249: An unreachable provider accepts the password and logs one line
 
 - Date: 2026-11-21
@@ -1990,7 +1959,23 @@ date: 2026-10-29
 - Reason: failing closed turns a provider outage into a sign-up outage for every participant; a twelve-character minimum still applies, and the event is the alert the deployment change watches. The privileged-role exception is not half-built: it is `DEBT-77`.
 - Status: Decided (owner-approved as the audit's R4 recommendation)
 - Affects: `services/api/src/identity/password-breach.ts`, `services/api/src/identity/better-auth-identity.service.ts`, `docs/known-debt.md`
-=======
->>>>>>> origin/main
->>>>>>> origin/main
->>>>>>> origin/main
+### D-250: The host is chosen by the documented one-day test, with Render first
+
+- Date: 2026-11-21
+- Decision: no host is chosen by this change. `production-requirements.md` §5's one-day test decides, with Render as the first candidate; the ADR records it as `Proposed`. The test measures response time from a Bangladesh mobile connection, confirms PITR and bucket privacy, and records the monthly cost.
+- Reason: picking a provider from documentation would be a guess, and the test is one day of work the owner can do; a script for an unknown target is untested code.
+- Status: Decided (owner-approved as the audit's R5 recommendation); the provider itself remains an owner action.
+### D-251: Error tracking is Sentry's free tier, inert without a DSN, with a shared scrub list
+
+- Date: 2026-11-21
+- Decision: `@sentry/node` 11.16.0 in the API and worker, `@sentry/nextjs` 11.16.0 in the web app, initialised only when `SENTRY_DSN` is set. One scrub list in `packages/domain/src/observability-scrub.ts` drops `authorization`, `cookie`, `set-cookie`, `x-csrf-token`, `x-api-key`, `proxy-authorization`, the query string, and every key named password, token, secret, content, message, body, text, html, question, answer, summary or note; the user's email and IP are removed.
+- Reason: the pilot needs error visibility before real users, the free tier covers that volume, and an inert default keeps local development and CI unchanged. Scrubbing is a pure function so it is tested rather than trusted.
+- Status: Decided (owner-approved as the audit's R5 recommendation)
+- Affects: `services/api/src/platform/observability.ts`, `apps/web/instrumentation.ts`, `packages/domain/src/observability-scrub.ts`
+### D-252: The restore drill is dump-and-restore first, point-in-time second
+
+- Date: 2026-11-21
+- Decision: the first drill is `pg_dump` and `pg_restore` into a scratch database with row counts for `users`, `outcomes` and `audit_logs` and one authenticated read through the API against the restored data. A point-in-time variant is a second row, added once PITR is confirmed on the chosen plan.
+- Reason: the dump-and-restore drill proves the backup is readable and the application works against it; PITR proves the window. Both are needed, in that order, and the first is possible on any provider.
+- Status: Decided (owner-approved as the audit's R5 recommendation)
+- Affects: `docs/runbook.md` §7, `infra/deploy/deploy.sh`
