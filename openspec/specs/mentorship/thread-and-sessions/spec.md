@@ -301,7 +301,7 @@ The system SHALL store exactly one read marker per participant per mentorship, S
 
 #### Scenario: A read does not mark anything read
 
-- **WHEN** either participant lists the messages or reads the mentorship
+- **WHEN** either participant lists the messages or reads the mentorship without the page's own mark-read write
 - **THEN** no marker is written and no marker moves
 
 #### Scenario: A break-glass read leaves the markers alone
@@ -318,3 +318,27 @@ The system SHALL store exactly one read marker per participant per mentorship, S
 
 - **WHEN** a participant reads one mentorship or lists their mentorships
 - **THEN** each mentorship in the response carries `unread_count` and no message body, sender name or email address beyond the existing projection
+
+### Requirement: The browser keeps the read marker honest
+
+The mentorship page SHALL send the mark-read write when a participant opens the thread and again only after a refresh window, the mentorship list SHALL show each mentorship's `unread_count`, and the thread SHALL mark where the previous marker fell. A failed write SHALL keep the messages and SHALL NOT clear the marker of what was new.
+
+#### Scenario: Opening the thread marks it read
+
+- **WHEN** a participant opens the mentorship page
+- **THEN** the page sends the mark-read write for that mentorship exactly once per load, and renders the `unread_count` the response reports
+
+#### Scenario: The list shows what is waiting
+
+- **WHEN** a participant opens the mentorship list and one mentorship has an `unread_count` above zero
+- **THEN** that row shows the count, and a mentorship with a zero count shows no badge
+
+#### Scenario: New messages are marked in the thread
+
+- **WHEN** a participant opens a mentorship whose `unread_count` is above zero
+- **THEN** the thread marks the point where the participant's previous marker fell, and the marker disappears once the thread is marked read
+
+#### Scenario: A failed mark-read write does not lose the messages
+
+- **WHEN** the mark-read write is refused or fails
+- **THEN** the page keeps the thread rendered, shows the string-catalog error line, and does not claim the thread was marked read
