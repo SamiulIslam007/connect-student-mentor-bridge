@@ -23,6 +23,9 @@ x-api-environment: &api-environment
   CLAMAV_PORT: "3310"
   BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
   BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+  # The BFF signs the client key with this shared secret (D-253). Empty disables
+  # the forwarded key and falls back to the socket peer.
+  BFF_TRUST_SECRET: ${BFF_TRUST_SECRET:-}
   # Google sign-in (FR-AUTH-02): both or neither; empty keeps the provider off.
   GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
   GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
@@ -156,6 +159,8 @@ services:
       API_INTERNAL_URL: http://api:3001
       # The verify redirect is built from this origin, never from a request header.
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+      # The same secret the API uses to verify the forwarded client key (D-253).
+      BFF_TRUST_SECRET: ${BFF_TRUST_SECRET:-}
       # The two one-line rollbacks from the header work, passed through so the
       # documented flip works in the local container too (D-170, D-161).
       WEB_CSP_MODE: ${WEB_CSP_MODE:-enforce}

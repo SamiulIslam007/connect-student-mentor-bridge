@@ -24,7 +24,7 @@ import type { EmailMessage, EmailSender } from "../../src/email/email-sender.js"
 import { ProblemDetailsFilter } from "../../src/http/problem-details.filter.js";
 import { BodyAllowlistInterceptor } from "../../src/http/body-allowlist.interceptor.js";
 import { API_MAX_BODY_BYTES, EVIDENCE_CONTENT_TYPES, EVIDENCE_MAX_BYTES } from "../../src/http/request-body.js";
-import { accountTracker } from "../../src/http/account-throttler.js";
+import { accountTracker, clientTracker } from "../../src/http/account-throttler.js";
 import { RequestIdMiddleware } from "../../src/http/request-id.middleware.js";
 import {
   openTestDatabase,
@@ -161,7 +161,7 @@ export async function startApiStack(
   @Module({
     imports: options.throttle
       ? [ThrottlerModule.forRoot([
-          { name: "default", ttl: RATE_LIMITS.default.ttl, limit: RATE_LIMITS.default.limit },
+          { name: "default", ttl: RATE_LIMITS.default.ttl, limit: RATE_LIMITS.default.limit, getTracker: clientTracker },
           // Mirrors the application's second named throttler, so the account
           // bucket is exercised by the same wiring production uses (D-118).
           {
@@ -265,20 +265,27 @@ function tokenFromEmail(message: EmailMessage, pathFragment: string): string {
 }
 
 /** Registers and opens the verification link, which activates the account. */
-export async function registerAndVerify(stack: TestApiStack, email: string): Promise<void> {
+export async function registerAndVerify(
+  stack: TestApiStack,
+  email: string,
+  extraHeaders: Record<string, string> = {},
+): Promise<void> {
   const registration = await apiRequest(stack, "POST", "/v1/auth/register", {
     display_name: "Rahim Uddin",
     email,
     password: TEST_PASSWORD,
     date_of_birth: "2000-01-01",
     consent_accepted: true,
-  });
+  }, undefined, extraHeaders);
   assert.equal(registration.status, 200, "registration must succeed before verification");
   const token = tokenFromEmail(await stack.sender.last("verify-email"), "/api/auth/verify");
   const verified = await apiRequest(
     stack,
     "GET",
     `/v1/auth/verify?token=${encodeURIComponent(token)}`,
+    undefined,
+    undefined,
+    extraHeaders,
   );
   assert.equal(verified.status, 200);
 }

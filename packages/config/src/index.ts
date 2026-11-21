@@ -160,6 +160,8 @@ export const RATE_LIMITS = {
   /**
    * Per-account sign-in, hourly: one account tried from many addresses
    * (`DEBT-27`, D-118). A person never reaches it; a dictionary run does.
+   * Since D-253 the key also carries the source, so one source cannot spend the
+   * account's bucket for another.
    */
   accountAuth: { limit: 10, ttl: 3_600_000 },
   /** Per-account password reset and forgot-password, hourly (D-118). */

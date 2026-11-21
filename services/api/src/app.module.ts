@@ -15,7 +15,7 @@ import { AffiliationsModule } from "./affiliations/affiliations.module.js";
 import { DATABASE, DatabaseModule } from "./db/database.module.js";
 import type { Database } from "./db/database.js";
 import { DATABASE_PROBE, defaultProbe, HealthController } from "./health/health.controller.js";
-import { accountTracker } from "./http/account-throttler.js";
+import { accountTracker, clientTracker } from "./http/account-throttler.js";
 import { RequestIdMiddleware } from "./http/request-id.middleware.js";
 import { ProblemDetailsFilter } from "./http/problem-details.filter.js";
 import { BodyAllowlistInterceptor } from "./http/body-allowlist.interceptor.js";
@@ -59,7 +59,7 @@ import { RequestsModule } from "./requests/requests.module.js";
 @Module({
   imports: [
     ThrottlerModule.forRoot([
-      { name: "default", ttl: RATE_LIMITS.default.ttl, limit: RATE_LIMITS.default.limit },
+      { name: "default", ttl: RATE_LIMITS.default.ttl, limit: RATE_LIMITS.default.limit, getTracker: clientTracker },
       // The per-account bucket (D-118). Module-level default is permissive; only
       // the credential routes override it with @Throttle({ account: ... }).
       {

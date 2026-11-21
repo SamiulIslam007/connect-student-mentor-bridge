@@ -27,6 +27,9 @@ async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     bodyParser: false,
   });
+  // The API trusts the signed BFF key, never a forwarding header: `req.ip` stays
+  // the socket peer even if a caller sends `x-forwarded-for` (SEC-AUDIT-001).
+  app.set("trust proxy", false);
   // Before the body parser: a refused body still carries the security headers.
   app.use(apiSecurityHeaders);
   // Content-type scoped (design R10): only an evidence upload gets 5 MiB.
