@@ -25,6 +25,7 @@ import { ProblemDetailsFilter } from "../../src/http/problem-details.filter.js";
 import { BodyAllowlistInterceptor } from "../../src/http/body-allowlist.interceptor.js";
 import { API_MAX_BODY_BYTES, EVIDENCE_CONTENT_TYPES, EVIDENCE_MAX_BYTES } from "../../src/http/request-body.js";
 import { accountTracker, clientTracker } from "../../src/http/account-throttler.js";
+import { createEvidenceBodyAuth } from "../../src/http/evidence-body-auth.js";
 import { RequestIdMiddleware } from "../../src/http/request-id.middleware.js";
 import {
   openTestDatabase,
@@ -193,6 +194,8 @@ export async function startApiStack(
     logger: ["error"],
     bodyParser: false,
   });
+  // Mirrors `main.ts`: the session check runs before the 5 MiB raw parser.
+  app.use(createEvidenceBodyAuth(identity));
   // Mirrors `main.ts`: the binary exception is content-type scoped, so the JSON cap holds.
   app.useBodyParser("raw", { type: [...EVIDENCE_CONTENT_TYPES], limit: EVIDENCE_MAX_BYTES });
   app.useBodyParser("json", { limit: API_MAX_BODY_BYTES, strict: false });

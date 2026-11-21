@@ -494,13 +494,35 @@ test("a second file, a bad type, a bad size, a bad digest and a wrong header are
   assert.equal(wrongHeader.status, 422, wrongHeader.text);
 });
 
+test("an anonymous 6 MiB upload is refused at authentication, not at the parser", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const before = storage.objects.size;
+  // Before the fix the raw parser answered 413 at 5 MiB. Authentication must
+  // now answer 401 first, which is the only observable proof of the order.
+  const bytes = Buffer.alloc(6 * 1024 * 1024);
+
+  const response = await fetch(
+    `${current.baseUrl}/v1/outcomes/00000000-0000-0000-0000-000000000000/evidence/00000000-0000-0000-0000-000000000000/complete`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/pdf" },
+      body: new Uint8Array(bytes),
+    },
+  );
+  const text = await response.text();
+  assert.equal(response.status, 401, text.slice(0, 200));
+  assert.equal(JSON.parse(text).code, "UNAUTHENTICATED");
+  assert.equal(storage.objects.size, before, "an anonymous body stores no object");
+});
+
 test("an oversize binary body is refused at 5 MiB and the JSON cap stays 100 KiB", async (context) => {
   const current = requireStack(context);
   if (!current) return;
   const { student, outcomeId } = await reportedOutcome(current, ".caps");
   const evidenceId = await intentFor(current, outcomeId, student);
 
-  const oversize = Buffer.concat([PDF, Buffer.alloc(5 * 1024 * 1024)]);
+  const oversize = Buffer.concat([PDF, Buffer.alloc(6 * 1024 * 1024)]);
   const refused = await completeUpload(current, outcomeId, evidenceId, oversize, student);
   assert.equal(refused.status, 413, refused.text);
   assert.equal(refused.body?.code, "PAYLOAD_TOO_LARGE");
