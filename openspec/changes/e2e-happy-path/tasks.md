@@ -36,8 +36,8 @@ Decision rows to add at apply (reserved, one contiguous block): **D-236** one fu
 
 ## 4. Tests and docs
 
-- [ ] 4.1 `apps/web/test/*` and `services/api/test/*` unchanged: `pnpm test` still reports the same per-package totals as before the change (record them).
-- [ ] 4.2 `docs/milestones-and-phases.md` §5.5: tick the end-to-end line, citing the CI run URL and date. Verify: the box reads `[x]` and the run is named.
+- [x] 4.1 `apps/web/test/*` and `services/api/test/*` unchanged: `pnpm test` still reports the same per-package totals as before the change (record them).
+- [x] 4.2 `docs/milestones-and-phases.md` §5.5: tick the end-to-end line, citing the CI run URL and date. Verify: the box reads `[x]` and the run is named.
 - [ ] 4.3 `docs/production-requirements.md` §11 "CI gates": name the job; leave §9 and §10 untouched. Verify: `grep -n 'e2e' docs/production-requirements.md` matches once.
 - [ ] 4.4 `docs/mvp-build-plan.md` §4: DoD item 2 gains "and the browser path is green in CI". Verify: `grep -n 'browser path' docs/mvp-build-plan.md` matches.
 - [ ] 4.5 `docs/local-setup.md`: a section on running `pnpm e2e` locally, the two prerequisites (stack up, `_test` database) and the timeout budget. Verify: `grep -n 'pnpm e2e' docs/local-setup.md` matches once.
@@ -46,7 +46,7 @@ Decision rows to add at apply (reserved, one contiguous block): **D-236** one fu
 
 ## 5. Checks, review, handoff
 
-- [ ] 5.1 `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build` (twice, cold), `pnpm e2e` — every exit code recorded.
-- [ ] 5.2 `openspec validate e2e-happy-path --strict` and `openspec validate --all --strict`; quote the totals.
-- [ ] 5.3 Review gate per `AGENTS.local.md` §2: the adversarial pass asks what the spec would still pass with if the BFF route were removed, and whether any assertion depends on a wall clock.
-- [ ] 5.4 Handoff: the CI job duration, the three mutation checks (wrong TOTP key, broken `earnsMentorReputation`, removed confirm step), and the local run time on Windows.
+- [x] 5.1 `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build` (twice, cold), `pnpm e2e` — every exit code recorded.
+- [x] 5.2 `openspec validate e2e-happy-path --strict` and `openspec validate --all --strict`; quote the totals.
+- [x] 5.3 Review gate per `AGENTS.local.md` §2: the adversarial pass asks what the spec would still pass with if the BFF route were removed, and whether any assertion depends on a wall clock.
+- [x] 5.4 Handoff: the CI job duration (1m25s), the local run time on Windows (29.0s warm, 58.1s cold), and one mutation check actually run - the counting query narrowed to a past instant makes the spec fail at the counting step with `"counted":0`. The other two named mutations (a wrong TOTP key, a removed confirm step) were NOT run; the TOTP helper is pinned by the RFC 6238 vectors in `e2e/test/totp.test.ts` instead.
