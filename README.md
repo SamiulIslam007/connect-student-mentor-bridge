@@ -5,7 +5,7 @@
 
 | | |
 |---|---|
-| **Status** | **2026-11-21: `docs-truth-gate-doc-and-debt-targets` (archived) makes the gate documents match the code; PR #107, merge `b5605aa`.** Every box in `production-requirements.md` and `milestones-and-phases.md` section 5.5 now carries a citation in the same row or one `unmet:` line naming the change that owns the gap (D-240): the file moved from 3 ticked and 39 unticked to 19 ticked and 23 unticked, with 17 `unmet:`. README section 20 is rewritten from the archive, Q5 is answered, `DEBT-11` is retargeted, the admin session timeouts became `DEBT-74`, and the observability and styling gaps that had no row became `DEBT-75` and `DEBT-76`. Docs only. |
+| **Status** | **2026-11-21: `breached-password-check` closes `SEC-AUTH-3`'s last clause.** A password that appears in a public breach corpus is refused at registration and at password reset (`422 VALIDATION_FAILED` naming the field), using the Pwned Passwords range endpoint: only five hexadecimal characters of the SHA-1 leave the process, a 3-second budget applies, and an unreachable provider accepts the password while logging one line (D-248, D-249). `packages/domain/src/password-breach.ts` decides from the suffix list without I/O; `DEBT-67` closed, `DEBT-77` opened for the privileged-role variant. |
 | **Document role** | **Master README, the main source of truth** for the connect project |
 | **Audience** | Builder, future engineers, designers, advisors, pilot institutions, AI coding agents |
 | **Last reviewed** | 2026-11-21 |

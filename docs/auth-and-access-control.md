@@ -74,6 +74,7 @@ sources: README.md (sections 8, 12.1); connect-research-report.md (Sections 5.4,
 ### 4.3 Passwords (Proposed defaults)
 
 - Minimum length 12 characters; allow long passphrases (at least 64 characters); no forced composition rules and no scheduled rotation; reject passwords found in known breach lists. This follows the direction of current NIST guidance (**Unverified in this session**; confirm against the current text before approval).
+- The breach check is built: at registration and at password reset the password is checked against the Pwned Passwords range endpoint, so only five hexadecimal characters of its SHA-1 leave the process, never the password or the full digest; a provider that does not answer accepts the password and logs one line (D-248, D-249, `SEC-AUTH-3`).
 - Store only salted hashes using a modern password hashing algorithm (Argon2id or scrypt, per the library's secure default). Never log or return passwords or hashes.
 - Password reset links are single-use, expire in a short time (**Proposed default: 30 minutes**), and invalidate all existing sessions when used.
 

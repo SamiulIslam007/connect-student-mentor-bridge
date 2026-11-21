@@ -87,6 +87,11 @@ export interface StartApiStackOptions {
   google?: { clientId: string; clientSecret: string };
   /** Replay the migrations before booting (default true). */
   reset?: boolean;
+  /**
+   * The breach answer the identity service receives. Defaults to clean so no test
+   * reaches the provider; a case that needs a refusal passes `breached`.
+   */
+  breach?: (password: string) => "clean" | "breached" | "unavailable";
   /** Register the global throttler (default false: shared stacks would exhaust it). */
   throttle?: boolean;
 }
@@ -147,6 +152,7 @@ export async function startApiStack(
     database: connection.db,
     secret: TEST_AUTH_SECRET,
     providerIds: options.google ? ["google"] : [],
+    breachChecker: { check: async (password: string) => options.breach?.(password) ?? "clean" },
   });
 
   const controllers = options.controllers;

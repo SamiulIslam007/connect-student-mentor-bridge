@@ -4,7 +4,7 @@
 
 ### Requirement: Password policy
 
-The system SHALL accept passwords of at least 12 characters with no composition rules, SHALL accept long passphrases, SHALL store only a salted hash, and SHALL refuse a password that appears in a public breach corpus at registration and at password reset. The breach check SHALL send to the provider only the first five characters of the password's SHA-1 digest, SHALL never send the password itself, any further digest characters, the email address or a user identifier, and SHALL accept the password when the provider cannot answer.
+The system SHALL accept passwords of at least 12 characters with no composition rules, SHALL accept long passphrases, SHALL store only a salted hash.
 
 #### Scenario: Short password rejected
 
@@ -15,6 +15,12 @@ The system SHALL accept passwords of at least 12 characters with no composition 
 
 - **WHEN** any authentication request succeeds or fails
 - **THEN** no log line, audit metadata, or error body contains the password or a password hash
+
+## ADDED Requirements
+
+### Requirement: A password is checked against a public breach corpus
+
+The system SHALL refuse, at registration and at password reset, a password that appears in a public breach corpus. The check SHALL send to the provider only the first five characters of the password's SHA-1 digest and SHALL never send the password itself, any further digest characters, the email address or a user identifier. It SHALL accept the password when the provider cannot answer, and SHALL cache one answer per prefix for its window.
 
 #### Scenario: A breached password is refused at registration
 
