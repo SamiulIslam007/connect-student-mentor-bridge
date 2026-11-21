@@ -6,4 +6,4 @@
 # Historical false positive: the SHA-1 of the documented breach example, used as a
 # test vector and never a credential. The constant was renamed to EXAMPLE_DIGEST so
 # the rule stops matching; this entry only suppresses the finding in the earlier commit.
-572316994fbaac8fef4b82e30abad1e1a480627d:packages/domain/test/password-breach.test.ts:generic-api-key:***
+572316994fbaac8fef4b82e30abad1e1a480627d:packages/domain/test/password-breach.test.ts:generic-api-key:8
