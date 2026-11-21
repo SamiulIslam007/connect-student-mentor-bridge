@@ -220,6 +220,14 @@ label,
   color: var(--ink);
 }
 
+/* Date and time inputs draw focus on their shadow sub-field, so the border
+   carries the ring for them as well. */
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  border-color: var(--focus-ring);
+}
+
 input,
 select,
 textarea {

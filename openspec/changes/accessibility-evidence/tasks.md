@@ -68,5 +68,5 @@ Decision rows to add at apply (reserved, one contiguous block): **D-244** seriou
   a branch with one serious rule broken on purpose was not pushed; the local self-check ("the runner detects a violation it
   is shown") proves the same thing without a second CI cycle.
 - **Findings:** the baseline was zero violations at every severity on all 23 surfaces, so tasks 3.1-3.3 had nothing to fix;
-  3.4 produced two CSS additions (`input:focus-visible` border colour) found by the keyboard walk, not by axe.
+  3.4 produced one CSS addition - a `:focus-visible` border colour on inputs, selects and text areas - found by the keyboard walk, not by axe.
 - **Admin surfaces** were audited signed out; a seeded `PLATFORM_ADMIN` would need its printed password inside the suite.
