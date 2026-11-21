@@ -102,10 +102,10 @@ sources: README.md (sections 8, 12.1); connect-research-report.md (Sections 5.4,
 | Item | Implemented (2026-11-03) |
 |---|---|
 | Session model | Postgres-backed cookie session held by better-auth; the session row is the source of truth. No access/refresh token pair (D-31) |
-| Session lifetime | 30 days, refreshed at most once a day (`updateAge` 1 day). A revoked row fails the next request immediately. Admin idle and absolute timeouts arrive in Sprint 7 with the admin surface (D-48) |
+| Session lifetime | 30 days, refreshed at most once a day (`updateAge` 1 day). A revoked row fails the next request immediately. Admin idle and absolute timeouts are **not built**; `DEBT-74` owns them (D-48, D-241) |
 | Web storage | **httpOnly, Secure outside development, SameSite=Lax cookie** set by the `apps/web` route handlers. No token in `localStorage`, `sessionStorage`, or any response body the browser can read |
 | CSRF | Next.js same-origin form handling plus SameSite=Lax during the pilot; a dedicated token is a Sprint 7 hardening item |
-| Idle timeout | 30 minutes (admin) and 8 hours (privileged roles) are **deferred to Sprint 7** with the admin surface (D-48); Student and Mentor have no shorter idle timeout in Sprint 1 |
+| Idle timeout | 30 minutes (admin) and 8 hours (privileged roles) are **not implemented** (`DEBT-74`, D-48); Student and Mentor have no shorter idle timeout |
 | Absolute lifetime | 30 days for every role in Sprint 1; the admin 8-hour absolute lifetime arrives in Sprint 7 with the admin surface (D-48) |
 | Revocation | Sign-out, sign-out-everywhere, and password reset delete session rows. Password reset revokes every session for the account (SEC-AUTH-5 maps to session-row revocation, not a refresh-token family) |
 | Concurrent sessions | Allowed. `GET /v1/me/sessions` lists the caller's live sessions with safe metadata only (no token), and `DELETE /v1/me/sessions/{id}` is idempotent for the caller's own ids and `404` for another account's id (implemented 2026-11-04, `access-google-mfa-and-sessions`) |
@@ -354,7 +354,7 @@ Rate limits and lockouts on sign-in, sign-up, password reset, and request creati
 2. **Negative tests:** unauthenticated (`401`), wrong role (`403`), wrong owner or another institution's object (`404` or `403`), wrong state (`409`).
 3. **IDOR tests:** substituting another user's ID in every path and body field is rejected.
 4. **Policy unit tests:** every predicate in section 8.2 has tests for each branch, including the conflict-of-interest rule and dual-role cases.
-5. **Session tests:** sign-out, sign-out-everywhere, password reset, suspension, and deactivation revoke the session row and the next request fails immediately; admin timeouts arrive with `access-google-mfa-and-sessions`.
+5. **Session tests:** sign-out, sign-out-everywhere, password reset, suspension, and deactivation revoke the session row and the next request fails immediately; admin timeouts are not built (`DEBT-74`).
 6. **CI gate:** a route without a declared policy fails the build.
 
 ## 17. Open decisions

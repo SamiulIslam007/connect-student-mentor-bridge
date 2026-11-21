@@ -1876,3 +1876,21 @@ date: 2026-10-29
 - What would change this decision: the challenge flow using a code other than a six-digit TOTP.
 - Status: Decided (a proposal-time decision, beyond the audit's list)
 - Affects: `e2e/support/totp.ts`, `e2e/test/totp.test.ts`
+
+### D-240: A gate box is ticked only with a citation in the same row
+
+- Date: 2026-11-21
+- Decision: in `docs/production-requirements.md`, `docs/milestones-and-phases.md` and any other gate checklist, a box becomes `[x]` only when the same row names the file and the test or command that proves it. A box whose evidence does not exist stays `[ ]` with a one-line `unmet: <gap>` naming the change that owns it where one exists.
+- Reason: the files were wrong in both directions - 39 unticked boxes for controls that are built and tested, and a sentence pointing at a change archived two weeks earlier. A citation makes the next drift visible in the diff instead of in an audit.
+- Alternatives rejected: ticking everything that looks built, which is how the file got here; deleting the checklists, which loses the gate document the pilot decision reads.
+- Status: Decided (owner-approved as the audit's DT1 recommendation)
+- Affects: `docs/production-requirements.md` sections 4, 7, 8, 9, 10 and 13; `docs/milestones-and-phases.md` section 5.5; `docs/assumptions-and-open-questions.md` Q5
+
+### D-241: `DEBT-11` and `DEBT-14` are retargeted, and the admin session timeouts get their own row
+
+- Date: 2026-11-21
+- Decision: `DEBT-11` (SMTP failover and the identity library's inline mail) is retargeted at `first-deployment-restore-drill-and-observability`. `DEBT-14` keeps its profile-visibility clause and target; its admin idle and absolute timeout clause moves to a new `DEBT-74`, targeted at a named `admin-session-timeouts` change, because a security control on the most privileged role must not stay buried in a narrowed row whose target has closed.
+- Reason: `docs/known-debt.md` section 3 requires one owner and one target per row, and both rows named Sprint 7, which finished without either item; a row whose target no longer exists is invisible to planning.
+- What would change this decision: the owner deciding the timeouts are out of the pilot's scope, in which case `DEBT-74` is marked `Deferred (owner decision)` rather than deleted.
+- Status: Decided (owner-approved as the audit's DT2 recommendation)
+- Affects: `docs/known-debt.md`, `docs/auth-and-access-control.md`

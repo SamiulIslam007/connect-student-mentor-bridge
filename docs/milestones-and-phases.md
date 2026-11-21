@@ -18,7 +18,7 @@ sources: [README.md, connect-research-report.md (Sections 5, 6, 7, 9, 10)]
 | Phase | 1a - MVP build |
 | Current sprint | Round five closed: `institution-dashboard-aggregates`, `idempotency-key-on-writes`, `signup-bot-protection`, `evidence-retention-edges` and `pilot-runbook-and-docs-truth` are merged and archived (PR #96 to #99, then this change's PR). |
 | Last archived change | `e2e-happy-path` (2026-11-21) - `DONE`: the repository has an end-to-end test. `e2e/happy-path.spec.ts` drives chromium from sign-up through the verification link read out of Mailpit, a profile, a request, the mentor's password and TOTP sign-in, accept, a thread message, an outcome, the confirmation and the counted impact read, against its own `connect_e2e_test` database, which it drops, migrates and seeds and which must end in `_test`. A fourth CI job runs it (1m34s). The demo seed had to change with it: the mentors had no credential row, their TOTP secret was stored as plaintext the library cannot decrypt, and `two_factor_enabled` was false, so nothing challenged the factor. PR #105, merge `2f9741d`; D-236 to D-239; `DEBT-73` closed. |
-| In flight | None. |
+| In flight | `docs-truth-gate-doc-and-debt-targets` (D-240, D-241): the gate documents reconciled against the code - `production-requirements.md` now reads 19 ticked boxes with a citation each and 17 `unmet:` lines instead of 3 ticked and 39 unticked, `milestones-and-phases.md` section 5.5 is reconciled the same way, Q5 is answered, `DEBT-11` is retargeted, `DEBT-14` is split into `DEBT-74`, and the observability (`DEBT-75`) and styling (`DEBT-76`) gaps get rows. |
 | Next change | Not queued. The cheapest remaining points are `FR-UX-04` (an automated AA run), `FR-THR-02` (the read-state UI) and `FR-DISC-02`; `FR-REP-02`/`FR-REP-03` wait on pilot calibration. |
 | Open blockers | None. `DEBT-67` (the breached-password clause) needs an owner decision before it can be built. |
 ## 1. Purpose and scope
@@ -148,19 +148,19 @@ Cut from the top. Items below the line are never cut.
 
 ### 5.5 MVP acceptance (Gate 1)
 
-- [ ] A new user can sign up with Google or email and password, verify email, pass the 18+ gate, and complete a profile.
-- [ ] A mentor with Level 1 affiliation can receive requests; an unverified mentor cannot.
-- [ ] Students and mentors create or pick fields; no hard-coded field list is required.
-- [ ] A student can send a structured request; the mentor can accept or decline; the request expires at 48 hours.
-- [ ] Async thread works between participants only (object-level authorization tested).
-- [ ] A student can report an outcome; a mentor can confirm, amend contribution, or dispute; **unconfirmed outcomes never change reputation** (tested).
-- [ ] Reputation is recomputed from the append-only ledger and gives the same result each time.
-- [ ] A platform admin can resolve a dispute with a reason; institution admins cannot edit outcomes.
-- [ ] Consent records and audit log entries are written for the required events.
-- [ ] Data export (with download) and deletion requests can be created and tracked.
-- [ ] The whole system runs from `docker compose up` locally, and CI builds the images.
+- [x] A new user can sign up with email and password, verify email, pass the 18+ gate, and complete a profile - `e2e/happy-path.spec.ts` drives it in a browser and `services/api/test/registration-refusal.test.ts` proves the age refusal. Google sign-in is built (`services/api/src/identity/`) but its success path is UNVERIFIED without owner credentials (`DEBT-15`).
+- [x] A mentor with Level 1 affiliation can receive requests; an unverified one cannot - `services/api/test/affiliations.integration.test.ts`, `requests.integration.test.ts`, and the accept step in `e2e/happy-path.spec.ts`.
+- [x] Students and mentors create or pick fields from a dynamic list - `services/api/test/fields.test.ts`, `profiles.integration.test.ts`; the sign-up path creates a field from the profile form in `e2e/happy-path.spec.ts`.
+- [x] A structured request can be sent, accepted, declined or withdrawn and expires at 48 hours - `services/api/test/requests.integration.test.ts`; accepted in a browser in `e2e/happy-path.spec.ts`.
+- [x] The thread works between participants only - `services/api/test/mentorship.integration.test.ts` (a third account gets `404`) and the message step in `e2e/happy-path.spec.ts`.
+- [x] An outcome can be reported, confirmed, disputed, declared in conflict or withdrawn, and only a confirmed one can count - `services/api/test/outcomes.integration.test.ts`, `reputation.integration.test.ts`, and the browser path in `e2e/happy-path.spec.ts`.
+- [x] The snapshot replays from the ledger to the same numbers - `services/api/test/reputation.integration.test.ts` (replay assertion), plus `packages/domain/test/aggregates.test.ts`.
+- [x] A platform admin with a second factor resolves a dispute with a written reason, and an institution admin cannot - `services/api/test/reports.integration.test.ts`, `authorization-matrix.test.ts`.
+- [x] Consent rows are append-only and one audit row accompanies each recorded event - `services/api/test/consent.integration.test.ts`, `audit-read.integration.test.ts`.
+- [x] Export returns one JSON document and deletion tombstones the account in one transaction, both tracked in `privacy_requests` - `services/api/test/privacy.integration.test.ts`. The browser download control is the one part `FR-PRIV-01` still calls partial.
+- [x] `docker compose up` starts the stack and the `images` job builds both images - `compose.yaml`, `docs/local-setup.md`, `.github/workflows/ci.yml`.
 - [x] CI green: lint, type-check, unit tests, API contract tests, one end-to-end test of the happy path. `e2e/happy-path.spec.ts` (chromium: sign-up, verification, profile, request, accept behind the mentor's second factor, thread, outcome, confirmation, counted impact) passes in the `e2e` job - run 44872068986 on 2026-11-21, 1m25s; `pnpm e2e` locally 1 passed in 29.0s.
-- [ ] No open decision blocks the above.
+- [ ] No open decision blocks the above - **unmet, and not blocking by decision**: the hosting provider and region are still open (`production-requirements.md` section 5 says Gate 1 does not require a deployed environment), and `OUT-Q1`/`FBK-Q1` stay recorded as questions the code answers conservatively (D-63). The owner confirms this line at Gate 1.
 
 Passing Gate 1 means **MVP code complete for internal and test use**. It does **not** mean real pilot users may be onboarded. That requires Gate 2.
 

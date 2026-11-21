@@ -71,12 +71,12 @@ Rules: separate databases, buckets, secrets, and email sender per environment. N
 
 ### 4.2 Requirements
 
-- [ ] One command starts the full stack locally (`docker compose up`), from a clean checkout, with documented seed data.
-- [ ] Images are built by CI, tagged with the git commit, and the **same image** is promoted staging to production.
-- [ ] Images run as non-root, have a health endpoint (`/healthz`), and have pinned base image versions.
-- [ ] Migrations run as a separate, explicit step before the new version starts. Migrations are forward-compatible with the previous version so rollback is possible.
-- [ ] `.env` files are never committed; `.env.example` lists every variable without values.
-- [ ] Container and dependency scanning runs in CI.
+- [x] One command starts the full stack locally (`docker compose up`), from a clean checkout, with documented seed data - `compose.yaml` plus `docs/local-setup.md`; the `e2e` job boots the same API and web app from source and seeds its own database (`e2e/support/prepare.ts`).
+- [ ] Images are built by CI (`images` job in `.github/workflows/ci.yml`, both Dockerfiles) and scanned; tagging with the git commit and promotion are **unmet: no registry and no host yet, owned by `first-deployment-restore-drill-and-observability`**.
+- [x] Images run as non-root (`USER node` in `infra/docker/Dockerfile.api:59` and `Dockerfile.web:61`), have a health endpoint (`infra/docker/healthcheck.mjs`, `apps/web/app/healthz`), and pin their base image (`node:${NODE_VERSION}-alpine` from `.nvmrc`).
+- [ ] Migrations run as a separate, explicit step before the new version starts - documented and hand-run (`docs/runbook.md`, `pnpm --filter api db:migrate`); automated invocation and the forward-compatibility guarantee are **unmet: owned by the deployment change**.
+- [x] `.env` files are never committed (`.gitignore`, and Gitleaks in the `security` job scans every change); `.env.example` lists every variable without values.
+- [x] Container and dependency scanning runs in CI - `trivy` on both images at HIGH/CRITICAL and `pnpm audit --audit-level high` (`images` and `security` jobs).
 
 ## 5. Hosting
 
@@ -115,47 +115,47 @@ From README section 13 and research doc 8. These are **targets, not an SLA** (on
 
 Detailed controls live in `security-requirements.md`. Launch-blocking minimum:
 
-- [ ] Authentication with email verification; MFA for mentors, institution admins, and platform admins.
-- [ ] Role-based access plus **object-level authorization** on every endpoint (a mentor acts only on their own mentorships). Tests prove it.
-- [x] Postgres-backed cookie sessions with httpOnly, SameSite=Lax, Secure cookies on web; sign-out, sign-out-everywhere, password reset, suspension, and deactivation revoke session rows (D-31). Admin idle timeouts arrive with `access-google-mfa-and-sessions`.
-- [ ] Rate limits and brute-force protection on sign-up, sign-in, and request creation.
-- [ ] Input validation on every endpoint; output encoding on web.
-- [ ] Secrets in the hosting secret store; never in the repository, logs, or agent prompts.
-- [ ] Evidence files: private bucket, signed short-lived URLs, type and size limits, malware scan before availability.
-- [ ] Audit log for verification, disputes, admin actions, and exports; entries immutable.
-- [ ] Platform-admin access to threads or evidence is **break-glass** and logged.
-- [ ] TLS everywhere; security headers; dependency and container scanning green in CI.
-- [ ] Logs and error reports contain no tokens, message bodies, or evidence content.
+- [x] Authentication with email verification; MFA for mentors, institution admins, and platform admins - `services/api/src/authorization/authorize.ts` (`requiresMfa`), asserted by `services/api/test/authorization-matrix.test.ts`; the mentor path runs end to end in `e2e/happy-path.spec.ts`.
+- [x] Role-based access plus **object-level authorization** on every endpoint - `services/api/test/authorization-matrix.test.ts` walks every registered route, and `services/api/test/mentorship.integration.test.ts` proves a third account gets `404`.
+- [x] Postgres-backed cookie sessions with httpOnly, SameSite=Lax, Secure cookies on web; sign-out, sign-out-everywhere, password reset, suspension, and deactivation revoke session rows (D-31) - `apps/web/lib/session-cookie.ts` and `services/api/test/identity.integration.test.ts`. The admin idle and absolute session timeouts are **not built**: `DEBT-74` owns them (D-48).
+- [x] Rate limits and brute-force protection on sign-up, sign-in, and request creation - `RATE_LIMITS` in `packages/config/src/index.ts`, the per-account throttler, and `services/api/test/rate-limits.integration.test.ts`.
+- [x] Input validation on every endpoint; output encoding on web - `packages/contracts/src/body-keys.ts` behind the allowlist interceptor, `services/api/test/request-validation.integration.test.ts`, and React escaping with no raw HTML injection in `apps/web`.
+- [ ] Secrets in the hosting secret store - **unmet: no host yet**, owned by `first-deployment-restore-drill-and-observability`; the repository side is enforced today (`.env` gitignored, Gitleaks in CI, `.env.example` carries names only).
+- [x] Evidence files: private bucket, signed short-lived URLs, type and size limits, malware scan before availability - `services/api/src/evidence/`, `services/api/test/evidence.integration.test.ts` and `evidence-scan.test.ts`.
+- [x] Audit log for verification, disputes, admin actions, and exports; entries immutable - `services/api/src/identity/audit-log.ts`, `services/api/test/audit-read.integration.test.ts` and `audit-denial.test.ts`.
+- [x] Platform-admin access to threads is **break-glass**, MFA-gated and logged - `services/api/test/break-glass.integration.test.ts`.
+- [x] Security headers on every API and web response, and dependency and container scanning green in CI - `services/api/test/security-headers.integration.test.ts`, `apps/web/lib/security-headers.ts` with its test, the `images` and `security` jobs. TLS everywhere is **unmet: no host yet**.
+- [ ] Logs and error reports contain no tokens, message bodies, or evidence content - **unmet: no error reporter yet** (`DEBT-75`); the API's logs are structured event names only and `services/api/test/request-id-coverage.test.ts` covers the request id, not redaction.
 
 ## 8. Data protection requirements for launch
 
-- [ ] Consents C1 and C2 implemented, versioned, and append-only (see `data-privacy-and-retention.md`).
-- [ ] Privacy notice, terms, and community guidelines published (drafts reviewed by counsel before Gate 2).
-- [ ] Data export and deletion requests can be created, tracked, and completed.
-- [ ] 18+ gate enforced.
-- [ ] Retention jobs implemented for evidence files (90 days after counting) and logs.
-- [ ] Processor list complete with agreements accepted.
+- [x] Consents C1 and C2 implemented, versioned, and append-only - `services/api/src/consents/`, `services/api/test/consent.integration.test.ts`, `CONSENT_DOCUMENT_VERSION`.
+- [x] Privacy notice and terms published at `/privacy` and `/terms` from the versioned catalog - `apps/web/app/privacy/page.tsx`, `apps/web/app/terms/page.tsx`, `apps/web/test/consent.test.ts`; counsel review stays a Gate 2 condition.
+- [x] Data export and deletion can be created and completed - `services/api/test/privacy.integration.test.ts`, with one `privacy_requests` row per request.
+- [x] 18+ gate enforced - `packages/domain/src/age-gate.ts` with `packages/domain/test/age-gate.test.ts`, and the registration refusal in `services/api/test/registration-refusal.test.ts`.
+- [ ] Retention for evidence files is implemented and **ships in dry run** until `EVIDENCE_RETENTION_DRY_RUN=false` (`services/api/test/evidence-retention-job.test.ts`, `docs/runbook.md`); log retention is **unmet: no log store yet** (`DEBT-75`).
+- [ ] Processor list complete with agreements accepted - **unmet: no provider chosen**, an owner action before Gate 2.
 
 ## 9. Observability
 
 | Need | Minimum for pilot |
 |---|---|
-| Errors | Sentry for web, API, and worker, with personal data scrubbed |
-| Logs | Structured logs with request ID; searchable; 90-day retention |
-| Uptime | External uptime check on `/healthz` and the login page; alert to Owner by email and phone push |
-| Metrics | Request rate, error rate, latency, job queue age, email failures |
+| Errors | Sentry for web, API, and worker, with personal data scrubbed. **unmet: owned by `first-deployment-restore-drill-and-observability`** |
+| Logs | Structured logs with request ID (built: one JSON line per event, `services/api/test/request-id-coverage.test.ts`); a searchable store and 90-day retention are **unmet: same change** |
+| Uptime | External uptime check on `/healthz` and the login page; alert to Owner by email and phone push. **unmet: same change** |
+| Metrics | Request rate, error rate, latency, job queue age, email failures. **unmet: same change** |
 | Business events | Internal table for KPI events (match acceptance, response time, outcome confirmation) |
-| Alerts | Error spike, uptime failure, backup failure, failed jobs older than 1 hour |
+| Alerts | Error spike, uptime failure, backup failure, failed jobs older than 1 hour. **unmet: same change** |
 
 OpenTelemetry tracing is Later (multi-service need).
 
 ## 10. Backup and recovery
 
-- [ ] Daily automated backups and point-in-time recovery enabled on managed Postgres.
-- [ ] Object storage versioning or replication for evidence files (or accepted loss, documented).
-- [ ] **A restore is actually performed** into a scratch environment before Gate 2 and repeated every quarter. The date, duration, and result are written down.
+- [ ] Daily automated backups and point-in-time recovery on managed Postgres - **unmet: no managed Postgres yet**, owned by the deployment change.
+- [ ] Object storage versioning or replication for evidence files - **unmet: same change**.
+- [ ] **A restore is actually performed** into a scratch environment before Gate 2 and repeated every quarter - **unmet: needs a real host**; the procedure and its record table exist in `docs/runbook.md` and nothing is recorded in them yet.
 - [x] Recovery steps are written in the runbook (section 12) — `docs/runbook.md` §4.
-- [ ] Backup failure triggers an alert.
+- [ ] Backup failure triggers an alert - **unmet: same change**.
 
 ## 11. Release process
 
@@ -205,7 +205,7 @@ Agent rule: agents may branch and commit on feature branches only. A human appro
 
 - [ ] All items in `milestones-and-phases.md` section 5.5 pass.
 - [ ] Sections 4, 7 (minimum), 9, and 10 (backups on) are done.
-- [ ] Staging and production deploy from the same image.
+- [ ] Staging and production deploy from the same image - **unmet: no host**; section 5 records that Gate 1 does not require a deployed environment, so this line and section 5 disagree and the owner decides it rather than this file resolving it silently.
 
 ### 13.2 Pilot launch (Gate 2, before real users)
 
