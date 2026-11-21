@@ -142,7 +142,8 @@ test("the happy path: sign-up, verify, profile, request, accept, message, outcom
   // The row for this run's question, not any other pending request.
   const receivedRow = mentorPage
     .locator("li")
-    .filter({ hasText: "How do I prepare for a backend interview?" });
+    .filter({ hasText: "How do I prepare for a backend interview?" })
+    .first();
   await receivedRow.getByRole("button", { name: labels.requests.accept }).click();
   await expect(mentorPage.getByText(labels.requests.accepted)).toBeVisible();
   console.log("step 5e: accepted");
@@ -152,6 +153,7 @@ test("the happy path: sign-up, verify, profile, request, accept, message, outcom
   const openLink = mentorPage
     .locator("li")
     .filter({ hasText: "How do I prepare for a backend interview?" })
+    .first()
     .getByRole("link", { name: labels.requests.openMentorship });
   await expect(openLink).toBeVisible();
   await openLink.click();
@@ -163,10 +165,30 @@ test("the happy path: sign-up, verify, profile, request, accept, message, outcom
   await mentorPage.getByLabel(labels.mentorship.messageLabel).fill(message);
   await mentorPage.getByRole("button", { name: labels.mentorship.send }).click();
   await expect(mentorPage.getByText(labels.mentorship.sent)).toBeVisible();
+
+  // The student's list shows the count until the thread is actually opened; the
+  // page then writes the marker, which is the only thing that clears it (D-246).
+  await studentPage.goto("/requests");
+  const sentTabNow = studentPage.getByRole("button", { name: labels.requests.sent, exact: true });
+  if (await sentTabNow.isEnabled()) {
+    await sentTabNow.click();
+  }
+  await expect(studentPage.getByText(labels.requests.unreadOne)).toBeVisible();
+
   await studentPage.goto(`/mentorship/${mentorshipId}`);
   await expect(studentPage.getByText(message)).toBeVisible();
+  await expect(studentPage.getByText(labels.mentorship.newMessages)).toBeVisible();
+
+  await studentPage.goto("/requests");
+  const sentTabAfter = studentPage.getByRole("button", { name: labels.requests.sent, exact: true });
+  if (await sentTabAfter.isEnabled()) {
+    await sentTabAfter.click();
+  }
+  await expect(studentPage.getByText(labels.requests.unreadOne)).toHaveCount(0);
 
   console.log("step 7: outcome and confirm");
+  // Back on the thread: the outcome form lives there, not on the list.
+  await studentPage.goto(`/mentorship/${mentorshipId}`);
   await studentPage.getByLabel(labels.outcome.type).selectOption("INTERNSHIP");
   await studentPage.getByLabel(labels.outcome.contribution).selectOption("DIRECTLY_ENABLED");
   await studentPage

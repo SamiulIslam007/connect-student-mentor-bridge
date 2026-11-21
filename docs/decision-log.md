@@ -1913,6 +1913,24 @@ date: 2026-10-29
 - Status: Decided (owner-approved as the audit's V2 recommendation)
 - Affects: `apps/web/app/globals.css`, `e2e/visual-contract.spec.ts`, `README.md` section 7.5
 
+<<<<<<< HEAD
+### D-246: The marker moves on open, once per load and once per focus window
+
+- Date: 2026-11-21
+- Decision: `/mentorship/{id}` posts `POST /v1/mentorships/{id}/read` when the thread loads and again only after a 30-second focus window (`shouldMarkRead` in `apps/web/lib/read-state.ts`). A read of the thread never moves the marker by itself, scrolling never marks anything read, and a failed write keeps the thread and shows the catalog error line.
+- Reason: the marker is the server's record of what a person has seen; a scroll heuristic or a silent page-level write marks messages read that nobody read, and a re-render would double-post.
+- Status: Decided (owner-approved as the audit's R1 recommendation)
+- Affects: `apps/web/app/mentorship/[id]/page.tsx`, `apps/web/lib/read-state.ts`, `apps/web/app/api/mentorships/[[...path]]/route.ts`
+
+### D-247: The count appears on the list and in the thread, nowhere else
+
+- Date: 2026-11-21
+- Decision: `/requests` shows a badge for a non-zero `unread_count` (one read for the whole page from `GET /api/mentorships`) and the thread draws a "new messages" divider where the previous marker fell. No navigation badge, no poller, no read receipts.
+- Reason: those are the two surfaces that already read mentorships; a global badge needs a fetch on every page and a shared store, and a receipt is a new privacy surface the requirement does not ask for.
+- What would change this decision: a pilot user missing replies because they only open the app at the directory.
+- Status: Decided (owner-approved as the audit's R2 recommendation)
+- Affects: `apps/web/app/requests/page.tsx`, `apps/web/lib/read-state.ts`, `apps/web/lib/strings.ts`
+=======
 ### D-244: Serious and critical axe violations fail the run; moderate and minor are recorded
 
 - Date: 2026-11-21
@@ -1930,3 +1948,4 @@ date: 2026-10-29
 - What would change this decision: a third-party accessibility audit before the pilot, which would become the record's source.
 - Status: Decided (owner-approved as the audit's A2 recommendation)
 - Affects: `docs/audit/2026-11-21-accessibility-pass.md`, `docs/functional-requirements.md`, `docs/known-debt.md`
+>>>>>>> origin/main

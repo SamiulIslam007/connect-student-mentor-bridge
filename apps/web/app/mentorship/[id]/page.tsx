@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 
 import {
   agreementState,
@@ -13,6 +13,7 @@ import {
   pageStateMessage,
   sessionStatusLabel,
 } from "../../../lib/mentorship-view";
+import { newSince } from "../../../lib/read-state";
 import { strings } from "../../../lib/strings";
 import { REPORT_REASON_OPTIONS, showReportControl } from "../../../lib/reports";
 import { OutcomeSection } from "./outcome-section";
@@ -41,6 +42,7 @@ interface MentorshipRecord {
   student_name: string;
   mentor_name: string;
   viewer_role?: "student" | "mentor";
+  unread_count?: number;
   sessions: SessionRecord[];
 }
 
@@ -60,6 +62,7 @@ export default function MentorshipPage({ params }: { params: Promise<{ id: strin
   const [id, setId] = useState<string | null>(null);
   const [mentorship, setMentorship] = useState<MentorshipRecord | null>(null);
   const [messages, setMessages] = useState<MessageRecord[]>([]);
+  const [firstNewId, setFirstNewId] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [signedOut, setSignedOut] = useState(false);
   const [notFound, setNotFound] = useState(false);
@@ -105,9 +108,22 @@ export default function MentorshipPage({ params }: { params: Promise<{ id: strin
       setGoal(record.goal ?? "");
 
       const thread = await fetch(`/api/mentorships/${mentorshipId}/messages?limit=50`);
+      let loaded: MessageRecord[] = [];
       if (thread.ok) {
         const payload = (await thread.json()) as { data?: MessageRecord[] };
-        setMessages(payload.data ?? []);
+        loaded = payload.data ?? [];
+        setMessages(loaded);
+      }
+
+      // The marker moves only through this write, never by reading the thread
+      // (D-246). The divider is computed from what the server last reported, so
+      // it survives the write and shows the reader what was new.
+      if ((record.unread_count ?? 0) > 0) {
+        setFirstNewId(newSince(null, loaded.slice(Math.max(0, loaded.length - (record.unread_count ?? 0)))));
+        const marked = await csrfFetch(`/api/mentorships/${mentorshipId}/read`, { method: "POST" });
+        if (!marked.ok) {
+          setProblem(strings.mentorship.actionError);
+        }
       }
     } catch (error) {
       console.error(
@@ -351,7 +367,13 @@ export default function MentorshipPage({ params }: { params: Promise<{ id: strin
             ) : (
               <ul>
                 {messages.map((message) => (
-                  <li key={message.id}>
+                  <Fragment key={message.id}>
+                  {message.id === firstNewId ? (
+                    <li>
+                      <h3>{strings.mentorship.newMessages}</h3>
+                    </li>
+                  ) : null}
+                  <li>
                     <p>
                       <strong>{message.sender_name}</strong> · {dateLabel(message.created_at)}
                     </p>
@@ -406,6 +428,7 @@ export default function MentorshipPage({ params }: { params: Promise<{ id: strin
                       )
                     ) : null}
                   </li>
+                  </Fragment>
                 ))}
               </ul>
             )}

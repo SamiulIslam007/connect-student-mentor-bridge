@@ -16,6 +16,7 @@ const ALLOWED = new Set([
   "POST /:id/messages",
   "POST /:id/sessions",
   "POST /:id/complete",
+  "POST /:id/read",
   "PUT /:id/agreement",
   "POST /:id/agreement/acknowledge",
 ]);
