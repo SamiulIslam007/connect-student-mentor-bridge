@@ -125,6 +125,8 @@ A refused write answers `403` with `content-type: application/json` and a proble
 
 The refusal is BFF-local: nothing reaches the API, no OpenAPI path describes it, and the API's contract is unchanged. Five writes are exempt because no session exists yet — `POST /api/auth/sign-in`, `/sign-in/provider`, `/register`, `/forgot-password` and `/reset-password` — and `GET /api/csrf` mints the token for a signed-in page that writes before it reads.
 
+**BFF client identity (2026-11-22, D-253).** The API's limiter keys on a client key the BFF derives from the first `x-forwarded-for` peer (or `x-real-ip`) and signs with `BFF_TRUST_SECRET` using HMAC-SHA256, then on the session bearer, then on the socket peer. The API verifies the signature and ignores an unsigned or foreign `x-connect-client-key`; `main.ts` keeps `trust proxy` false, so `x-forwarded-for` cannot change `req.ip`. A deployment must put the web tier behind a proxy that overwrites `x-forwarded-for`; a directly exposed Next server lets a caller choose its own rate-limit bucket and target another source's account bucket (a limit bypass, not an authentication bypass). `pnpm --filter api exec node --import tsx --test --test-concurrency=1 test/rate-limits.integration.test.ts` proves the unsigned-header refusal and the per-browser buckets.
+
 ## 2. Authentication endpoints
 
 Identity is implemented with better-auth behind `IdentityService` (ADR-003) and exposed as NestJS endpoints under `/v1/auth`. The browser reaches them only through the `apps/web` route handlers, which keep the session token in an httpOnly, SameSite=Lax cookie (Secure outside development); the API accepts `Authorization: Bearer <session token>` from the BFF.
@@ -580,14 +582,14 @@ Default limits are configuration, not code (SEC-ABUSE-4). Concrete values remain
 
 | Route | Limit | Key |
 |---|---|---|
-| `POST /v1/auth/sign-in` | 5 per minute | client IP |
-| `POST /v1/auth/register` | 3 per hour | client IP |
-| `POST /v1/auth/forgot-password`, `reset-password` | 3 per hour | client IP |
-| `POST /v1/requests`, `POST /v1/mentorships/{id}/messages`, `POST /v1/outcomes`, `:{id}/confirm`, `:{id}/dispute` | 60 per minute | client IP |
-| every other route (including the public directory) | 120 per minute | client IP |
-| `POST /v1/auth/sign-in` (second bucket) | 10 per hour | account (body email, else session, else client IP) |
-| `POST /v1/auth/forgot-password`, `reset-password` (second bucket) | 5 per hour | account (body email, else session, else client IP) |
-| every other route (second bucket) | 120 per minute | account (body email, else session, else client IP) |
+| `POST /v1/auth/sign-in` | 5 per minute | signed BFF client key, else session bearer, else client IP |
+| `POST /v1/auth/register` | 3 per hour | signed BFF client key, else session bearer, else client IP |
+| `POST /v1/auth/forgot-password`, `reset-password` | 3 per hour | signed BFF client key, else session bearer, else client IP |
+| `POST /v1/requests`, `POST /v1/mentorships/{id}/messages`, `POST /v1/outcomes`, `:{id}/confirm`, `:{id}/dispute` | 60 per minute | signed BFF client key, else session bearer, else client IP |
+| every other route (including the public directory) | 120 per minute | signed BFF client key, else session bearer, else client IP |
+| `POST /v1/auth/sign-in` (second bucket) | 10 per hour | account plus source (signed BFF client key, else bearer, else client IP) |
+| `POST /v1/auth/forgot-password`, `reset-password` (second bucket) | 5 per hour | account plus source (signed BFF client key, else bearer, else client IP) |
+| every other route (second bucket) | 120 per minute | account plus source (signed BFF client key, else bearer, else client IP) |
 | `GET /healthz`, `GET /readyz` | unthrottled, both buckets | - |
 
 A refusal is `429 RATE_LIMITED` with a numeric `Retry-After`. The store is in process memory (`@nestjs/throttler`), so the limit is **per instance**: a multi-instance deployment needs a shared store, which ADR-006 defers until after the pilot.

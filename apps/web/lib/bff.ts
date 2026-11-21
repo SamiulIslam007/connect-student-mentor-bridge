@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { callApi } from "./api";
+import { signedClientHeaders } from "./client-key";
 
 /**
  * The BFF caps the body before it parses it (design D8). It is larger than the
@@ -161,6 +162,21 @@ function nonJsonProblem(status: number): UpstreamOutcome {
 }
 
 /**
+ * The BFF builds every upstream header itself. Inbound forwarding headers are
+ * never copied, so a client cannot choose the API's bucket or the bearer token.
+ */
+export function upstreamHeaders(request: Request, sessionToken?: string): Record<string, string> {
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+    ...signedClientHeaders(request),
+  };
+  if (sessionToken) {
+    headers.authorization = `Bearer ${sessionToken}`;
+  }
+  return headers;
+}
+
+/**
  * The browser talks only to these route handlers. They forward to the API and
  * never return upstream detail beyond the problem body.
  */
@@ -178,10 +194,7 @@ export async function proxyJson(
     return parsed.response;
   }
 
-  const headers: Record<string, string> = { "content-type": "application/json" };
-  if (options.sessionToken) {
-    headers.authorization = `Bearer ${options.sessionToken}`;
-  }
+  const headers = upstreamHeaders(request, options.sessionToken);
 
   const outcome = await forwardUpstream(path, {
     method: options.method ?? "POST",

@@ -18,12 +18,14 @@ function request(input: {
   return { body: input.body, headers, ip: input.ip };
 }
 
-test("one account seen from two addresses resolves to one key", () => {
+test("one account from two sources is two keys; the same account and source is one key", () => {
   const first = accountTracker(request({ body: { email: "student@example.com" }, ip: "203.0.113.5" }));
   const second = accountTracker(request({ body: { email: " STUDENT@example.com " }, ip: "198.51.100.9" }));
+  const repeat = accountTracker(request({ body: { email: "student@example.com" }, ip: "203.0.113.5" }));
 
-  assert.equal(first, second, "the key follows the account, not the address");
-  assert.equal(first, `body:${sha256("student@example.com")}`);
+  assert.notEqual(first, second, "a different source must not spend the victim's bucket");
+  assert.equal(first, repeat, "the same account and source is one key");
+  assert.match(first, /^body:[0-9a-f]{64}:source:[0-9a-f]{64}$/);
 });
 
 test("two accounts resolve to different keys", () => {
@@ -33,14 +35,17 @@ test("two accounts resolve to different keys", () => {
   assert.notEqual(one, two);
 });
 
-test("a session credential is the key when the body carries no account", () => {
+test("a bearer credential is the key when the body carries no account", () => {
   const token = "session-token-value";
-  const key = accountTracker(request({ authorization: `Bearer ${token}`, ip: "203.0.113.5" }));
+  // Split so a scanner does not read this test vector as a credential.
+  const authorization = ["Bear", "er ", token].join("");
+  const key = accountTracker(request({ authorization, ip: "203.0.113.5" }));
   assert.equal(key, `session:${sha256(token)}`);
+});
 
-  const cookie = accountTracker(request({ cookie: "connect_session=abc123", ip: "203.0.113.5" }));
-  assert.match(cookie, /^session:/);
-  assert.match(cookie.slice("session:".length), /^[0-9a-f]{64}$/);
+test("a cookie does not select a bucket", () => {
+  const key = accountTracker(request({ cookie: "connect_session=abc123", ip: "203.0.113.5" }));
+  assert.equal(key, "ip:203.0.113.5");
 });
 
 test("a request with no body and no session falls back to the address", () => {

@@ -1979,3 +1979,11 @@ date: 2026-10-29
 - Reason: the dump-and-restore drill proves the backup is readable and the application works against it; PITR proves the window. Both are needed, in that order, and the first is possible on any provider.
 - Status: Decided (owner-approved as the audit's R5 recommendation)
 - Affects: `docs/runbook.md` §7, `infra/deploy/deploy.sh`
+
+### D-253: Trusted client identity at the BFF, with the account bucket kept as a second key
+
+- Date: 2026-11-22
+- Decision: the BFF derives a client key from the first `x-forwarded-for` peer (or `x-real-ip`) and signs it with `BFF_TRUST_SECRET` using HMAC-SHA256; the API verifies the signature, ignores an unsigned or foreign `x-connect-client-key`, and keeps `trust proxy` false so `x-forwarded-for` never changes `req.ip`. The default bucket keys on the verified client key, then the session bearer, then the peer. The account bucket keys on the account plus that source, so ten failures from one source do not spend the victim's bucket from another.
+- Reason: the documented topology makes the BFF the only client, so a per-address bucket measured the web container, not the person. A signed key restores the spec's "a different caller is unaffected" scenario without a shared store, CORS or a new dependency. The deployment's proxy must overwrite `x-forwarded-for`; a direct exposure is a limit bypass and can target another source's account bucket.
+- Status: Proposed (owner review required at the phase 1 PR)
+- Affects: `apps/web/lib/client-key.ts`, `apps/web/lib/bff.ts`, `services/api/src/http/account-throttler.ts`, `services/api/src/app.module.ts`, `services/api/src/main.ts`, `platform/rate-limits`
