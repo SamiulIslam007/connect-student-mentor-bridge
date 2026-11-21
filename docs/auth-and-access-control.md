@@ -103,11 +103,11 @@ sources: README.md (sections 8, 12.1); connect-research-report.md (Sections 5.4,
 | Item | Implemented (2026-11-03) |
 |---|---|
 | Session model | Postgres-backed cookie session held by better-auth; the session row is the source of truth. No access/refresh token pair (D-31) |
-| Session lifetime | 30 days, refreshed at most once a day (`updateAge` 1 day). A revoked row fails the next request immediately. Admin idle and absolute timeouts are **not built**; `DEBT-74` owns them (D-48, D-241) |
+| Session lifetime | 30 days for students and mentors, refreshed at most once a day (`updateAge` 1 day). A platform or institution admin expires after 30 idle minutes or 12 hours from creation; the session row is deleted on either breach (D-256, `ADMIN_SESSION_IDLE_MS`/`ADMIN_SESSION_ABSOLUTE_MS`). A revoked row fails the next request immediately |
 | Web storage | **httpOnly, Secure outside development, SameSite=Lax cookie** set by the `apps/web` route handlers. No token in `localStorage`, `sessionStorage`, or any response body the browser can read |
 | CSRF | Next.js same-origin form handling plus SameSite=Lax during the pilot; a dedicated token is a Sprint 7 hardening item |
-| Idle timeout | 30 minutes (admin) and 8 hours (privileged roles) are **not implemented** (`DEBT-74`, D-48); Student and Mentor have no shorter idle timeout |
-| Absolute lifetime | 30 days for every role in Sprint 1; the admin 8-hour absolute lifetime arrives in Sprint 7 with the admin surface (D-48) |
+| Idle timeout | 30 minutes for platform and institution admins (D-256); student and mentor sessions have no shorter idle timeout |
+| Absolute lifetime | 30 days for students and mentors; 12 hours for platform and institution admins (D-256). Enforced in the identity service's session read, not by the cookie |
 | Revocation | Sign-out, sign-out-everywhere, and password reset delete session rows. Password reset revokes every session for the account (SEC-AUTH-5 maps to session-row revocation, not a refresh-token family) |
 | Concurrent sessions | Allowed. `GET /v1/me/sessions` lists the caller's live sessions with safe metadata only (no token), and `DELETE /v1/me/sessions/{id}` is idempotent for the caller's own ids and `404` for another account's id (implemented 2026-11-04, `access-google-mfa-and-sessions`) |
 
@@ -194,7 +194,7 @@ Only `active` mentors may receive requests. A `suspended` mentor receives no new
 4. **State guard:** the object's state machine allows the action now. Otherwise `409`.
 5. **Audit:** security-relevant actions write an `AuditLog` entry (section 12).
 
-**Implemented (`roles-and-profile-visibility`, 4c):** layers 1 and 2 live in `services/api/src/authorization/authorize.ts`. `requireRole` resolves the session, reads the account's active assignments from `role_assignments`, and refuses with `403 ROLE_REQUIRED` (an empty role set is a refusal). `PUT /v1/me/mentor-profile` is its first consumer. The MFA branch refuses with `403 MFA_REQUIRED` when a route declares `requiresMfa` and `users.two_factor_enabled` is false; no route sets that flag in 4c.
+**Implemented (`roles-and-profile-visibility`, 4c):** layers 1 and 2 live in `services/api/src/authorization/authorize.ts`. `requireRole` resolves the session, reads the account's active assignments from `role_assignments`, and refuses with `403 ROLE_REQUIRED` (an empty role set is a refusal). `PUT /v1/me/mentor-profile` is its first consumer. The MFA branch refuses with `403 MFA_REQUIRED` when a route declares `requiresMfa` and `users.two_factor_enabled` is false. Since 2026-11-22 (`security-audit-remediation`, SEC-AUDIT-006, D-256) the mentor writes declare it: agreement save and acknowledge, message post, session create/confirm-held/cancel, outcome confirm and dispute, and request accept/decline. A student on a participant route is not blocked; a mentor without an enrolled factor is.
 
 ### 8.2 Policy rules (examples written as testable predicates)
 

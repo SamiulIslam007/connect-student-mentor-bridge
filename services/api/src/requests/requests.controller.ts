@@ -152,7 +152,7 @@ export class RequestsController {
   @Post(":id/accept")
   @HttpCode(200)
   async accept(@Param("id") id: string, @Req() request: RequestWithId): Promise<Record<string, unknown>> {
-    const acting = await requireRole(this.identity, request, "MENTOR");
+    const acting = await requireRole(this.identity, request, "MENTOR", { requiresMfa: true });
     const decided = await this.requests.decide({
       userId: acting.account.id,
       requestId: id,
@@ -169,7 +169,7 @@ export class RequestsController {
     @Body() body: unknown,
     @Req() request: RequestWithId,
   ): Promise<Record<string, unknown>> {
-    const acting = await requireRole(this.identity, request, "MENTOR");
+    const acting = await requireRole(this.identity, request, "MENTOR", { requiresMfa: true });
     const decided = await this.requests.decide({
       userId: acting.account.id,
       requestId: id,

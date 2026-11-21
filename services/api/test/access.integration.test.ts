@@ -564,3 +564,61 @@ test("a callback missing its parameters is a validation error", async (t) => {
   });
   assert.equal(refused.status, 422, refused.text);
 });
+
+test("an admin session expires after thirty idle minutes or twelve hours", async (t) => {
+  const stack = requireStacks(t);
+  if (!stack) return;
+
+  const email = "admin-session@example.com";
+  await registerAndVerify(stack, email);
+  const user = await stack.client.query<{ id: string }>("SELECT id FROM users WHERE email = $1", [
+    email,
+  ]);
+  const userId = user.rows[0]?.id;
+  assert.ok(userId);
+  await stack.client.query(
+    "INSERT INTO role_assignments (user_id, role) VALUES ($1, 'PLATFORM_ADMIN')",
+    [userId],
+  );
+
+  const first = await signIn(stack, email);
+  assert.equal(first.status, 200, first.text);
+  const firstToken = String(first.body?.session_token);
+  assert.equal((await apiRequest(stack, "GET", "/v1/me", undefined, firstToken)).status, 200);
+
+  await stack.client.query(
+    "UPDATE sessions SET created_at = now() - interval '13 hours' WHERE user_id = $1",
+    [userId],
+  );
+  const absolute = await apiRequest(stack, "GET", "/v1/me", undefined, firstToken);
+  assert.equal(absolute.status, 401, absolute.text);
+  const deleted = await stack.client.query("SELECT 1 FROM sessions WHERE user_id = $1", [userId]);
+  assert.equal(deleted.rowCount, 0, "the expired session row is deleted");
+
+  const second = await signIn(stack, email);
+  assert.equal(second.status, 200, second.text);
+  const secondToken = String(second.body?.session_token);
+  await stack.client.query(
+    "UPDATE sessions SET updated_at = now() - interval '31 minutes' WHERE user_id = $1",
+    [userId],
+  );
+  const idle = await apiRequest(stack, "GET", "/v1/me", undefined, secondToken);
+  assert.equal(idle.status, 401, idle.text);
+
+  const studentEmail = "student-session@example.com";
+  await registerAndVerify(stack, studentEmail);
+  const student = await signIn(stack, studentEmail);
+  assert.equal(student.status, 200, student.text);
+  await stack.client.query(
+    "UPDATE sessions SET created_at = now() - interval '13 hours', updated_at = now() - interval '2 hours' WHERE user_id = (SELECT id FROM users WHERE email = $1)",
+    [studentEmail],
+  );
+  const studentRead = await apiRequest(
+    stack,
+    "GET",
+    "/v1/me",
+    undefined,
+    String(student.body?.session_token),
+  );
+  assert.equal(studentRead.status, 200, "a student session keeps the thirty-day policy");
+});

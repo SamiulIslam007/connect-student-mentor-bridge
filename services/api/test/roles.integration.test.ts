@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { after, before, beforeEach, test, type TestContext } from "node:test";
 
-import { requireRole } from "../src/authorization/authorize.js";
+import { actingAccountWithRoles, requireRole } from "../src/authorization/authorize.js";
 import type { RequestWithId } from "../src/http/request-id.middleware.js";
 import { AuthController } from "../src/identity/auth.controller.js";
 import { MeController } from "../src/me/me.controller.js";
@@ -277,6 +277,12 @@ test("requireRole refuses MFA_REQUIRED without a factor and serves an enrolled a
     { code: "MFA_REQUIRED" },
   );
 
+  // The mentor write routes use this option, not `requireRole` (D-256).
+  await assert.rejects(
+    actingAccountWithRoles(current.identity, request(token), { requiresMfa: true }),
+    { code: "MFA_REQUIRED" },
+  );
+
   const enrollment = await apiRequest(
     current,
     "POST",
@@ -301,6 +307,11 @@ test("requireRole refuses MFA_REQUIRED without a factor and serves an enrolled a
     requiresMfa: true,
   });
   assert.deepEqual(acting.roles, ["STUDENT", "MENTOR"]);
+
+  const actingFromOptions = await actingAccountWithRoles(current.identity, request(enrolledToken), {
+    requiresMfa: true,
+  });
+  assert.deepEqual(actingFromOptions.roles, ["STUDENT", "MENTOR"]);
 });
 
 test("the role alone grants no visibility and no profile", async (context) => {

@@ -51,11 +51,11 @@ Each phase is independently applicable and mergeable. The two shared-file cases 
 
 **Out:** no sign-in MFA requirement for every account, no new token format, no change to the student or mentor 30-day policy, no auth-library replacement.
 
-- [ ] 4.1 Declare the second-factor requirement on every mentor-only state-changing route: message, agreement, accept/decline, session create/cancel, complete, confirm, dispute and evidence decisions. Verify: `pnpm --filter api exec node --import tsx --test --test-concurrency=1 test/roles.integration.test.ts` proves an unenrolled mentor gets `403 MFA_REQUIRED` and an enrolled one proceeds.
-- [ ] 4.2 Add the route-inventory test that fails when a new mentor write omits the flag. Verify: the same test file fails when one flag is removed, then passes restored.
-- [ ] 4.3 Implement admin idle 30 minutes and absolute 12 hours in the session guard, with the values in `@connect/config`; revoke on either breach. Verify: `pnpm --filter api exec node --import tsx --test --test-concurrency=1 test/access.integration.test.ts` passes idle, absolute, fresh and student/mentor cases.
-- [ ] 4.4 Update `docs/security-requirements.md` (SEC-AUTH-2), `docs/auth-and-access-control.md` (§4 and §10), `docs/known-debt.md` (DEBT-74) and `docs/decision-log.md` (D-256). Verify: DEBT-74 is closed or narrowed only with the test name and command; the stale "no route sets the flag" sentence is gone.
-- [ ] 4.5 Run `pnpm --filter api exec node --import tsx --test --test-concurrency=1 test/roles.integration.test.ts test/access.integration.test.ts` and record the exit code.
+- [x] 4.1 Declare the second-factor requirement on every mentor-only state-changing route: message, agreement, accept/decline, session create/cancel, complete, confirm, dispute and evidence decisions. Verify: `pnpm --filter api exec node --import tsx --test --test-concurrency=1 test/roles.integration.test.ts` proves an unenrolled mentor gets `403 MFA_REQUIRED` and an enrolled one proceeds.
+- [x] 4.2 Add the route-inventory test that fails when a new mentor write omits the flag. Verify: the same test file fails when one flag is removed, then passes restored.
+- [x] 4.3 Implement admin idle 30 minutes and absolute 12 hours in the session guard, with the values in `@connect/config`; revoke on either breach. Verify: `pnpm --filter api exec node --import tsx --test --test-concurrency=1 test/access.integration.test.ts` passes idle, absolute, fresh and student/mentor cases.
+- [x] 4.4 Update `docs/security-requirements.md` (SEC-AUTH-2), `docs/auth-and-access-control.md` (§4 and §10), `docs/known-debt.md` (DEBT-74) and `docs/decision-log.md` (D-256). Verify: DEBT-74 is closed or narrowed only with the test name and command; the stale "no route sets the flag" sentence is gone.
+- [x] 4.5 Run `pnpm --filter api exec node --import tsx --test --test-concurrency=1 test/roles.integration.test.ts test/access.integration.test.ts` and record the exit code.
 
 ## Phase 5 — bff-write-integrity
 
