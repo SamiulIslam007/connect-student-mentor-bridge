@@ -139,13 +139,20 @@ test("the happy path: sign-up, verify, profile, request, accept, message, outcom
     await receivedTab.click();
   }
   console.log("step 5d: received tab");
-  await mentorPage.getByRole("button", { name: labels.requests.accept }).click();
+  // The row for this run's question, not any other pending request.
+  const receivedRow = mentorPage
+    .locator("li")
+    .filter({ hasText: "How do I prepare for a backend interview?" });
+  await receivedRow.getByRole("button", { name: labels.requests.accept }).click();
   await expect(mentorPage.getByText(labels.requests.accepted)).toBeVisible();
   console.log("step 5e: accepted");
   // The list renders the decision from the row it already holds, so the new
   // mentorship link appears on the next read.
   await mentorPage.reload({ waitUntil: "domcontentloaded" });
-  const openLink = mentorPage.getByRole("link", { name: labels.requests.openMentorship });
+  const openLink = mentorPage
+    .locator("li")
+    .filter({ hasText: "How do I prepare for a backend interview?" })
+    .getByRole("link", { name: labels.requests.openMentorship });
   await expect(openLink).toBeVisible();
   await openLink.click();
   await mentorPage.waitForURL("**/mentorship/**");
@@ -188,7 +195,7 @@ test("the happy path: sign-up, verify, profile, request, accept, message, outcom
 
   await mentorPage.goto("/profile");
   await expect(mentorPage.getByRole("heading", { name: labels.impact.title })).toBeVisible();
-  await expect(mentorPage.getByText(labels.impact.countedOutcomes)).toBeVisible();
+  await expect(mentorPage.getByText(labels.impact.countedOutcomes).first()).toBeVisible();
   await expect(mentorPage.getByText(labels.impact.empty)).toHaveCount(0);
 
   await studentContext.close();

@@ -1,4 +1,3 @@
-import { execSync } from "node:child_process";
 import path from "node:path";
 
 import { defineConfig, devices } from "@playwright/test";
@@ -18,12 +17,6 @@ const repoRoot = path.join(__dirname, "..");
 // browser starts when the URL does not name a `_test` database (D-236).
 const DATABASE_URL = testDatabaseUrl();
 
-// Playwright starts `webServer` before `globalSetup`, and the API will not boot
-// against a database that does not exist yet, so the database is prepared here.
-execSync("node --import tsx e2e/support/prepare.ts", {
-  cwd: path.join(__dirname, ".."),
-  stdio: "inherit",
-});
 
 const apiEnvironment = {
   NODE_ENV: "development",

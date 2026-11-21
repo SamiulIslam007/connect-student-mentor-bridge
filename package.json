@@ -12,7 +12,7 @@
     "lint": "eslint .",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
-    "e2e": "playwright test --config e2e/playwright.config.ts",
+    "e2e": "node --import tsx e2e/support/prepare.ts && playwright test --config e2e/playwright.config.ts",
     "e2e:helpers": "node --import tsx --test e2e/test/*.test.ts"
   },
   "devDependencies": {
