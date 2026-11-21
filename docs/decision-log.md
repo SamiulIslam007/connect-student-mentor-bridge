@@ -1823,3 +1823,21 @@ date: 2026-10-29
 - Reason: a register that scores a row against scope nobody required is wrong in both directions — it understates what is built and hides that no code is owed. Labelling the amendment is what keeps the number honest.
 - Status: Decided (owner-approved)
 - Affects: `docs/functional-requirements.md` (`FR-INST-01`, `FR-ADM-03`, §2.16)
+
+### D-234: `next` moves to the newest patched 16.x and the security check is never silenced
+
+- Date: 2026-11-21
+- Decision: `apps/web/package.json` pins `next` at `16.4.6` (from `16.4.3`) and `pnpm-lock.yaml` is regenerated with `pnpm install`; no ignore flag, environment variable or forked build script is added, and no other runtime dependency moves. Acceptance is four gates plus two consecutive `CI=true pnpm build` runs on a removed `apps/web/.next`.
+- Reason: `CI=true pnpm build` exited 1 on a cold tree with `SecurityFatalError: Your version of Next.js is affected by a known security vulnerability` and exited 0 on the retry, so a documented gate was red and a retry habit hid it; seven of the nine moderates were on `next`, patched at 16.4.5. Staying inside `16.x` keeps the diff to one variable and one lockfile.
+- Alternatives rejected: `next upgrade --agent=security`, which produces an unreviewed diff; documenting the retry, which leaves the gate red.
+- Status: Decided (owner-approved as the audit's B1 recommendation)
+- Affects: `apps/web/package.json`, `pnpm-lock.yaml`, `docs/known-debt.md` (`DEBT-71`, `DEBT-72`), `README.md`, `docs/milestones-and-phases.md`
+
+### D-235: The two dev-only advisories stay until their parents' majors move
+
+- Date: 2026-11-21
+- Decision: `esbuild@0.18.20` (through the deprecated `@esbuild-kit/core-utils@3.3.2` that `drizzle-kit@0.31.11` loads) and `minimatch@10.2.6` (through `eslint@10.13.0`'s `^10.2.5`) are not bumped: the patched majors (0.25.0 and 11.0.1) fall outside both parents' ranges. `DEBT-71` closes and `DEBT-72` opens naming each parent, the advisory and the trigger.
+- Reason: neither is reachable at runtime - one is a migration tool's dev server, the other a glob in the linter - and a `drizzle-kit` or ESLint major is a migration with its own risk that this change is not sized for.
+- What would change this decision: a reachable HIGH or CRITICAL advisory on either, or a `trivy` image failure caused by one.
+- Status: Decided (owner-approved as the audit's B2 recommendation)
+- Affects: `pnpm-lock.yaml`, `docs/known-debt.md`
