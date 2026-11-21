@@ -1995,3 +1995,11 @@ date: 2026-10-29
 - Reason: Express parses a registered body type before Nest's guards, so the session check has to sit in front of the parser. Object-level authorization remains in the controller, which has the outcome and evidence ids.
 - Status: Proposed (owner review required at the phase 2 PR)
 - Affects: `services/api/src/http/evidence-body-auth.ts`, `services/api/src/main.ts`, `apps/web/app/api/admin/mentorships/break-glass/route.ts`, `platform/request-validation`
+
+### D-255: Separation of duties is a service check, and role grants are one transaction
+
+- Date: 2026-11-22
+- Decision: `review()` compares the acting admin with the locked outcome's student and mentor and refuses a participant with `403 OUTCOME_REVIEW_CONFLICT`, writing one `PERMISSION_DENIED` row outside the rolled-back transaction. A role grant writes the assignment, its audit row and the mentor activation sync in one transaction and records the acting role; a platform admin cannot grant institution scope to their own account (`403 SELF_GRANT_FORBIDDEN`), while the mentor self-grant stays allowed. Export and delete refuse a session older than ten minutes with `403 REAUTH_REQUIRED`; `confirm_email` alone is not proof.
+- Reason: the audit's original sentence that `review()` never reads the participants is wrong at this HEAD; the missing check is the comparison. The role-grant and recent-proof gaps are the other "the acting admin is not a normal user" controls, and the session creation instant is the password or second-factor time without a new column.
+- Status: Proposed (owner review required at the phase 3 PR)
+- Affects: `services/api/src/outcomes/drizzle-outcome.service.ts`, `services/api/src/identity/better-auth-identity.service.ts`, `services/api/src/institutions/attestation.controller.ts`, `services/api/src/privacy/privacy.controller.ts`, `mentorship/platform-review`, `identity/role-authorization`, `trust/privacy-export-and-erasure`

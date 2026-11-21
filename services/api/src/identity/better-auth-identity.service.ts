@@ -226,13 +226,13 @@ export interface BetterAuthIdentityServiceOptions {
    * Test seam: the append-only writer. Production leaves it unset, so entries
    * go to `appendAuditEntry`; a fault-injection test can fail one action.
    */
-  auditWriter?: (database: Database, entry: AuditEntry) => Promise<void>;
+  auditWriter?: (database: Pick<Database, "insert">, entry: AuditEntry) => Promise<void>;
   /** The breach seam; production passes the range-endpoint checker (D-248). */
   breachChecker?: PasswordBreachChecker;
 }
 
 /** Audit writes go through one seam so a test can fault-inject a single action. */
-type AuditWriter = (database: Database, entry: AuditEntry) => Promise<void>;
+type AuditWriter = (database: Pick<Database, "insert">, entry: AuditEntry) => Promise<void>;
 
 /**
  * The only place identity operations touch the library. Every method returns
@@ -265,8 +265,11 @@ export class BetterAuthIdentityService implements IdentityService {
     this.breachChecker = breachChecker ?? createPwnedPasswordsChecker();
   }
 
-  private writeAudit(entry: AuditEntry): Promise<void> {
-    return this.auditWriter(this.database, entry);
+  private writeAudit(
+    entry: AuditEntry,
+    executor: Pick<Database, "insert"> = this.database,
+  ): Promise<void> {
+    return this.auditWriter(executor, entry);
   }
 
   async register(input: RegisterAccountInput): Promise<RegisterAccountResult> {
@@ -626,35 +629,58 @@ export class BetterAuthIdentityService implements IdentityService {
    * entry is written only when a row was actually inserted (spec: repeated grant).
    */
   async grantRole(input: GrantRoleInput): Promise<Role[]> {
-    const inserted = await this.database
-      .insert(roleAssignments)
-      .values({
-        userId: input.userId,
-        role: input.role,
-        institutionId: input.institutionId ?? null,
-        grantedByUserId: input.actorUserId ?? null,
-      })
-      .onConflictDoNothing()
-      .returning({ id: roleAssignments.id });
-
-    if (inserted.length > 0) {
-      await appendAuditEntry(this.database, {
-        action: "ROLE_GRANTED",
-        actorUserId: input.actorUserId ?? input.userId,
-        actorRole: "USER",
-        objectType: "role_assignments",
-        objectId: inserted[0].id,
-        requestId: input.requestId,
-        metadata: { role: input.role },
-      });
+    // A platform admin cannot widen their own scope (SEC-AUDIT-016, D-255). The
+    // mentor self-grant has a different role and stays allowed.
+    if (
+      input.role === "INSTITUTION_ADMIN" &&
+      input.actorRole === "PLATFORM_ADMIN" &&
+      input.actorUserId !== undefined &&
+      input.userId === input.actorUserId
+    ) {
+      throw new IdentityError(
+        "SELF_GRANT_FORBIDDEN",
+        "you cannot grant institution scope to your own account",
+      );
     }
 
-    // Activation trigger 3 of 3 (design D3): the grant itself changes nothing,
-    // but a mentor profile that was waiting for Level 1 plus a factor may now
-    // hold both.
-    if (inserted.length > 0 && input.role === "MENTOR") {
-      await syncMentorActivation(this.database, input.userId);
-    }
+    await this.database.transaction(async (tx) => {
+      const inserted = await tx
+        .insert(roleAssignments)
+        .values({
+          userId: input.userId,
+          role: input.role,
+          institutionId: input.institutionId ?? null,
+          grantedByUserId: input.actorUserId ?? null,
+        })
+        .onConflictDoNothing()
+        .returning({ id: roleAssignments.id });
+
+      if (inserted.length === 0) {
+        return;
+      }
+
+      // The assignment, its audit row and the activation sync are one
+      // transaction: a failed audit rolls the grant back (D-255).
+      await this.writeAudit(
+        {
+          action: "ROLE_GRANTED",
+          actorUserId: input.actorUserId ?? input.userId,
+          actorRole: input.actorRole ?? "USER",
+          objectType: "role_assignments",
+          objectId: inserted[0].id,
+          requestId: input.requestId,
+          metadata: { role: input.role },
+        },
+        tx,
+      );
+
+      // Activation trigger 3 of 3 (design D3): the grant itself changes nothing,
+      // but a mentor profile that was waiting for Level 1 plus a factor may now
+      // hold both.
+      if (input.role === "MENTOR") {
+        await syncMentorActivation(tx, input.userId);
+      }
+    });
 
     return this.listRoles(input.userId);
   }

@@ -532,6 +532,30 @@ test("a platform admin grants institution-admin, once, with one audit entry", as
   assert.equal(auditsAfter.rows[0]?.count, "1", "a repeat writes no second entry");
 });
 
+test("a platform admin cannot grant institution scope to their own account", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+
+  const institution = await seedInstitution(current, "Self Grant University");
+  const platform = await platformAdmin(current, "platform-self@attestation.example");
+
+  const refused = await apiRequest(
+    current,
+    "POST",
+    `/v1/admin/institutions/${institution}/admins`,
+    { email: "platform-self@attestation.example" },
+    platform.token,
+  );
+  assert.equal(refused.status, 403, refused.text);
+  assert.equal(refused.body?.code, "SELF_GRANT_FORBIDDEN");
+
+  const rows = await current.client.query(
+    "SELECT 1 FROM role_assignments WHERE user_id = $1 AND role = 'INSTITUTION_ADMIN'",
+    [platform.userId],
+  );
+  assert.equal(rows.rowCount, 0, "the self-grant writes no role row");
+});
+
 test("the grant route refuses an unknown email, an unknown institution and the wrong role", async (context) => {
   const current = requireStack(context);
   if (!current) return;

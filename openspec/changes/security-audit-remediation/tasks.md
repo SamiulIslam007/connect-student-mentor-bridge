@@ -37,13 +37,13 @@ Each phase is independently applicable and mergeable. The two shared-file cases 
 
 **Out:** no database trigger, no new review queue, no change to the ledger transition table, no change to the existing self-service mentor grant.
 
-- [ ] 3.1 In `DrizzleOutcomeService.review`, compare the acting admin with the locked outcome's student and mentor and refuse a participant with `403 OUTCOME_REVIEW_CONFLICT`. Verify: `pnpm --filter api exec node --import tsx --test --test-concurrency=1 test/outcomes.integration.test.ts` proves student, mentor, unrelated-admin and no-write cases.
-- [ ] 3.2 Write exactly one `PERMISSION_DENIED` audit row for the refusal and none for an unrelated admin. Verify: the same test file asserts one denial row and no `OUTCOME_REVIEWED` row.
-- [ ] 3.3 Wrap `grantRole`'s assignment, audit and activation sync in one transaction and record the real acting role. Verify: `pnpm --filter api exec node --import tsx --test --test-concurrency=1 test/roles.integration.test.ts` proves a forced audit failure rolls the grant back and a platform-admin grant carries `PLATFORM_ADMIN`.
-- [ ] 3.4 Refuse a platform admin granting institution-admin scope to their own account with `403 SELF_GRANT_FORBIDDEN`; keep the mentor self-grant allowed and audited. Verify: `pnpm --filter api exec node --import tsx --test --test-concurrency=1 test/attestation.integration.test.ts` passes.
-- [ ] 3.5 Add the recent-proof guard for export and delete: password or TOTP within 10 minutes, `403 REAUTH_REQUIRED` otherwise, email confirmation alone not accepted. Verify: `pnpm --filter api exec node --import tsx --test --test-concurrency=1 test/privacy.integration.test.ts` passes the stale, fresh and email-only cases.
-- [ ] 3.6 Update `docs/auth-and-access-control.md` (reviewer and role-grant rules), `docs/functional-requirements.md` (FR-ADM-01, FR-ADM-06, FR-PRIV-01/02) and `docs/decision-log.md` (D-255). Verify: every changed status names the test file; no row is ticked without it.
-- [ ] 3.7 Run the four targeted tests from 3.1 to 3.5 and record each exit code.
+- [x] 3.1 In `DrizzleOutcomeService.review`, compare the acting admin with the locked outcome's student and mentor and refuse a participant with `403 OUTCOME_REVIEW_CONFLICT`. Verify: `pnpm --filter api exec node --import tsx --test --test-concurrency=1 test/outcomes.integration.test.ts` proves student, mentor, unrelated-admin and no-write cases.
+- [x] 3.2 Write exactly one `PERMISSION_DENIED` audit row for the refusal and none for an unrelated admin. Verify: the same test file asserts one denial row and no `OUTCOME_REVIEWED` row.
+- [x] 3.3 Wrap `grantRole`'s assignment, audit and activation sync in one transaction and record the real acting role. Verify: `pnpm --filter api exec node --import tsx --test --test-concurrency=1 test/roles.integration.test.ts` proves a forced audit failure rolls the grant back and a platform-admin grant carries `PLATFORM_ADMIN`.
+- [x] 3.4 Refuse a platform admin granting institution-admin scope to their own account with `403 SELF_GRANT_FORBIDDEN`; keep the mentor self-grant allowed and audited. Verify: `pnpm --filter api exec node --import tsx --test --test-concurrency=1 test/attestation.integration.test.ts` passes.
+- [x] 3.5 Add the recent-proof guard for export and delete: password or TOTP within 10 minutes, `403 REAUTH_REQUIRED` otherwise, email confirmation alone not accepted. Verify: `pnpm --filter api exec node --import tsx --test --test-concurrency=1 test/privacy.integration.test.ts` passes the stale, fresh and email-only cases.
+- [x] 3.6 Update `docs/auth-and-access-control.md` (reviewer and role-grant rules), `docs/functional-requirements.md` (FR-ADM-01, FR-ADM-06, FR-PRIV-01/02) and `docs/decision-log.md` (D-255). Verify: every changed status names the test file; no row is ticked without it.
+- [x] 3.7 Run the four targeted tests from 3.1 to 3.5 and record each exit code.
 
 ## Phase 4 — mentor-mfa-and-admin-session-policy
 

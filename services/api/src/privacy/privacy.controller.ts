@@ -23,7 +23,27 @@ function confirmEmailField(body: unknown): string {
 /**
  * `POST /v1/privacy/*` (docs/api-contracts.md §5.8). Both routes act on the
  * caller's own record only; the account id comes from the session, never the body.
+ *
+ * Export and delete need a password or second factor within ten minutes
+ * (SEC-AUDIT-028, D-255). The session's creation instant is the authentication
+ * time; a long-lived session is refused, and `confirm_email` alone is not proof.
  */
+const REAUTH_WINDOW_MS = 10 * 60 * 1000;
+
+async function requireRecentAuthentication(
+  identity: IdentityService,
+  request: RequestWithId,
+): Promise<void> {
+  const sessions = await identity.listSessions({ sessionToken: bearerToken(request) });
+  const current = sessions.find((session) => session.current);
+  if (!current || Date.now() - Date.parse(current.createdAt) > REAUTH_WINDOW_MS) {
+    throw new IdentityError(
+      "REAUTH_REQUIRED",
+      "confirm your password or second factor within ten minutes",
+    );
+  }
+}
+
 @Controller("v1/privacy")
 export class PrivacyController {
   constructor(
@@ -46,6 +66,7 @@ export class PrivacyController {
     if (account.accountStatus !== "ACTIVE") {
       throw new IdentityError("FORBIDDEN", "this account cannot export its data");
     }
+    await requireRecentAuthentication(this.identity, request);
 
     const document = await this.privacy.exportAccount({
       userId: account.id,
@@ -66,6 +87,7 @@ export class PrivacyController {
     if (!account) {
       throw new IdentityError("SESSION_INVALID", "the session is not valid");
     }
+    await requireRecentAuthentication(this.identity, request);
 
     const result = await this.privacy.deleteAccount({
       userId: account.id,

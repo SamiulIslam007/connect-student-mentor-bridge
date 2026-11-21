@@ -25,6 +25,7 @@ export class MeRolesController {
       userId: acting.account.id,
       role: "MENTOR",
       actorUserId: acting.account.id,
+      actorRole: acting.roles[acting.roles.length - 1] ?? "STUDENT",
       requestId: request.requestId,
     });
     return { roles };
