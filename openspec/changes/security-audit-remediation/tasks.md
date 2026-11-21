@@ -24,12 +24,12 @@ Each phase is independently applicable and mergeable. The two shared-file cases 
 
 **Out:** no streaming-upload rewrite, no object-store change, no change to the 5 MiB product limit, no change to the 100 KiB JSON bound.
 
-- [ ] 2.1 Put an authentication and authorization middleware in front of the raw evidence parser for the two evidence routes only. Verify: `pnpm --filter api exec node --import tsx --test --test-concurrency=1 test/evidence.integration.test.ts` proves an anonymous 5 MiB request is `401` without a stored object.
-- [ ] 2.2 Keep the raw parser content-type scoped and add a test that a 6 MiB body is `413` before a controller runs. Verify: the same targeted test file passes the oversize case and the valid 5 MiB case.
-- [ ] 2.3 Replace the break-glass route's clone-and-parse with a bounded read that refuses above 128 KiB. Verify: `pnpm --filter web exec node --import tsx --test test/break-glass-route.test.ts` passes the bound and the valid reason case.
-- [ ] 2.4 Add the regression that the JSON cap is unchanged on a non-evidence route. Verify: `pnpm --filter api exec node --import tsx --test --test-concurrency=1 test/request-validation.integration.test.ts` passes the 100 KiB refusal.
-- [ ] 2.5 Update `docs/security-requirements.md` (SEC-API-1), `docs/api-contracts.md` (evidence body order and the break-glass bound) and `docs/decision-log.md` (D-254). Verify: the doc lines name the test file and the 5 MiB and 128 KiB bounds; no status is raised without that citation.
-- [ ] 2.6 Run the three targeted tests from 2.1, 2.3 and 2.4 and record each exit code.
+- [x] 2.1 Put an authentication and authorization middleware in front of the raw evidence parser for the two evidence routes only. Verify: `pnpm --filter api exec node --import tsx --test --test-concurrency=1 test/evidence.integration.test.ts` proves an anonymous 5 MiB request is `401` without a stored object.
+- [x] 2.2 Keep the raw parser content-type scoped and add a test that a 6 MiB body is `413` before a controller runs. Verify: the same targeted test file passes the oversize case and the valid 5 MiB case.
+- [x] 2.3 Replace the break-glass route's clone-and-parse with a bounded read that refuses above 128 KiB. Verify: `pnpm --filter web exec node --import tsx --test test/break-glass-route.test.ts` passes the bound and the valid reason case.
+- [x] 2.4 Add the regression that the JSON cap is unchanged on a non-evidence route. Verify: `pnpm --filter api exec node --import tsx --test --test-concurrency=1 test/request-validation.integration.test.ts` passes the 100 KiB refusal.
+- [x] 2.5 Update `docs/security-requirements.md` (SEC-API-1), `docs/api-contracts.md` (evidence body order and the break-glass bound) and `docs/decision-log.md` (D-254). Verify: the doc lines name the test file and the 5 MiB and 128 KiB bounds; no status is raised without that citation.
+- [x] 2.6 Run the three targeted tests from 2.1, 2.3 and 2.4 and record each exit code.
 
 ## Phase 3 — admin-separation-of-duties
 

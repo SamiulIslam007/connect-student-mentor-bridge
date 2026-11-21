@@ -1987,3 +1987,11 @@ date: 2026-10-29
 - Reason: the documented topology makes the BFF the only client, so a per-address bucket measured the web container, not the person. A signed key restores the spec's "a different caller is unaffected" scenario without a shared store, CORS or a new dependency. The deployment's proxy must overwrite `x-forwarded-for`; a direct exposure is a limit bypass and can target another source's account bucket.
 - Status: Proposed (owner review required at the phase 1 PR)
 - Affects: `apps/web/lib/client-key.ts`, `apps/web/lib/bff.ts`, `services/api/src/http/account-throttler.ts`, `services/api/src/app.module.ts`, `services/api/src/main.ts`, `platform/rate-limits`
+
+### D-254: Authenticate before buffering, and keep the raw parser route-scoped
+
+- Date: 2026-11-22
+- Decision: an Express middleware checks the bearer session on `POST /v1/outcomes/:id/evidence/:evidence_id/complete` before `useBodyParser("raw")`, so an anonymous 6 MiB body is `401` rather than buffered and refused at `413`. The 5 MiB raw parser stays content-type scoped and the 100 KiB JSON cap is untouched. The break-glass BFF reads its own body through the 128 KiB `readJsonBody` cap instead of cloning and parsing it.
+- Reason: Express parses a registered body type before Nest's guards, so the session check has to sit in front of the parser. Object-level authorization remains in the controller, which has the outcome and evidence ids.
+- Status: Proposed (owner review required at the phase 2 PR)
+- Affects: `services/api/src/http/evidence-body-auth.ts`, `services/api/src/main.ts`, `apps/web/app/api/admin/mentorships/break-glass/route.ts`, `platform/request-validation`

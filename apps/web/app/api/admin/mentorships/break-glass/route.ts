@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { proxyJson, unauthenticated } from "../../../../../lib/bff";
+import { proxyJson, readJsonBody, unauthenticated } from "../../../../../lib/bff";
 import { readSessionCookie } from "../../../../../lib/session-cookie";
 import { requireCsrf } from "../../../../../lib/csrf";
 
@@ -19,7 +19,11 @@ export async function POST(request: Request): Promise<NextResponse> {
     return refused;
   }
 
-  const payload = (await request.clone().json().catch(() => ({}))) as {
+  const parsed = await readJsonBody(request);
+  if (!parsed.ok) {
+    return parsed.response;
+  }
+  const payload = parsed.value as {
     mentorship_id?: unknown;
     reason?: unknown;
   };
@@ -32,15 +36,10 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
   // Only `reason` goes upstream: the API's body allowlist documents exactly one
   // key for this route, and the id already forms the path.
-  const forwarded = new Request(request.url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ reason: payload.reason }),
-  });
   const response = await proxyJson(
     `/v1/admin/mentorships/${encodeURIComponent(mentorshipId)}/break-glass-read`,
-    forwarded,
-    { sessionToken: token },
+    request,
+    { sessionToken: token, body: { reason: payload.reason } },
   );
   // proxyJson rebuilds the response and drops upstream headers; this one must
   // not be cacheable by the browser either (design R3).

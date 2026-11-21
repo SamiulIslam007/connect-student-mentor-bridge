@@ -84,6 +84,19 @@ test("a refusal keeps its status and code", async () => {
   }
 });
 
+test("a body over 128 KiB is refused before any upstream call", async () => {
+  const calls: UpstreamCall[] = [];
+  stubFetch({}, 200, calls);
+
+  const response = await breakGlass(
+    request({ mentorship_id: "m-1", reason: "why", padding: "x".repeat(129 * 1024) }),
+  );
+
+  assert.equal(response.status, 413);
+  assert.equal((await response.json()).code, "PAYLOAD_TOO_LARGE");
+  assert.equal(calls.length, 0, "the cap is applied before the API call");
+});
+
 test("a non-JSON upstream becomes a 502 problem", async () => {
   globalThis.fetch = (async () =>
     new Response("<html>gateway</html>", {
