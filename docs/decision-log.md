@@ -1948,4 +1948,23 @@ date: 2026-10-29
 - What would change this decision: a third-party accessibility audit before the pilot, which would become the record's source.
 - Status: Decided (owner-approved as the audit's A2 recommendation)
 - Affects: `docs/audit/2026-11-21-accessibility-pass.md`, `docs/functional-requirements.md`, `docs/known-debt.md`
+<<<<<<< HEAD
+
+### D-248: The breach check uses the keyless range endpoint, and only a prefix leaves
+
+- Date: 2026-11-21
+- Decision: passwords are checked against `https://api.pwnedpasswords.com/range/{first five hex characters of the SHA-1}`, with `Add-Padding: true`, a 3-second `AbortSignal.timeout`, a bounded in-process cache keyed on the prefix, and no API key. The password, the full digest, the email and any user id never leave the process.
+- Reason: the range endpoint is free and keyless, which the pilot's cost envelope allows; the keyed `/breachedaccount` endpoint and commercial feeds are the paid alternative and are out of scope. SHA-1 is the provider's index only, never storage, so it must not be "upgraded" to SHA-256 (that would match nothing).
+- Status: Decided (owner-approved as the audit's R3 recommendation)
+- Affects: `packages/domain/src/password-breach.ts`, `services/api/src/identity/password-breach.ts`
+
+### D-249: An unreachable provider accepts the password and logs one line
+
+- Date: 2026-11-21
+- Decision: a timeout, a non-200 answer, an unreadable body or a network error makes the check answer `unavailable`; the password is accepted and one structured line records `{ event: "password.breach_check_unavailable", reason }`. A test proves the refusal path cannot be reached without a provider answer, and the log line carries no password, digest or identifier.
+- Reason: failing closed turns a provider outage into a sign-up outage for every participant; a twelve-character minimum still applies, and the event is the alert the deployment change watches. The privileged-role exception is not half-built: it is `DEBT-77`.
+- Status: Decided (owner-approved as the audit's R4 recommendation)
+- Affects: `services/api/src/identity/password-breach.ts`, `services/api/src/identity/better-auth-identity.service.ts`, `docs/known-debt.md`
+=======
+>>>>>>> origin/main
 >>>>>>> origin/main
