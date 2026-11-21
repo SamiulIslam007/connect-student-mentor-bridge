@@ -373,6 +373,8 @@ There is **one backend**: the NestJS modular monolith. FastAPI and any "intellig
 
 ### 7.5 Suggested repository layout
 
+The web app carries one stylesheet, `apps/web/app/globals.css`, imported once by `app/layout.tsx`. It holds the design tokens as CSS custom properties (surface, ink, border, one accent, the four stakeholder colours as badge accents, state colours, a four-step type scale, a 4 px spacing scale, radii and the focus ring) and styles the plain elements, so pages stay semantic HTML with no class attribute unless a piece of markup needs a name. Contrast is a property of the tokens: every pair the palette uses was measured, and `apps/web/test/design-tokens.test.ts` fails if a page uses a class the stylesheet does not define. The responsive contract - no sideways scrolling at 360 CSS px, 44 px controls, a visible focus ring - is measured in `e2e/visual-contract.spec.ts` (D-242, D-243).
+
 ```
 connect/
   apps/

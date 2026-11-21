@@ -5,6 +5,7 @@ import { APP_NAME } from "@connect/config";
 
 import { manifestColors } from "./manifest";
 import { SessionNav } from "./session-nav";
+import "./globals.css";
 
 export const metadata: Metadata = {
   title: APP_NAME,

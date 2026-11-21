@@ -6,7 +6,7 @@ export default function TermsPage() {
   const document = consentDocument("terms");
 
   return (
-    <main>
+    <main className="prose">
       <h1>{document.title}</h1>
       <p>{document.draftNotice}</p>
       <p>
