@@ -4,7 +4,7 @@
 
 ### Requirement: Each participant has a read marker in the thread
 
-The system SHALL store exactly one read marker per participant per mentorship, SHALL advance that marker only through an explicit mark-read write from that participant, SHALL never move it backwards, SHALL report an `unread_count` counting only messages written by the other participant after the marker, and SHALL NOT move a marker when a moderator reads the thread through break-glass access. The mentorship page SHALL send that mark-read write when a participant opens it, the mentorship list SHALL show each mentorship's `unread_count`, and the thread SHALL mark where the previous marker fell, so a participant can see which messages are new.
+The system SHALL store exactly one read marker per participant per mentorship, SHALL advance that marker only through an explicit mark-read write from that participant, SHALL never move it backwards, SHALL report an `unread_count` counting only messages written by the other participant after the marker, and SHALL NOT move a marker when a moderator reads the thread through break-glass access.
 
 #### Scenario: A participant marks the thread read
 
@@ -60,6 +60,12 @@ The system SHALL store exactly one read marker per participant per mentorship, S
 
 - **WHEN** a participant reads one mentorship or lists their mentorships
 - **THEN** each mentorship in the response carries `unread_count` and no message body, sender name or email address beyond the existing projection
+
+## ADDED Requirements
+
+### Requirement: The browser keeps the read marker honest
+
+The mentorship page SHALL send the mark-read write when a participant opens the thread and again only after a refresh window, the mentorship list SHALL show each mentorship's `unread_count`, and the thread SHALL mark where the previous marker fell. A failed write SHALL keep the messages and SHALL NOT clear the marker of what was new.
 
 #### Scenario: Opening the thread marks it read
 
