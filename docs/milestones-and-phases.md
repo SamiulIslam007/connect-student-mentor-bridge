@@ -14,11 +14,11 @@ sources: [README.md, connect-research-report.md (Sections 5, 6, 7, 9, 10)]
 
 | Field | Value |
 |---|---|
-| Updated | 2026-11-20 |
+| Updated | 2026-11-21 |
 | Phase | 1a - MVP build |
 | Current sprint | Round five closed: `institution-dashboard-aggregates`, `idempotency-key-on-writes`, `signup-bot-protection`, `evidence-retention-edges` and `pilot-runbook-and-docs-truth` are merged and archived (PR #96 to #99, then this change's PR). |
 | Last archived change | `pilot-runbook-and-docs-truth` (2026-11-20) - `DONE`: `docs/runbook.md` plus a by-command recount of the register (59.5 / 64 = 93.0%; 55 `DONE`, 9 `PARTIAL`, 0 `NOT STARTED`) and two amendments labelled as amendments. |
-| In flight | None. |
+| In flight | `dependency-security-bump` (D-234, D-235): `next` 16.4.3 to 16.4.6, two cold `CI=true pnpm build` runs at exit 0, `pnpm audit --audit-level=high` down from nine moderate advisories to two dev-only ones (`DEBT-71` closed, `DEBT-72` recorded). |
 | Next change | Not queued. The cheapest remaining points are `FR-UX-04` (an automated AA run), `FR-THR-02` (the read-state UI) and `FR-DISC-02`; `FR-REP-02`/`FR-REP-03` wait on pilot calibration. |
 | Open blockers | None. `DEBT-67` (the breached-password clause) needs an owner decision before it can be built. |
 ## 1. Purpose and scope
