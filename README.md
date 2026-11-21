@@ -5,7 +5,7 @@
 
 | | |
 |---|---|
-| **Status** | **2026-11-21: `docs-truth-gate-doc-and-debt-targets` (archived) makes the gate documents match the code; PR #107, merge `b5605aa`.** Every box in `production-requirements.md` and `milestones-and-phases.md` section 5.5 now carries a citation in the same row or one `unmet:` line naming the change that owns the gap (D-240): the file moved from 3 ticked and 39 unticked to 19 ticked and 23 unticked, with 17 `unmet:`. README section 20 is rewritten from the archive, Q5 is answered, `DEBT-11` is retargeted, the admin session timeouts became `DEBT-74`, and the observability and styling gaps that had no row became `DEBT-75` and `DEBT-76`. Docs only. |
+| **Status** | **2026-11-21: `visual-design-and-responsive-layout` (archived) gives the app a design; PR #108, merge `a8b0de8`.** One token stylesheet (`apps/web/app/globals.css`) styles all 23 pages from its element rules, with no styling dependency and no webfont; the four stakeholder colours appear only as badge accents. Contrast is a property of the tokens (ink 18.1:1, muted ink 7.81:1, interactive border 3.32:1, white on the accent 5.0:1) and `e2e/visual-contract.spec.ts` measures every surface at 360 CSS px - no sideways scrolling, 44 px controls, a 2 px focus ring. `DEBT-76` closed, `FR-UX-01` keeps only the device-install gap, D-242 and D-243 recorded. |
 | **Document role** | **Master README, the main source of truth** for the connect project |
 | **Audience** | Builder, future engineers, designers, advisors, pilot institutions, AI coding agents |
 | **Last reviewed** | 2026-11-21 |
