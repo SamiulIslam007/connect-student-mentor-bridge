@@ -1912,3 +1912,21 @@ date: 2026-10-29
 - Alternatives rejected: neutral product-SaaS (indistinguishable); plain utility in the gov.uk register (accessible, uninviting to a 20-year-old student).
 - Status: Decided (owner-approved as the audit's V2 recommendation)
 - Affects: `apps/web/app/globals.css`, `e2e/visual-contract.spec.ts`, `README.md` section 7.5
+
+### D-244: Serious and critical axe violations fail the run; moderate and minor are recorded
+
+- Date: 2026-11-21
+- Decision: `@axe-core/playwright` 4.14.0 runs on every surface the app serves with axe's default rule set; a `serious` or `critical` violation fails the run and names the surface, the rule and the element, while `moderate` and `minor` are printed and recorded but do not fail it.
+- Reason: those two severities map to a barrier a person cannot work around (no accessible name, an unlabelled control, a colour-only signal); a gate that fails on all four would be red for reasons no pilot user feels, and the first response to such a gate is to disable it.
+- What would change this decision: the pilot reporting a real barrier from a moderate rule, in which case that rule is promoted to the gate individually.
+- Status: Decided (owner-approved as the audit's A1 recommendation)
+- Affects: `e2e/accessibility.spec.ts`, `e2e/support/axe.ts`, the `e2e` CI job
+
+### D-245: The manual pass is a dated record, and it is what makes a DONE claim legitimate
+
+- Date: 2026-11-21
+- Decision: one file, `docs/audit/<date>-accessibility-pass.md`, naming the surfaces, the browser, every finding and its fix or tracking row, and the automated run that covers the same surfaces. `FR-UX-04` becomes `DONE` only when that file exists and its AA findings are closed; the NVDA pass cannot be performed by an agent, so the row stays `PARTIAL` until the owner runs it (F3 in the record).
+- Reason: the row has been `PARTIAL` for a month because "we designed it accessibly" is not evidence; a dated record with a scope is what a partner asks for, the same shape `docs/runbook.md` uses for a restore drill (D-227).
+- What would change this decision: a third-party accessibility audit before the pilot, which would become the record's source.
+- Status: Decided (owner-approved as the audit's A2 recommendation)
+- Affects: `docs/audit/2026-11-21-accessibility-pass.md`, `docs/functional-requirements.md`, `docs/known-debt.md`
