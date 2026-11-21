@@ -5,7 +5,7 @@
 
 | | |
 |---|---|
-| **Status** | **2026-11-21: `breached-password-check` closes `SEC-AUTH-3`'s last clause.** A password that appears in a public breach corpus is refused at registration and at password reset (`422 VALIDATION_FAILED` naming the field), using the Pwned Passwords range endpoint: only five hexadecimal characters of the SHA-1 leave the process, a 3-second budget applies, and an unreachable provider accepts the password while logging one line (D-248, D-249). `packages/domain/src/password-breach.ts` decides from the suffix list without I/O; `DEBT-67` closed, `DEBT-77` opened for the privileged-role variant. `visual-design-and-responsive-layout` was archived the same day (PR #113) and `thread-read-state-ui` merged as PR #112. |
+| **Status** | **2026-11-21: `accessibility-evidence` (archived) puts a number on `FR-UX-04`.** axe 4.14.0 runs over all 23 surfaces plus two forced error states; serious and critical fail the run, moderate and minor are printed. Result: zero violations at every severity, with a self-check that injects a nameless `role="img"` so a clean run means something, and a scripted keyboard walk that finds a visible 2 px focus ring on every control (`e2e/accessibility.spec.ts`). The NVDA pass cannot be done by an agent, so `FR-UX-04` stays `PARTIAL` and `DEBT-38` names the gap. PR #110, D-244 and D-245. |
 | **Document role** | **Master README, the main source of truth** for the connect project |
 | **Audience** | Builder, future engineers, designers, advisors, pilot institutions, AI coding agents |
 | **Last reviewed** | 2026-11-21 |
