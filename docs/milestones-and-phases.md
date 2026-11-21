@@ -17,8 +17,8 @@ sources: [README.md, connect-research-report.md (Sections 5, 6, 7, 9, 10)]
 | Updated | 2026-11-21 |
 | Phase | 1a - MVP build |
 | Current sprint | Round five closed: `institution-dashboard-aggregates`, `idempotency-key-on-writes`, `signup-bot-protection`, `evidence-retention-edges` and `pilot-runbook-and-docs-truth` are merged and archived (PR #96 to #99, then this change's PR). |
-| Last archived change | `pilot-runbook-and-docs-truth` (2026-11-20) - `DONE`: `docs/runbook.md` plus a by-command recount of the register (59.5 / 64 = 93.0%; 55 `DONE`, 9 `PARTIAL`, 0 `NOT STARTED`) and two amendments labelled as amendments. |
-| In flight | `dependency-security-bump` (D-234, D-235): `next` 16.4.3 to 16.4.6, two cold `CI=true pnpm build` runs at exit 0, `pnpm audit --audit-level=high` down from nine moderate advisories to two dev-only ones (`DEBT-71` closed, `DEBT-72` recorded). |
+| Last archived change | `dependency-security-bump` (2026-11-21) - `DONE`: the cold-tree build gate is green again. `next` moves from `16.4.3` to `16.4.6` with the lockfile and nothing else, so `CI=true pnpm build` exits 0 twice in a row on a removed `apps/web/.next` where the first run used to exit 1 with `SecurityFatalError`; `pnpm audit --audit-level=high` reports 2 moderate advisories instead of 9, both dev-only and both outside their parents' ranges, so `DEBT-71` closes and `DEBT-72` records the pair with its trigger; no suppression of any kind is added. PR #103, merge `a7880cf`. |
+| In flight | None. |
 | Next change | Not queued. The cheapest remaining points are `FR-UX-04` (an automated AA run), `FR-THR-02` (the read-state UI) and `FR-DISC-02`; `FR-REP-02`/`FR-REP-03` wait on pilot calibration. |
 | Open blockers | None. `DEBT-67` (the breached-password clause) needs an owner decision before it can be built. |
 ## 1. Purpose and scope
