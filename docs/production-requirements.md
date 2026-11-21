@@ -107,7 +107,7 @@ From README section 13 and research doc 8. These are **targets, not an SLA** (on
 | Recovery time | Restore to a working service within 4 hours (**Proposed**) |
 | Capacity | Sized for 1 institution, 30 mentors, 100 students with 10x headroom without redesign |
 | Mobile web | Key screens usable on a throttled slow connection and a low-end Android device (test device and network profile to be defined) |
-| Accessibility | WCAG 2.1 AA |
+| Accessibility | WCAG 2.1 AA - automated axe run over all 23 surfaces with zero violations and a recorded keyboard walk (`e2e/accessibility.spec.ts`, `docs/audit/2026-11-21-accessibility-pass.md`); the NVDA pass is still owed (`DEBT-38`) |
 
 **Resilience rules:** form drafts autosave and survive reconnect; retryable POST endpoints use an Idempotency-Key; email is the fallback channel; an email outage queues retries; if an AI provider is down, assist features are disabled and core flows continue.
 
@@ -213,6 +213,7 @@ All Gate 1 items plus **only** these, which are truly required before a real per
 
 - [ ] **Terms of use** published (owner draft; counsel review recommended and desirable, but its absence is a Deferred item and not a Gate 2 blocker).
 - [ ] **Privacy Notice** published, matching `data-privacy-and-retention.md`.
+- [ ] **Accessibility evidence**: the automated audit and the keyboard record exist (`docs/audit/2026-11-21-accessibility-pass.md`); the NVDA screen-reader pass is owed (`DEBT-38`).
 - [ ] **Consent screens** live for the five MVP purposes (`TERMS`, `PRIVACY_NOTICE`, `VOLUNTEER_AGREEMENT`, `COMMUNITY_GUIDELINES`, `INSTITUTION_DATA_SHARING`), append-only records tested.
 - [ ] **Backup restore performed** and documented — the drill and its record table are in `docs/runbook.md` §5.
 - [ ] **Runbook** (section 12.1) written — `docs/runbook.md` exists; **rehearsal at Gate 2** still open — and the **backup restore drill** in it performed once and recorded in its table.
