@@ -5,7 +5,7 @@
 
 | | |
 |---|---|
-| **Status** | **2026-11-21: `visual-design-and-responsive-layout` (archived) gives the app a design; PR #108, merge `a8b0de8`.** One token stylesheet (`apps/web/app/globals.css`) styles all 23 pages from its element rules, with no styling dependency and no webfont; the four stakeholder colours appear only as badge accents. Contrast is a property of the tokens (ink 18.1:1, muted ink 7.81:1, interactive border 3.32:1, white on the accent 5.0:1) and `e2e/visual-contract.spec.ts` measures every surface at 360 CSS px - no sideways scrolling, 44 px controls, a 2 px focus ring. `DEBT-76` closed, `FR-UX-01` keeps only the device-install gap, D-242 and D-243 recorded. |
+| **Status** | **2026-11-21: `first-deployment-restore-drill-and-observability` is merged and stays open.** The repository side exists: one shared scrub list (`packages/domain/src/observability-scrub.ts`) with a conditional Sentry init in the API, the worker and the web app; `infra/deploy/deploy.sh`, which runs `pnpm --filter api db:migrate` as its own step and stops the release when it fails (proven against a wrong `DATABASE_URL`, exit 1); the three `SENTRY_*` names with no values; the runbook's deployment, bootstrap and restore records carrying `not performed` rows; ADR-021 as `Proposed`. Everything that needs a host, a DSN, an alert address or a real restore is an OWNER ACTION, so the change is not archived. D-250 to D-252 recorded. |
 | **Document role** | **Master README, the main source of truth** for the connect project |
 | **Audience** | Builder, future engineers, designers, advisors, pilot institutions, AI coding agents |
 | **Last reviewed** | 2026-11-21 |

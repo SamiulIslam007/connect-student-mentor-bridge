@@ -185,6 +185,32 @@ service only, after confirming the schema is compatible — a migration is not
 rolled back. Binding the tag is a `<deployment value>`:
 `docker compose up -d --no-deps api` after pinning the tag.
 
+
+### 5.1 Error tracking, uptime and the one alert
+
+| Piece | What is in the repository | What is not |
+|---|---|---|
+| Error tracking | `services/api/src/platform/observability.ts` and `apps/web/instrumentation.ts` initialise Sentry only when `SENTRY_DSN` is set, with one shared scrub list in `packages/domain/src/observability-scrub.ts`; `services/api/test/observability.test.ts` proves a token, a cookie, a query string, a message body and an email address are dropped | **OWNER ACTION:** create the Sentry project, copy its DSN into the host's environment store, throw one deliberate error per process and read the three reports |
+| Uptime check | the two URLs and the interval are fixed here: `/healthz` and the sign-in page, every five minutes, alert to the owner's address | **OWNER ACTION:** create the monitor (free tier), confirm the alert address, and record the first alert email's arrival time |
+| The alert on a provider outage | the API logs `{"event":"password.breach_check_unavailable","reason":...}` | **OWNER ACTION:** add an alert on that line once the log platform is chosen |
+| Recovery | a failed check is fail-open by design (D-249), so nothing has to be done to keep sign-up working; the alert exists so a sustained outage is visible | - |
+
+`SENTRY_DSN`, `SENTRY_ENVIRONMENT` and `SENTRY_TRACES_SAMPLE_RATE` are the only names; no value is committed
+(`grep -c 'SENTRY_' .env.example` prints `3`).
+
+### 5.2 The deployed release
+
+`infra/deploy/deploy.sh` is the migrate-first sequence: `pnpm --filter api db:migrate` runs as its own step and a failure
+stops the release before any new image takes traffic. Verified locally against a deliberately wrong `DATABASE_URL`:
+
+```
+{"event":"deploy.migrate.failed","action":"release stopped, previous version keeps serving"}
+EXIT=1
+```
+
+**OWNER ACTION:** run it once on the chosen host and quote the four lines (`deploy.migrate.start`,
+`deploy.migrate.done`, `deploy.restart`, `deploy.ready_to_verify`) plus the `/healthz`, `/readyz` and sign-in answers.
+
 ## 6. The first production `PLATFORM_ADMIN`
 
 No route and no script grants this role (`AGENTS.md` rule 12). One hand-run
@@ -220,6 +246,7 @@ written down at all (`DEBT-46`, closed by this procedure rather than by code).
 | Date | Operator | Environment | Reason | Note |
 |---|---|---|---|---|
 | 2026-11-20 | Owner | local stack | the first `PLATFORM_ADMIN` for the pilot | mirrors the statement in `local-setup.md`; no `audit_logs` row, recorded here instead |
+| **not performed** | - | deployed environment | the first `PLATFORM_ADMIN` of the pilot | **OWNER ACTION:** run the `INSERT` below on the deployed database, enrol the second factor at `/account/security`, then run the proving `SELECT` and fill this row |
 
 ## 7. Backup and restore drill
 
@@ -246,10 +273,11 @@ Run once before the pilot, then on a schedule the owner sets.
 
 | Date | Environment | Duration | Result | Operator |
 |---|---|---|---|---|
-| _not yet performed_ | | | | |
+| **not performed** | deployed environment | - | **OWNER ACTION:** `pg_dump`, `pg_restore` into a scratch database, the three counts for `users`, `outcomes` and `audit_logs`, and one authenticated read against the restored data; then fill this row | - |
 
 The drill is a table filled by hand because the provider is undecided: a script
-for an unknown target is untested code (design R3).
+for an unknown target is untested code (design R3). The restore has **not** been
+performed: no host exists yet, so the row above is an owner action, not a result.
 
 ## 8. What this file does not decide
 

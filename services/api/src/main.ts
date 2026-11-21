@@ -10,8 +10,20 @@ import {
   EVIDENCE_MAX_BYTES,
 } from "./http/request-body.js";
 import { apiSecurityHeaders } from "./http/security-headers.js";
+import { initObservability } from "./platform/observability.js";
 
 async function bootstrap(): Promise<void> {
+  // Inert without a DSN; reports are scrubbed before they leave (D-251).
+  const observability = await initObservability({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.SENTRY_ENVIRONMENT,
+    tracesSampleRate: Number(process.env.SENTRY_TRACES_SAMPLE_RATE ?? 0),
+  });
+  process.on("unhandledRejection", (error) => {
+    observability.captureException(error);
+    console.error(JSON.stringify({ event: "api.unhandled_rejection" }), error);
+  });
+
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     bodyParser: false,
   });

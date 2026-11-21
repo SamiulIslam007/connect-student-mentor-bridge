@@ -140,18 +140,18 @@ Detailed controls live in `security-requirements.md`. Launch-blocking minimum:
 
 | Need | Minimum for pilot |
 |---|---|
-| Errors | Sentry for web, API, and worker, with personal data scrubbed. **unmet: owned by `first-deployment-restore-drill-and-observability`** |
-| Logs | Structured logs with request ID (built: one JSON line per event, `services/api/test/request-id-coverage.test.ts`); a searchable store and 90-day retention are **unmet: same change** |
-| Uptime | External uptime check on `/healthz` and the login page; alert to Owner by email and phone push. **unmet: same change** |
-| Metrics | Request rate, error rate, latency, job queue age, email failures. **unmet: same change** |
+| Errors | **Built, not deployed:** `services/api/src/platform/observability.ts` and `apps/web/instrumentation.ts` initialise Sentry only with `SENTRY_DSN`, and one shared scrub list drops tokens, cookies, bodies and the user's email (`packages/domain/src/observability-scrub.ts`, proven by `services/api/test/observability.test.ts`). **OWNER ACTION (2026-11-21, `first-deployment-restore-drill-and-observability`): the code and the record tables exist; the host does not.** Create the project, set the DSN, throw one error per process |
+| Logs | Structured logs with request ID (built: one JSON line per event, `services/api/test/request-id-coverage.test.ts`); a searchable store and 90-day retention are **unmet: same change**, **OWNER ACTION (2026-11-21, `first-deployment-restore-drill-and-observability`): the code and the record tables exist; the host does not.** |
+| Uptime | The two URLs, the five-minute interval and the alert channel are fixed in `docs/runbook.md` §5.1; the monitor is not created. **unmet: same change**, **OWNER ACTION (2026-11-21, `first-deployment-restore-drill-and-observability`): the code and the record tables exist; the host does not.** |
+| Metrics | Request rate, error rate, latency, job queue age, email failures. **unmet: same change**, and not started: no metrics surface exists |
 | Business events | Internal table for KPI events (match acceptance, response time, outcome confirmation) |
-| Alerts | Error spike, uptime failure, backup failure, failed jobs older than 1 hour. **unmet: same change** |
+| Alerts | Error spike, uptime failure, backup failure, failed jobs older than 1 hour. **unmet: same change**, **OWNER ACTION (2026-11-21, `first-deployment-restore-drill-and-observability`): the code and the record tables exist; the host does not.** The one alert the code can trigger today is the API's `password.breach_check_unavailable` line |
 
 OpenTelemetry tracing is Later (multi-service need).
 
 ## 10. Backup and recovery
 
-- [ ] Daily automated backups and point-in-time recovery on managed Postgres - **unmet: no managed Postgres yet**, owned by the deployment change.
+- [ ] Daily automated backups and point-in-time recovery on managed Postgres - **unmet: no managed Postgres yet**, owned by the deployment change; **OWNER ACTION (2026-11-21, `first-deployment-restore-drill-and-observability`): the code and the record tables exist; the host does not.**
 - [ ] Object storage versioning or replication for evidence files - **unmet: same change**.
 - [ ] **A restore is actually performed** into a scratch environment before Gate 2 and repeated every quarter - **unmet: needs a real host**; the procedure and its record table exist in `docs/runbook.md` and nothing is recorded in them yet.
 - [x] Recovery steps are written in the runbook (section 12) — `docs/runbook.md` §4.
