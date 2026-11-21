@@ -383,6 +383,8 @@ Built by `mentorship-thread-and-sessions` (#8). Every row below is a session plu
 | `GET /v1/mentorships/{id}/messages?cursor=&limit=` | participant | no | Thread, oldest first, keyset on (`created_at`, `id`) |
 | `POST /v1/mentorships/{id}/messages` | participant | no | Text only, trimmed, 1 to 2000 characters. Queues exactly one email per message on the message id (D-62) |
 | `POST /v1/mentorships/{id}/read` | participant | yes | **Built** by `thread-read-state` (D-172 to D-177). No body. Advances the caller's own read marker to the server's current instant and answers `200` with `mentorship_id`, `user_id`, `last_read_at` and the caller's remaining `unread_count`. The update is conditional on a later instant, so a duplicate or stale write changes nothing |
+
+The browser uses this route on opening a thread: `/mentorship/{id}` posts it once per load (and again after the 30-second focus window) and then re-reads, so the badge on `/requests` and the divider in the thread agree with the server's marker (D-246, D-247).
 | `POST /v1/mentorships/{id}/sessions` | participant | no | Body: `scheduled_start`, `duration_minutes` (15 to 240), `meeting_url` (`https://` only) |
 | `POST /v1/sessions/{id}/confirm-held` | participant | yes | Sets the caller's own confirmation; `HELD` only when both exist |
 | `POST /v1/sessions/{id}/cancel` | participant | no | Body: `reason` (1 to 500 characters); only a `SCHEDULED` session can be cancelled |

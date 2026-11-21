@@ -5,7 +5,7 @@
 
 | | |
 |---|---|
-| **Status** | **2026-11-21: `breached-password-check` closes `SEC-AUTH-3`'s last clause.** A password that appears in a public breach corpus is refused at registration and at password reset (`422 VALIDATION_FAILED` naming the field), using the Pwned Passwords range endpoint: only five hexadecimal characters of the SHA-1 leave the process, a 3-second budget applies, and an unreachable provider accepts the password while logging one line (D-248, D-249). `packages/domain/src/password-breach.ts` decides from the suffix list without I/O; `DEBT-67` closed, `DEBT-77` opened for the privileged-role variant. |
+| **Status** | **2026-11-21: `breached-password-check` closes `SEC-AUTH-3`'s last clause.** A password that appears in a public breach corpus is refused at registration and at password reset (`422 VALIDATION_FAILED` naming the field), using the Pwned Passwords range endpoint: only five hexadecimal characters of the SHA-1 leave the process, a 3-second budget applies, and an unreachable provider accepts the password while logging one line (D-248, D-249). `packages/domain/src/password-breach.ts` decides from the suffix list without I/O; `DEBT-67` closed, `DEBT-77` opened for the privileged-role variant. `visual-design-and-responsive-layout` was archived the same day (PR #113) and `thread-read-state-ui` merged as PR #112. |
 | **Document role** | **Master README, the main source of truth** for the connect project |
 | **Audience** | Builder, future engineers, designers, advisors, pilot institutions, AI coding agents |
 | **Last reviewed** | 2026-11-21 |

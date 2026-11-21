@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { unreadBadge } from "../../lib/read-state";
 import { strings } from "../../lib/strings";
 import { csrfFetch } from "../../lib/csrf-client";
 
@@ -46,6 +47,8 @@ function dateLabel(value: string): string {
 export default function RequestsPage() {
   const [role, setRole] = useState<Role>("received");
   const [requests, setRequests] = useState<RequestRecord[]>([]);
+  // One read for the whole page: the count lives on the mentorship, not the request row.
+  const [unread, setUnread] = useState<Record<string, number>>({});
   const [message, setMessage] = useState<string | null>(null);
   const [signedOut, setSignedOut] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -71,6 +74,21 @@ export default function RequestsPage() {
         }
         const payload = (await response.json()) as { data?: RequestRecord[] };
         setRequests(payload.data ?? []);
+
+        // One extra read for the whole page: the count is on the mentorship.
+        const mentorships = await fetch("/api/mentorships").catch(() => null);
+        if (mentorships?.ok) {
+          const list = (await mentorships.json().catch(() => ({}))) as {
+            data?: { id: string; unread_count?: number }[];
+          };
+          const counts: Record<string, number> = {};
+          for (const item of list.data ?? []) {
+            if (item.unread_count) {
+              counts[item.id] = item.unread_count;
+            }
+          }
+          setUnread(counts);
+        }
       } catch (error) {
         console.error(
           JSON.stringify({
@@ -151,7 +169,9 @@ export default function RequestsPage() {
         <p>{strings.requests.empty}</p>
       ) : (
         <ul>
-          {requests.map((request) => (
+          {requests.map((request) => {
+            const badge = unreadBadge(unread[request.mentorship_id ?? ""]);
+            return (
             <li key={request.id}>
               <p>
                 <strong>{request.question}</strong>
@@ -168,6 +188,16 @@ export default function RequestsPage() {
                   <a href={`/mentorship/${request.mentorship_id}`}>
                     {strings.requests.openMentorship}
                   </a>
+                  {badge ? (
+                    <>
+                      {" "}
+                      <span className="badge badge--mentor">
+                        {badge.count === 1
+                          ? strings.requests.unreadOne
+                          : `${badge.count} ${strings.requests.unreadMany}`}
+                      </span>
+                    </>
+                  ) : null}
                 </p>
               ) : null}
               {request.status === "pending" && role === "received" ? (
@@ -188,7 +218,8 @@ export default function RequestsPage() {
                 </p>
               ) : null}
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
 
