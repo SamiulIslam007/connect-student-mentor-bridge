@@ -78,6 +78,8 @@ before(async () => {
   const service = new BetterAuthIdentityService({
     auth,
     database: connection.db,
+    // No test may reach the provider: the range check is covered by its own file.
+    breachChecker: { check: async () => "clean" },
     secret: TEST_AUTH_SECRET,
   });
   identity = service;
@@ -1206,6 +1208,7 @@ test("an unrecordable sign-in is refused and leaves no live session", async (con
     auth: authInstance,
     database: connection.db,
     secret: TEST_AUTH_SECRET,
+    breachChecker: { check: async () => "clean" },
     auditWriter: (db, entry) =>
       entry.action === "SIGN_IN_SUCCEEDED"
         ? Promise.reject(new Error("audit store unavailable"))

@@ -35,9 +35,15 @@ export const labels = {
     received: "Received",
     accept: "Accept",
     accepted: "The request was accepted.",
+    unreadOne: "1 new message",
     openMentorship: "Open the mentorship",
   },
-  mentorship: { messageLabel: "Message", send: "Send message", sent: "The message was sent." },
+  mentorship: {
+    messageLabel: "Message",
+    send: "Send message",
+    sent: "The message was sent.",
+    newMessages: "New messages since you last read this thread",
+  },
   outcome: {
     type: "Outcome type",
     contribution: "How much did your mentor contribute?",

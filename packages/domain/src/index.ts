@@ -27,6 +27,7 @@ export * from "./mentor-onboarding.js";
 export * from "./mentorship.js";
 export * from "./outcome.js";
 export * from "./reputation.js";
+export * from "./password-breach.js";
 export * from "./password-policy.js";
 export * from "./profiles.js";
 export * from "./request.js";

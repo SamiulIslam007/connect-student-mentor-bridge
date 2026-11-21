@@ -8,6 +8,11 @@ import { AuthController } from "./auth.controller.js";
 import { createIdentityAuth, type IdentityAuth } from "./better-auth.js";
 import { BetterAuthIdentityService } from "./better-auth-identity.service.js";
 import { readIdentityConfig, type IdentityConfig } from "./identity.config.js";
+import {
+  PASSWORD_BREACH_CHECKER,
+  createPwnedPasswordsChecker,
+  type PasswordBreachChecker,
+} from "./password-breach.js";
 import { EMAIL_SENDER, IDENTITY_AUTH, IDENTITY_SERVICE } from "./identity.tokens.js";
 
 const emailSenderProvider: Provider = {
@@ -30,16 +35,22 @@ const authProvider: Provider = {
   },
 };
 
+const breachCheckerProvider: Provider = {
+  provide: PASSWORD_BREACH_CHECKER,
+  useFactory: (): PasswordBreachChecker => createPwnedPasswordsChecker(),
+};
+
 const identityServiceProvider: Provider = {
   provide: IDENTITY_SERVICE,
-  inject: [IDENTITY_AUTH, DATABASE],
-  useFactory: (auth: IdentityAuth, database: Database): BetterAuthIdentityService => {
+  inject: [IDENTITY_AUTH, DATABASE, PASSWORD_BREACH_CHECKER],
+  useFactory: (auth: IdentityAuth, database: Database, breachChecker: PasswordBreachChecker): BetterAuthIdentityService => {
     const config = readIdentityConfig();
     return new BetterAuthIdentityService({
       auth,
       database,
       secret: config.secret,
       providerIds: config.google ? ["google"] : [],
+      breachChecker,
     });
   },
 };
@@ -47,7 +58,7 @@ const identityServiceProvider: Provider = {
 @Module({
   imports: [DatabaseModule],
   controllers: [AuthController],
-  providers: [emailSenderProvider, authProvider, identityServiceProvider],
+  providers: [emailSenderProvider, breachCheckerProvider, authProvider, identityServiceProvider],
   exports: [IDENTITY_SERVICE],
 })
 export class IdentityModule {}

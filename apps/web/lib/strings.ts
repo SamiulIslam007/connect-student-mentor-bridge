@@ -283,6 +283,8 @@ export const strings = {
     statusRedirected: "Redirected",
     backToProfile: "Back to your profile",
     openMentorship: "Open the mentorship",
+    unreadOne: "1 new message",
+    unreadMany: "new messages",
   },
   requestNew: {
     title: "Send a mentorship request",
@@ -598,6 +600,7 @@ export const strings = {
     acknowledgedBoth: "Both of you have acknowledged this agreement.",
     threadTitle: "Messages",
     threadEmpty: "No messages yet. Say hello.",
+    newMessages: "New messages since you last read this thread",
     messageLabel: "Message",
     send: "Send message",
     sending: "Sending…",

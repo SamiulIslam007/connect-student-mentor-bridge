@@ -55,6 +55,7 @@ import {
 import { asValidationFailure, isClientApiError } from "./api-error.js";
 import { activatePendingAccount } from "./account-activation.js";
 import type { IdentityAuth } from "./better-auth.js";
+import { createPwnedPasswordsChecker, type PasswordBreachChecker } from "./password-breach.js";
 import { appendAuditEntry, type AuditEntry } from "./audit-log.js";
 import { runWithRequestId } from "./request-context.js";
 import { hashEmail } from "./email-hash.js";
@@ -226,6 +227,8 @@ export interface BetterAuthIdentityServiceOptions {
    * go to `appendAuditEntry`; a fault-injection test can fail one action.
    */
   auditWriter?: (database: Database, entry: AuditEntry) => Promise<void>;
+  /** The breach seam; production passes the range-endpoint checker (D-248). */
+  breachChecker?: PasswordBreachChecker;
 }
 
 /** Audit writes go through one seam so a test can fault-inject a single action. */
@@ -241,15 +244,25 @@ export class BetterAuthIdentityService implements IdentityService {
   private readonly secret: string;
   private readonly providerIds: string[];
   private readonly now: () => Date;
+  private readonly breachChecker: PasswordBreachChecker;
   private readonly auditWriter: AuditWriter;
 
-  constructor({ auth, database, secret, providerIds, now, auditWriter }: BetterAuthIdentityServiceOptions) {
+  constructor({
+    auth,
+    database,
+    secret,
+    providerIds,
+    now,
+    auditWriter,
+    breachChecker,
+  }: BetterAuthIdentityServiceOptions) {
     this.auth = auth;
     this.database = database;
     this.secret = secret;
     this.providerIds = providerIds ?? [];
     this.now = now ?? (() => new Date());
     this.auditWriter = auditWriter ?? appendAuditEntry;
+    this.breachChecker = breachChecker ?? createPwnedPasswordsChecker();
   }
 
   private writeAudit(entry: AuditEntry): Promise<void> {
@@ -268,6 +281,14 @@ export class BetterAuthIdentityService implements IdentityService {
     }
     if (passwordPolicyViolation(input.password)) {
       throw new IdentityError("VALIDATION_ERROR", "password must be at least 12 characters");
+    }
+    // A long password can still be in a public breach corpus, which is exactly the
+    // shape credential stuffing satisfies first (D-248). Unavailable accepts (D-249).
+    if ((await this.breachChecker.check(input.password)) === "breached") {
+      throw new IdentityError(
+        "VALIDATION_ERROR",
+        "password appears in a public breach and cannot be used; choose a different one",
+      );
     }
     if (!isCalendarDate(input.dateOfBirth)) {
       throw new IdentityError("VALIDATION_ERROR", "date of birth must be a calendar date");
@@ -563,6 +584,14 @@ export class BetterAuthIdentityService implements IdentityService {
   async resetPassword(input: PasswordResetInput): Promise<void> {
     if (passwordPolicyViolation(input.password)) {
       throw new IdentityError("VALIDATION_ERROR", "password must be at least 12 characters");
+    }
+    // A long password can still be in a public breach corpus, which is exactly the
+    // shape credential stuffing satisfies first (D-248). Unavailable accepts (D-249).
+    if ((await this.breachChecker.check(input.password)) === "breached") {
+      throw new IdentityError(
+        "VALIDATION_ERROR",
+        "password appears in a public breach and cannot be used; choose a different one",
+      );
     }
 
     try {

@@ -1913,6 +1913,24 @@ date: 2026-10-29
 - Status: Decided (owner-approved as the audit's V2 recommendation)
 - Affects: `apps/web/app/globals.css`, `e2e/visual-contract.spec.ts`, `README.md` section 7.5
 
+<<<<<<< HEAD
+### D-246: The marker moves on open, once per load and once per focus window
+
+- Date: 2026-11-21
+- Decision: `/mentorship/{id}` posts `POST /v1/mentorships/{id}/read` when the thread loads and again only after a 30-second focus window (`shouldMarkRead` in `apps/web/lib/read-state.ts`). A read of the thread never moves the marker by itself, scrolling never marks anything read, and a failed write keeps the thread and shows the catalog error line.
+- Reason: the marker is the server's record of what a person has seen; a scroll heuristic or a silent page-level write marks messages read that nobody read, and a re-render would double-post.
+- Status: Decided (owner-approved as the audit's R1 recommendation)
+- Affects: `apps/web/app/mentorship/[id]/page.tsx`, `apps/web/lib/read-state.ts`, `apps/web/app/api/mentorships/[[...path]]/route.ts`
+
+### D-247: The count appears on the list and in the thread, nowhere else
+
+- Date: 2026-11-21
+- Decision: `/requests` shows a badge for a non-zero `unread_count` (one read for the whole page from `GET /api/mentorships`) and the thread draws a "new messages" divider where the previous marker fell. No navigation badge, no poller, no read receipts.
+- Reason: those are the two surfaces that already read mentorships; a global badge needs a fetch on every page and a shared store, and a receipt is a new privacy surface the requirement does not ask for.
+- What would change this decision: a pilot user missing replies because they only open the app at the directory.
+- Status: Decided (owner-approved as the audit's R2 recommendation)
+- Affects: `apps/web/app/requests/page.tsx`, `apps/web/lib/read-state.ts`, `apps/web/lib/strings.ts`
+=======
 ### D-244: Serious and critical axe violations fail the run; moderate and minor are recorded
 
 - Date: 2026-11-21
@@ -1930,6 +1948,7 @@ date: 2026-10-29
 - What would change this decision: a third-party accessibility audit before the pilot, which would become the record's source.
 - Status: Decided (owner-approved as the audit's A2 recommendation)
 - Affects: `docs/audit/2026-11-21-accessibility-pass.md`, `docs/functional-requirements.md`, `docs/known-debt.md`
+<<<<<<< HEAD
 
 ### D-250: The host is chosen by the documented one-day test, with Render first
 
@@ -1953,3 +1972,25 @@ date: 2026-10-29
 - Reason: the dump-and-restore drill proves the backup is readable and the application works against it; PITR proves the window. Both are needed, in that order, and the first is possible on any provider.
 - Status: Decided (owner-approved as the audit's R5 recommendation)
 - Affects: `docs/runbook.md` §7, `infra/deploy/deploy.sh`
+=======
+<<<<<<< HEAD
+
+### D-248: The breach check uses the keyless range endpoint, and only a prefix leaves
+
+- Date: 2026-11-21
+- Decision: passwords are checked against `https://api.pwnedpasswords.com/range/{first five hex characters of the SHA-1}`, with `Add-Padding: true`, a 3-second `AbortSignal.timeout`, a bounded in-process cache keyed on the prefix, and no API key. The password, the full digest, the email and any user id never leave the process.
+- Reason: the range endpoint is free and keyless, which the pilot's cost envelope allows; the keyed `/breachedaccount` endpoint and commercial feeds are the paid alternative and are out of scope. SHA-1 is the provider's index only, never storage, so it must not be "upgraded" to SHA-256 (that would match nothing).
+- Status: Decided (owner-approved as the audit's R3 recommendation)
+- Affects: `packages/domain/src/password-breach.ts`, `services/api/src/identity/password-breach.ts`
+
+### D-249: An unreachable provider accepts the password and logs one line
+
+- Date: 2026-11-21
+- Decision: a timeout, a non-200 answer, an unreadable body or a network error makes the check answer `unavailable`; the password is accepted and one structured line records `{ event: "password.breach_check_unavailable", reason }`. A test proves the refusal path cannot be reached without a provider answer, and the log line carries no password, digest or identifier.
+- Reason: failing closed turns a provider outage into a sign-up outage for every participant; a twelve-character minimum still applies, and the event is the alert the deployment change watches. The privileged-role exception is not half-built: it is `DEBT-77`.
+- Status: Decided (owner-approved as the audit's R4 recommendation)
+- Affects: `services/api/src/identity/password-breach.ts`, `services/api/src/identity/better-auth-identity.service.ts`, `docs/known-debt.md`
+=======
+>>>>>>> origin/main
+>>>>>>> origin/main
+>>>>>>> origin/main
