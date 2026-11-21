@@ -5,7 +5,7 @@
 
 | | |
 |---|---|
-| **Status** | **2026-11-21: `thread-read-state-ui` (archived) closes `FR-THR-02`.** The thread writes the read marker when it opens - once per load, again only after a 30-second focus window - and marks where the previous marker fell; `/requests` shows the count as a badge from one mentorships read. Opening the thread is the only thing that moves the marker: no scroll heuristic, no read receipts. `apps/web/lib/read-state.ts` holds the rules (8 tests, one browser assertion in the happy path). `DEBT-61` closed, D-246 and D-247 recorded, PR #112. |
+| **Status** | **2026-11-21: round five is closed. `breached-password-check` (archived) completes `SEC-AUTH-3`.** A password that appears in a public breach corpus is refused at registration and at reset, using the keyless range endpoint: only five hexadecimal characters of its SHA-1 leave the process, a 3-second budget applies, and an unreachable provider accepts and logs one line (D-248, D-249). `DEBT-67` closed, `DEBT-77` opened. `first-deployment-restore-drill-and-observability` is merged and deliberately **open**: its code is in (one shared scrub list, a conditional Sentry init, a migrate-first deploy) but its own tasks need a host, a DSN and a performed restore, which are owner actions. The round report is `docs/audit/2026-11-21-round-five-apply-report.md`. |
 | **Document role** | **Master README, the main source of truth** for the connect project |
 | **Audience** | Builder, future engineers, designers, advisors, pilot institutions, AI coding agents |
 | **Last reviewed** | 2026-11-21 |
