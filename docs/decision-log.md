@@ -1894,3 +1894,21 @@ date: 2026-10-29
 - What would change this decision: the owner deciding the timeouts are out of the pilot's scope, in which case `DEBT-74` is marked `Deferred (owner decision)` rather than deleted.
 - Status: Decided (owner-approved as the audit's DT2 recommendation)
 - Affects: `docs/known-debt.md`, `docs/auth-and-access-control.md`
+
+### D-242: One plain `globals.css` with tokens, no styling dependency
+
+- Date: 2026-11-21
+- Decision: a single `apps/web/app/globals.css` imported by `app/layout.tsx`, holding `:root` custom properties and styles for the plain elements, plus a handful of semantic classes where a piece of markup needs a name. No Tailwind, no CSS modules per page, no CSS-in-JS, no webfont.
+- Reason: the repository carries no styling dependency and its rules forbid adding one outside an approved change; a token file plus element styles is the smallest complete answer, needs no build configuration, and keeps one idiom. The CSP already allows a same-origin stylesheet with no nonce.
+- Alternatives rejected: Tailwind (a dependency, a config surface, a content-scanning step); CSS modules per page (23 files to keep in sync, no shared tokens).
+- Status: Decided (owner-approved as the audit's V1 recommendation)
+- Affects: `apps/web/app/globals.css`, `apps/web/app/layout.tsx`, `README.md` section 7.5
+
+### D-243: Calm institutional direction, with the four stakeholder colours as role accents only
+
+- Date: 2026-11-21
+- Decision: one surface, one ink, one accent for the primary action, and the four stakeholder colours used only as badge accents, never as a page or panel background. Type is a system stack on a four-step scale; spacing is a 4 px grid. Every colour pair was measured before the pages were styled (ink 18.1:1, muted ink 7.81:1, the interactive border 3.32:1, white on the accent 5.0:1, each state pair above 4.5:1).
+- Reason: the product is bought on the strength of evidence, so the register should read as documentation rather than as a landing page; the stakeholder colours already exist in the project's vocabulary, so role accents cost nothing and give each role a marker.
+- Alternatives rejected: neutral product-SaaS (indistinguishable); plain utility in the gov.uk register (accessible, uninviting to a 20-year-old student).
+- Status: Decided (owner-approved as the audit's V2 recommendation)
+- Affects: `apps/web/app/globals.css`, `e2e/visual-contract.spec.ts`, `README.md` section 7.5

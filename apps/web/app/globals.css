@@ -1,0 +1,427 @@
+/*
+ * connect design tokens and base styles (D-242, D-243).
+ *
+ * One stylesheet, no dependency, system fonts only (a font CDN would be a
+ * third-party request in the one page load that must never fail). Every colour
+ * pair below was measured: ink 18.1:1 on the surface, muted ink 7.81:1, the
+ * interactive border 3.32:1, white on the accent 5.0:1, each state pair above
+ * 4.5:1. Change 5 audits the result; nothing here is a preference.
+ *
+ * Direction: calm and institutional - one surface, one ink, one accent for the
+ * primary action, and the four stakeholder colours used only as badge accents.
+ */
+
+:root {
+  --surface: #ffffff;
+  --surface-raised: #f4f4f4;
+  --surface-sunken: #e8e8e8;
+
+  --ink: #161616;
+  --ink-muted: #525252;
+  --ink-on-accent: #ffffff;
+
+  --border: #e0e0e0;
+  --border-strong: #8d8d8d;
+
+  --accent: #0f62fe;
+  --accent-ink: #0043ce;
+  --accent-quiet: #edf5ff;
+
+  --role-student: #0e7490;
+  --role-mentor: #6d28d9;
+  --role-institution: #15803d;
+  --role-employer: #b45309;
+
+  --ok: #0e6027;
+  --ok-quiet: #e6f4ea;
+  --warn: #8a6d00;
+  --warn-quiet: #fdf6dd;
+  --error: #a2191f;
+  --error-quiet: #fdeceb;
+
+  --font-sans:
+    system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --text-display: 2rem;
+  --text-heading: 1.375rem;
+  --text-body: 1rem;
+  --text-small: 0.875rem;
+  --leading-tight: 1.2;
+  --leading-body: 1.5;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 8px;
+
+  --focus-ring: #0f62fe;
+  --measure: 66ch;
+  --target: 44px;
+}
+
+/* Base */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  line-height: var(--leading-body);
+}
+
+main {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-4) var(--space-7);
+}
+
+h1,
+h2,
+h3 {
+  line-height: var(--leading-tight);
+  margin: var(--space-5) 0 var(--space-3);
+}
+
+h1 {
+  font-size: var(--text-display);
+  font-weight: 600;
+}
+
+h2 {
+  font-size: var(--text-heading);
+  font-weight: 600;
+}
+
+h3 {
+  font-size: var(--text-body);
+  font-weight: 600;
+}
+
+p,
+ul,
+ol {
+  margin: 0 0 var(--space-3);
+}
+
+ul,
+ol {
+  padding-left: var(--space-5);
+}
+
+li > p {
+  margin-bottom: var(--space-2);
+}
+
+a {
+  color: var(--accent-ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+a:hover {
+  color: var(--accent);
+}
+
+small,
+.help {
+  color: var(--ink-muted);
+  font-size: var(--text-small);
+}
+
+hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: var(--space-5) 0;
+}
+
+code {
+  font-family: var(--font-mono);
+  font-size: var(--text-small);
+  background: var(--surface-raised);
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* Header */
+
+header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+header > a:first-child {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target);
+  font-weight: 600;
+  font-size: var(--text-heading);
+  text-decoration: none;
+  color: var(--ink);
+}
+
+header nav {
+  margin-left: auto;
+}
+
+header nav ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+header nav a,
+header nav button {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target);
+  padding: 0 var(--space-3);
+}
+
+/* Forms */
+
+label,
+.field {
+  display: block;
+  margin-bottom: var(--space-3);
+  font-size: var(--text-small);
+  color: var(--ink);
+}
+
+input,
+select,
+textarea {
+  display: block;
+  width: 100%;
+  min-height: var(--target);
+  margin-top: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+
+textarea {
+  min-height: calc(var(--target) * 2);
+  resize: vertical;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  display: inline-block;
+  width: auto;
+  min-height: 0;
+  margin: 0 var(--space-2) 0 0;
+  vertical-align: middle;
+}
+
+/* Buttons */
+
+button {
+  min-height: var(--target);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--ink-on-accent);
+  font: inherit;
+  font-size: var(--text-small);
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  background: var(--accent-ink);
+  border-color: var(--accent-ink);
+}
+
+button:disabled {
+  background: var(--surface-sunken);
+  border-color: var(--border);
+  color: var(--ink-muted);
+  cursor: not-allowed;
+}
+
+.button--secondary {
+  background: var(--surface);
+  border-color: var(--border-strong);
+  color: var(--ink);
+}
+
+.button--quiet {
+  background: transparent;
+  border-color: transparent;
+  color: var(--accent-ink);
+  text-decoration: underline;
+}
+
+/* Status and alerts: the page-state vocabulary renders as these boxes. */
+
+[role="alert"] {
+  padding: var(--space-3) var(--space-4);
+  border-left: 4px solid var(--error);
+  background: var(--error-quiet);
+  border-radius: var(--radius-sm);
+}
+
+[role="status"]:not(:empty) {
+  padding: var(--space-3) var(--space-4);
+  border-left: 4px solid var(--accent);
+  background: var(--accent-quiet);
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--space-3);
+}
+
+/* Cards: a list item that holds one record. */
+
+.card,
+ul.records > li {
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-3);
+  background: var(--surface);
+}
+
+.card--raised {
+  background: var(--surface-raised);
+}
+
+/* Badges carry a role, never a background panel. */
+
+.badge {
+  display: inline-block;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  font-size: var(--text-small);
+  color: var(--ink);
+}
+
+.badge--student {
+  border-color: var(--role-student);
+  color: var(--role-student);
+}
+
+.badge--mentor {
+  border-color: var(--role-mentor);
+  color: var(--role-mentor);
+}
+
+.badge--institution {
+  border-color: var(--role-institution);
+  color: var(--role-institution);
+}
+
+.badge--employer {
+  border-color: var(--role-employer);
+  color: var(--role-employer);
+}
+
+/* Tables: readable at desktop, horizontally scrollable on a phone. */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: var(--space-3) 0 var(--space-5);
+  font-size: var(--text-small);
+}
+
+th,
+td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+thead th {
+  background: var(--surface-raised);
+  font-weight: 600;
+}
+
+/* Long-form pages */
+
+.prose {
+  max-width: var(--measure);
+}
+
+.prose p,
+.prose li {
+  line-height: var(--leading-body);
+}
+
+/* Narrow viewports: additive only, desktop stays the base. */
+
+@media (max-width: 640px) {
+  main {
+    padding: var(--space-4) var(--space-3) var(--space-6);
+  }
+
+  header {
+    padding: var(--space-2) var(--space-3);
+  }
+
+  header nav {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  header nav ul {
+    gap: var(--space-1);
+  }
+
+  h1 {
+    font-size: 1.5rem;
+  }
+
+  table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 400px) {
+  :root {
+    --text-display: 1.375rem;
+  }
+
+  header nav a,
+  header nav button {
+    padding: 0 var(--space-2);
+  }
+}
