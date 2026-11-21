@@ -5,7 +5,7 @@
 
 | | |
 |---|---|
-| **Status** | **2026-11-21: `e2e-happy-path` (archived) gives the repository the end-to-end test Gate 1 asks for; PR #105, merge `2f9741d`.** `e2e/happy-path.spec.ts` drives chromium from sign-up through the verification link read from Mailpit, profile and field, a structured request, the mentor's password + TOTP sign-in, accept, a thread message, an outcome, the confirmation and the counted impact read - against its own `connect_e2e_test` database, which it drops, migrates and seeds and which must end in `_test`. A fourth CI job runs it in about 1m34s. The demo seed changed with it: the mentors had no credential row, stored their TOTP secret as plaintext the library cannot decrypt, and were not marked two-factor enabled, so the seeded mentor could not have signed in. Decision rows D-236 to D-239, `DEBT-73` closed.** |
+| **Status** | **2026-11-21: `docs-truth-gate-doc-and-debt-targets` (archived) makes the gate documents match the code; PR #107, merge `b5605aa`.** Every box in `production-requirements.md` and `milestones-and-phases.md` section 5.5 now carries a citation in the same row or one `unmet:` line naming the change that owns the gap (D-240): the file moved from 3 ticked and 39 unticked to 19 ticked and 23 unticked, with 17 `unmet:`. README section 20 is rewritten from the archive, Q5 is answered, `DEBT-11` is retargeted, the admin session timeouts became `DEBT-74`, and the observability and styling gaps that had no row became `DEBT-75` and `DEBT-76`. Docs only. |
 | **Document role** | **Master README, the main source of truth** for the connect project |
 | **Audience** | Builder, future engineers, designers, advisors, pilot institutions, AI coding agents |
 | **Last reviewed** | 2026-11-21 |
