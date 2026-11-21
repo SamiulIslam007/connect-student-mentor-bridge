@@ -361,3 +361,16 @@ connect/
 **Deliberately excluded.** `RATE_LIMITS`, the cron expressions, page sizes and session timeouts. They never price a ledger row, and a web form that could change a rate limit or a cron string is a denial-of-service and load-shedding surface with an audit row instead of a code review. `AGENTS.md` rule 13 makes throttling a code concern. The pair factor is a **formula** (`1/(1+n)`), not a value: the payload cannot carry it without inventing a parameter, and inventing parameters is what a `MATH-FLAG` forbids, so a version records that it fixes the pair-factor form and `pairFactor` stays a pure function with its own property test.
 
 **Consequences.** A tuning change is attributable and reversible by publishing another version; history keeps the values and the version each row used, and re-scoring is out of scope (FR-REP-06). The `created_by_user_id` column is nullable for exactly one row — the version-1 baseline the migration seeds before any account exists — and every route-written version names its actor.
+
+## ADR-021: Hosting stays undecided; Render is the first candidate
+
+- Status: **Proposed** - the one-day test in `production-requirements.md` §5 has not been run.
+- Context: `SEC-INF-6` needs deploys to come only from CI using the image that passed tests, and `SEC-INF-7` needs a
+  performed restore. Neither can be shown without a host, and no host has been chosen. The repository already ships two
+  images (`infra/docker/Dockerfile.web`, `infra/docker/Dockerfile.api`) and a worker that runs from the API image, so the
+  choice is about managed Postgres with point-in-time recovery, a private bucket and a price the pilot can carry.
+- Decision (provisional): Render first, because it offers managed Postgres with PITR on a paid plan and a free web tier for
+  the first smoke test; Fly.io and Azure are the alternatives named in §5. The decision is not taken: it is recorded as the
+  first candidate so the one-day test has a starting point.
+- Consequences while undecided: the runbook's deployment, bootstrap and restore records carry `not performed` rows, and the
+  gate document keeps its `unmet:` annotations. `D-250` records the test, not a choice.

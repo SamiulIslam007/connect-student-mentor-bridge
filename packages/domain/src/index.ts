@@ -19,6 +19,7 @@ export * from "./cursor.js";
 export * from "./availability.js";
 export * from "./evidence-retention.js";
 export * from "./fields.js";
+export * from "./observability-scrub.js";
 export * from "./identity.js";
 export * from "./idempotency.js";
 export * from "./match.js";
