@@ -149,10 +149,13 @@ test("the mentor role is granted once, audited once, and repeats change nothing"
   assert.deepEqual(await roleRows(current, userId), ["STUDENT", "MENTOR"]);
   assert.equal(await auditCount(current, "ROLE_GRANTED"), 1, "a repeat is not audited");
 
-  const audit = await current.client.query<{ actor_user_id: string | null; metadata: unknown }>(
-    "SELECT actor_user_id, metadata FROM audit_logs WHERE action = 'ROLE_GRANTED'",
-  );
+  const audit = await current.client.query<{
+    actor_user_id: string | null;
+    actor_role: string;
+    metadata: unknown;
+  }>("SELECT actor_user_id, actor_role, metadata FROM audit_logs WHERE action = 'ROLE_GRANTED'");
   assert.equal(audit.rows[0]?.actor_user_id, userId);
+  assert.equal(audit.rows[0]?.actor_role, "STUDENT", "the real acting role is recorded");
   assert.deepEqual(audit.rows[0]?.metadata, { role: "MENTOR" });
 });
 

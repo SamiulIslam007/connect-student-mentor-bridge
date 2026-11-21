@@ -1329,3 +1329,50 @@ test("grantRole carries an institution, stays idempotent, and the scope read ret
     }),
   );
 });
+
+test("a failed audit rolls a role grant back", async (context) => {
+  const stack = requireStack(context);
+  if (!stack) {
+    return;
+  }
+  assert.ok(authInstance, "the identity stack must be started");
+  await registerAndVerify("grant-rollback@example.com");
+  const user = await stack.client.query<{ id: string }>(
+    "SELECT id FROM users WHERE email = $1",
+    ["grant-rollback@example.com"],
+  );
+  const userId = user.rows[0]?.id;
+  assert.ok(userId);
+
+  const failing = new BetterAuthIdentityService({
+    auth: authInstance,
+    database: stack.database.db,
+    secret: TEST_AUTH_SECRET,
+    breachChecker: { check: async () => "clean" },
+    auditWriter: (db, entry) =>
+      entry.action === "ROLE_GRANTED"
+        ? Promise.reject(new Error("audit store unavailable"))
+        : appendAuditEntry(db, entry),
+  });
+
+  await assert.rejects(
+    failing.grantRole({
+      userId,
+      role: "MENTOR",
+      actorUserId: userId,
+      actorRole: "STUDENT",
+      requestId: "grant-rollback",
+    }),
+  );
+
+  const roles = await stack.client.query(
+    "SELECT 1 FROM role_assignments WHERE user_id = $1 AND role = 'MENTOR'",
+    [userId],
+  );
+  assert.equal(roles.rowCount, 0, "the role insert rolled back with the audit");
+  const audits = await stack.client.query(
+    "SELECT 1 FROM audit_logs WHERE action = 'ROLE_GRANTED' AND actor_user_id = $1",
+    [userId],
+  );
+  assert.equal(audits.rowCount, 0, "no audit row survives the rollback");
+});

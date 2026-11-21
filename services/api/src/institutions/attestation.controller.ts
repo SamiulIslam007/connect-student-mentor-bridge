@@ -93,6 +93,7 @@ export class AttestationController {
       role: "INSTITUTION_ADMIN",
       institutionId,
       actorUserId: acting.account.id,
+      actorRole: "PLATFORM_ADMIN",
       requestId: request.requestId,
     });
     return { roles };

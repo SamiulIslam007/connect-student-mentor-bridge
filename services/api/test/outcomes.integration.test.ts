@@ -659,6 +659,158 @@ async function platformReviewer(
   return String(verified.body?.session_token);
 }
 
+async function promoteExistingToPlatformAdmin(
+  current: TestApiStack,
+  email: string,
+  token: string,
+  withMfa = false,
+): Promise<string> {
+  const user = await current.client.query<{ id: string }>(
+    "SELECT id FROM users WHERE email = $1",
+    [email],
+  );
+  assert.ok(user.rows[0]);
+  await current.client.query(
+    "INSERT INTO role_assignments (user_id, role) VALUES ($1, 'PLATFORM_ADMIN')",
+    [user.rows[0].id],
+  );
+  if (!withMfa) {
+    return token;
+  }
+  const enrollment = await apiRequest(
+    current,
+    "POST",
+    "/v1/auth/mfa/enroll",
+    { password: TEST_PASSWORD },
+    token,
+  );
+  const secret = new URL(String(enrollment.body?.totp_uri)).searchParams.get("secret");
+  assert.ok(secret);
+  const verified = await apiRequest(
+    current,
+    "POST",
+    "/v1/auth/mfa/verify",
+    { code: totpCode(secret) },
+    token,
+  );
+  assert.equal(verified.status, 200, verified.text);
+  return String(verified.body?.session_token);
+}
+
+test("a participant platform admin cannot review their own outcome", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+
+  // The student is promoted to platform admin, then reports and reviews the
+  // same outcome. The role route needs a fresh session after the second factor.
+  const first = await acceptedPair(current, ".self-student-review");
+  const studentAdmin = await promoteExistingToPlatformAdmin(
+    current,
+    "student.self-student-review@example.com",
+    first.student,
+    true,
+  );
+  const reportedByStudent = await report(current, studentAdmin, reportBody(first.mentorshipId));
+  assert.equal(reportedByStudent.status, 201, reportedByStudent.text);
+  assert.ok(reportedByStudent.body?.id, reportedByStudent.text);
+  const studentOutcomeId = String(reportedByStudent.body?.id);
+  const disputedByMentor = await apiRequest(
+    current,
+    "POST",
+    `/v1/outcomes/${studentOutcomeId}/dispute`,
+    { reason: "The internship was arranged by the university." },
+    first.mentor.token,
+  );
+  assert.equal(disputedByMentor.status, 200, disputedByMentor.text);
+
+  const refusedByStudent = await apiRequest(
+    current,
+    "POST",
+    `/v1/outcomes/${studentOutcomeId}/review`,
+    { decision: "valid", reason: "I am the student." },
+    studentAdmin,
+  );
+  assert.equal(refusedByStudent.status, 403, refusedByStudent.text);
+  assert.equal(refusedByStudent.body?.code, "OUTCOME_REVIEW_CONFLICT");
+
+  const unchanged = await current.client.query<{ status: string }>(
+    "SELECT status FROM outcomes WHERE id = $1",
+    [studentOutcomeId],
+  );
+  assert.equal(unchanged.rows[0]?.status, "IN_PLATFORM_REVIEW", "the refusal writes no fact");
+  const decisions = await current.client.query(
+    "SELECT 1 FROM verification_records WHERE outcome_id = $1 AND kind = 'PLATFORM_DECISION'",
+    [studentOutcomeId],
+  );
+  assert.equal(decisions.rowCount, 0);
+  const denial = await current.client.query<{ count: string }>(
+    "SELECT count(*) FROM audit_logs WHERE action = 'PERMISSION_DENIED' AND object_id = $1",
+    [studentOutcomeId],
+  );
+  assert.equal(Number(denial.rows[0]?.count), 1, "exactly one denial row");
+  const reviewed = await current.client.query<{ count: string }>(
+    "SELECT count(*) FROM audit_logs WHERE action IN ('OUTCOME_REVIEWED', 'OUTCOME_REVERSED') AND object_id = $1",
+    [studentOutcomeId],
+  );
+  assert.equal(Number(reviewed.rows[0]?.count), 0, "no review fact is recorded");
+
+  // The mentor is promoted on a second pair; the mentor's existing MFA session
+  // is enough for the review route, and the participant check refuses it too.
+  const second = await acceptedPair(current, ".self-mentor-review");
+  const mentorAdmin = await promoteExistingToPlatformAdmin(
+    current,
+    "mentor.self-mentor-review@example.edu.bd",
+    second.mentor.token,
+  );
+  const secondReport = await report(current, second.student, reportBody(second.mentorshipId));
+  assert.equal(secondReport.status, 201, secondReport.text);
+  const mentorOutcomeId = String(secondReport.body?.id);
+  const disputedByMentorAgain = await apiRequest(
+    current,
+    "POST",
+    `/v1/outcomes/${mentorOutcomeId}/dispute`,
+    { reason: "A participant cannot decide this." },
+    mentorAdmin,
+  );
+  assert.equal(disputedByMentorAgain.status, 200, disputedByMentorAgain.text);
+  const refusedByMentor = await apiRequest(
+    current,
+    "POST",
+    `/v1/outcomes/${mentorOutcomeId}/review`,
+    { decision: "valid", reason: "I am the mentor." },
+    mentorAdmin,
+  );
+  assert.equal(refusedByMentor.status, 403, refusedByMentor.text);
+  assert.equal(refusedByMentor.body?.code, "OUTCOME_REVIEW_CONFLICT");
+
+  // An unrelated admin still reviews, and writes no denial row.
+  const third = await acceptedPair(current, ".self-unrelated-review");
+  const thirdReport = await report(current, third.student, reportBody(third.mentorshipId));
+  const thirdOutcomeId = String(thirdReport.body?.id);
+  const thirdDispute = await apiRequest(
+    current,
+    "POST",
+    `/v1/outcomes/${thirdOutcomeId}/dispute`,
+    { reason: "Please review." },
+    third.mentor.token,
+  );
+  assert.equal(thirdDispute.status, 200, thirdDispute.text);
+  const unrelated = await platformReviewer(current, "reviewer.unrelated@example.com");
+  const reviewedByUnrelated = await apiRequest(
+    current,
+    "POST",
+    `/v1/outcomes/${thirdOutcomeId}/review`,
+    { decision: "valid", reason: "The evidence supports the student." },
+    unrelated,
+  );
+  assert.equal(reviewedByUnrelated.status, 200, reviewedByUnrelated.text);
+  const unrelatedDenial = await current.client.query<{ count: string }>(
+    "SELECT count(*) FROM audit_logs WHERE action = 'PERMISSION_DENIED' AND object_id = $1",
+    [thirdOutcomeId],
+  );
+  assert.equal(Number(unrelatedDenial.rows[0]?.count), 0, "an unrelated admin is not denied");
+});
+
 test("a disputed outcome is queued and a valid decision counts it as platform-decided", async (context) => {
   const current = requireStack(context);
   if (!current) return;

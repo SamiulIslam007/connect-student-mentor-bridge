@@ -472,6 +472,49 @@ test("a failed export audit rolls the whole export back", async (context) => {
   assert.equal(entries.rowCount, 0, "no export entry is recorded");
 });
 
+test("export and delete need a fresh session; confirm_email alone is not proof", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const token = await signInToken(current, "student@example.com");
+
+  const fresh = await apiRequest(current, "POST", "/v1/privacy/export", undefined, token);
+  assert.equal(fresh.status, 200, fresh.text);
+
+  await current.client.query(
+    "UPDATE sessions SET created_at = now() - interval '11 minutes' WHERE user_id = (SELECT id FROM users WHERE email = $1)",
+    ["student@example.com"],
+  );
+
+  const staleExport = await apiRequest(current, "POST", "/v1/privacy/export", undefined, token);
+  assert.equal(staleExport.status, 403, staleExport.text);
+  assert.equal(staleExport.body?.code, "REAUTH_REQUIRED");
+
+  const staleDelete = await apiRequest(
+    current,
+    "POST",
+    "/v1/privacy/delete",
+    { confirm_email: "student@example.com" },
+    token,
+  );
+  assert.equal(staleDelete.status, 403, staleDelete.text);
+  assert.equal(staleDelete.body?.code, "REAUTH_REQUIRED");
+  const stillThere = await current.client.query("SELECT 1 FROM users WHERE email = $1", [
+    "student@example.com",
+  ]);
+  assert.equal(stillThere.rowCount, 1, "email confirmation alone deletes nothing");
+
+  const freshSignIn = await signIn(current, "student@example.com");
+  assert.equal(freshSignIn.status, 200, freshSignIn.text);
+  const deleted = await apiRequest(
+    current,
+    "POST",
+    "/v1/privacy/delete",
+    { confirm_email: "student@example.com" },
+    String(freshSignIn.body?.session_token),
+  );
+  assert.equal(deleted.status, 200, deleted.text);
+});
+
 test("a suspended, anonymized, or deactivated account cannot export", async (context) => {
   const current = requireStack(context);
   if (!current) {

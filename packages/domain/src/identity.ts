@@ -253,7 +253,13 @@ export type IdentityErrorCode =
   /** The file exists but no clean scan has released it yet. */
   | "EVIDENCE_NOT_READY"
   /** Object storage is not configured on this deployment (design R8). */
-  | "EVIDENCE_UNAVAILABLE";
+  | "EVIDENCE_UNAVAILABLE"
+  /** A platform admin is a participant in the outcome they tried to review (D-255). */
+  | "OUTCOME_REVIEW_CONFLICT"
+  /** A platform admin tried to grant institution scope to their own account (D-255). */
+  | "SELF_GRANT_FORBIDDEN"
+  /** Export or delete needs a password or second factor within ten minutes (D-255). */
+  | "REAUTH_REQUIRED";
 
 /** A failure a feature module may map to a response, with no library detail. */
 export class IdentityError extends Error {
@@ -273,6 +279,8 @@ export interface GrantRoleInput {
   /** Required by `role_assignments_institution_required` for INSTITUTION_ADMIN. */
   institutionId?: string;
   actorUserId?: string;
+  /** The role that authorized the grant; the audit row records it (D-255). */
+  actorRole?: Role;
   requestId: string;
 }
 

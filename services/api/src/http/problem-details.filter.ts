@@ -59,6 +59,9 @@ const PROBLEMS: Record<IdentityErrorCode, ProblemMapping> = {
   EVIDENCE_ALREADY_COMPLETED: { status: 409, code: "EVIDENCE_ALREADY_COMPLETED", title: "This upload was already completed" },
   EVIDENCE_NOT_READY: { status: 409, code: "EVIDENCE_NOT_READY", title: "This file is not available yet" },
   EVIDENCE_UNAVAILABLE: { status: 503, code: "EVIDENCE_UNAVAILABLE", title: "File storage is not configured" },
+  OUTCOME_REVIEW_CONFLICT: { status: 403, code: "OUTCOME_REVIEW_CONFLICT", title: "A participant cannot review this outcome" },
+  SELF_GRANT_FORBIDDEN: { status: 403, code: "SELF_GRANT_FORBIDDEN", title: "You cannot grant this scope to your own account" },
+  REAUTH_REQUIRED: { status: 403, code: "REAUTH_REQUIRED", title: "Confirm your password or second factor again" },
 };
 
 const PROBLEM_BASE = "https://docs.connect.example/problems/";

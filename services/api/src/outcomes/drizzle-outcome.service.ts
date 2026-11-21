@@ -717,7 +717,7 @@ export class DrizzleOutcomeService implements OutcomeService {
     }
     const reason = requiredText(input.reason, "reason", OUTCOME_FIELD_LIMITS.reason);
 
-    return await this.db.transaction(async (tx) => {
+    const result = await this.db.transaction(async (tx) => {
       const current = await readRecord(tx, input.outcomeId, true);
       const target = reviewTarget(current.status, input.decision as ReviewDecision);
       if (!target) {
@@ -728,6 +728,15 @@ export class DrizzleOutcomeService implements OutcomeService {
       }
 
       const participants = await readOutcomeParticipants(tx, input.outcomeId);
+      // Separation of duties (SEC-AUDIT-003, D-255): a reviewer is never a party
+      // to the case. The refusal is written outside this transaction, so the
+      // denial row survives the throw that ends it.
+      if (
+        participants &&
+        (participants.studentUserId === input.userId || participants.mentorUserId === input.userId)
+      ) {
+        return { conflict: true as const };
+      }
       const now = new Date();
       await tx
         .update(outcomes)
@@ -798,8 +807,25 @@ export class DrizzleOutcomeService implements OutcomeService {
         });
       }
 
-      return await readRecord(tx, input.outcomeId);
+      return { conflict: false as const, record: await readRecord(tx, input.outcomeId) };
     });
+
+    if (result.conflict) {
+      await appendAuditEntry(this.db, {
+        action: "PERMISSION_DENIED",
+        actorUserId: input.userId,
+        actorRole: "PLATFORM_ADMIN",
+        objectType: "outcomes",
+        objectId: input.outcomeId,
+        requestId: input.requestId,
+        metadata: { reason: "participant_review" },
+      });
+      throw new IdentityError(
+        "OUTCOME_REVIEW_CONFLICT",
+        "a participant cannot review this outcome",
+      );
+    }
+    return result.record;
   }
 
   /** One compensating event and a decremented snapshot; the original stays. */
