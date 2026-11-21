@@ -4,8 +4,12 @@ import { and, eq, isNull } from "drizzle-orm";
 
 import { CONSENT_DOCUMENT_VERSION } from "@connect/config";
 
+import { hashAccountPassword } from "../../identity/password-hash.js";
+import { encryptTotpSecret } from "../../identity/totp-secret.js";
 import type { Database } from "../database.js";
+import { DEMO_MENTOR_PASSWORD, DEMO_TOTP_SECRET } from "./demo-constants.js";
 import {
+  accounts,
   affiliations,
   consentRecords,
   fields,
@@ -17,8 +21,7 @@ import {
   users,
 } from "../schema/index.js";
 
-/** A fixed, obviously fake secret; the seed cannot run where it would matter. */
-const DEMO_TOTP_SECRET = "DEMO-SEED-NOT-A-REAL-TOTP-SECRET";
+export { DEMO_TOTP_SECRET };
 
 interface DemoMentor {
   email: string;
@@ -142,6 +145,46 @@ async function grantDemoAgreements(
 }
 
 
+/**
+ * A demo mentor seeded before this change has no credential row and stores its
+ * factor as plaintext, which the library cannot decrypt. Both are rewritten in
+ * place so a rerun leaves a mentor that can actually sign in.
+ */
+async function repairDemoCredentials(
+  tx: Parameters<Parameters<Database["transaction"]>[0]>[0],
+  userId: string,
+): Promise<void> {
+  const [credential] = await tx
+    .select({ id: accounts.id })
+    .from(accounts)
+    .where(and(eq(accounts.userId, userId), eq(accounts.providerId, "credential")))
+    .limit(1);
+  if (!credential) {
+    await tx.insert(accounts).values({
+      id: randomUUID(),
+      accountId: userId,
+      providerId: "credential",
+      userId,
+      password: await hashAccountPassword(DEMO_MENTOR_PASSWORD),
+    });
+  }
+  await tx.update(users).set({ twoFactorEnabled: true }).where(eq(users.id, userId));
+  const [factor] = await tx
+    .select({ id: twoFactors.id })
+    .from(twoFactors)
+    .where(eq(twoFactors.userId, userId))
+    .limit(1);
+  if (!factor) {
+    await tx.insert(twoFactors).values({
+      id: randomUUID(),
+      secret: await encryptTotpSecret(DEMO_TOTP_SECRET, process.env.BETTER_AUTH_SECRET ?? ""),
+      backupCodes: "[]",
+      userId,
+      verified: true,
+    });
+  }
+}
+
 /** Idempotent by email: a second run inserts nothing. */
 export async function seedDemoMentors(
   db: Database,
@@ -163,6 +206,7 @@ export async function seedDemoMentors(
         // them, or its next re-evaluation drops it to PENDING (D-127). Demo data
         // only: no migration writes a consent row for a real account (D-130).
         await grantDemoAgreements(tx, existing.id);
+        await repairDemoCredentials(tx, existing.id);
         skipped.push(mentor.email);
         continue;
       }
@@ -174,6 +218,9 @@ export async function seedDemoMentors(
         email: mentor.email,
         emailVerified: true,
         status: "ACTIVE",
+        // Without this flag the library never challenges the factor, so the seeded
+        // row below would be decoration (the sign-in would answer no MFA).
+        twoFactorEnabled: true,
         age18Plus: true,
         ageGatePassedAt: new Date(),
         ageGateVersion: "demo-seed",
@@ -188,9 +235,18 @@ export async function seedDemoMentors(
         status: "VERIFIED",
         verifiedAt: new Date(),
       });
+      // The seeded mentor signs in like a person does: a credential row and an
+      // encrypted factor, so the browser path can reach the accept step (D-236).
+      await tx.insert(accounts).values({
+        id: randomUUID(),
+        accountId: userId,
+        providerId: "credential",
+        userId,
+        password: await hashAccountPassword(DEMO_MENTOR_PASSWORD),
+      });
       await tx.insert(twoFactors).values({
         id: randomUUID(),
-        secret: DEMO_TOTP_SECRET,
+        secret: await encryptTotpSecret(DEMO_TOTP_SECRET, process.env.BETTER_AUTH_SECRET ?? ""),
         backupCodes: "[]",
         userId,
         verified: true,

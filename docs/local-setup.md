@@ -89,6 +89,23 @@ These are the same commands CI runs. When running the API on the host, point
 `DATABASE_URL` at the published database (localhost and the value of
 `POSTGRES_PORT`), not the Compose service name.
 
+### The end-to-end path
+
+```bash
+pnpm e2e:helpers    # the TOTP helper against the RFC 6238 vectors, seconds
+pnpm e2e            # one browser path, about two minutes locally
+```
+
+`pnpm e2e` prepares everything it needs: it derives a database named
+`connect_e2e_test` from `DATABASE_URL` and **refuses to run** if the name does
+not end in `_test`, drops and recreates that database, applies the migrations,
+seeds the two demo mentors (with a fixed, obviously fake password and an
+encrypted TOTP secret), builds `apps/web`, then starts the API on `:3101` and
+the web app on `:3100` for the run. Mailpit still comes from Compose: the suite
+reads the verification link from `http://127.0.0.1:8025` (`MAILPIT_HTTP_URL`)
+and the API sends through `127.0.0.1:1025` (`SMTP_PORT`). Budget five minutes
+for a cold Windows run and two on the CI runner.
+
 ## Database migrations and reference data
 
 The schema is Drizzle TypeScript in `services/api/src/db/schema/`. Generated SQL lives in `services/api/drizzle/` and is applied forward-only; never edit an applied migration. Both commands read `DATABASE_URL` from the environment or the repository-root `.env`.
@@ -206,7 +223,7 @@ docker compose down
 
 ## CI gates
 
-`.github/workflows/ci.yml` runs three parallel jobs on every pull request and
+`.github/workflows/ci.yml` runs four parallel jobs on every pull request and
 on pushes to `main`:
 
 | Job | What it enforces |
@@ -214,6 +231,7 @@ on pushes to `main`:
 | `checks` | frozen-lockfile install, lint, type-check, unit tests, production build |
 | `images` | Docker build of the API and web images, then a Trivy scan (`ignore-unfixed`, failing on HIGH/CRITICAL) |
 | `security` | `pnpm audit --audit-level high` and a Gitleaks secret scan |
+| `e2e` | Playwright's chromium against a booted API and web app, the happy path from sign-up to a counted outcome; its own Postgres service and a Mailpit container |
 
 Branch protection is a repository ruleset (`protect-main`) on the default
 branch. It requires the `checks`, `images`, and `security` checks on the latest

@@ -1841,3 +1841,38 @@ date: 2026-10-29
 - What would change this decision: a reachable HIGH or CRITICAL advisory on either, or a `trivy` image failure caused by one.
 - Status: Decided (owner-approved as the audit's B2 recommendation)
 - Affects: `pnpm-lock.yaml`, `docs/known-debt.md`
+
+### D-236: One full browser path, with the mentor seeded rather than typed
+
+- Date: 2026-11-21
+- Decision: one spec walks sign-up, verification, profile and field, request, accept, message, outcome, confirm and the counted impact read. The mentor is the demo seed's `ayesha.rahman@example.edu.bd`; the student is created through `/sign-up`. The suite runs against its own `connect_e2e_test` database, which it drops, migrates and seeds, and it refuses any database whose name does not end in `_test`.
+- Reason: the gate asks for one end-to-end test and the failures this product actually has are seam failures (a page that renders nothing, a BFF route missing from an allow-list, a key the API ignores). A path that stopped before the mentor's confirmation would miss the invariant the product exists for.
+- Alternatives rejected: two shorter specs (auth, then outcome); driving every actor through the UI.
+- Status: Decided (owner-approved as the audit's E1 recommendation)
+- Affects: `e2e/`, `docs/local-setup.md`, `docs/milestones-and-phases.md` §5.5
+
+### D-237: Its own CI job, not a step in `checks`
+
+- Date: 2026-11-21
+- Decision: a fourth job `e2e` with its own Postgres service, a Mailpit service container, `playwright install --with-deps chromium`, and `retries: 1` in CI only. `checks` keeps its five steps.
+- Reason: a browser flake must not mask a unit-test regression, and the logs should say which failed. The existing job is already the longest signal in the repository.
+- What would change this decision: Actions minutes becoming a real constraint, in which case the job moves to a nightly schedule plus a pre-merge label.
+- Status: Decided (owner-approved as the audit's E2 recommendation)
+- Affects: `.github/workflows/ci.yml`, `docs/local-setup.md`
+
+### D-238: The verification link is read from Mailpit's HTTP API
+
+- Date: 2026-11-21
+- Decision: the suite polls `GET /api/v1/messages?limit=100` for the newest message to the student's address, reads its body from `GET /api/v1/message/{id}` and follows the link it finds. No test-only bypass, no fixed token, no environment switch in the API.
+- Reason: verification is part of the path the gate names and any bypass would be a production seam that exists for tests. The shape was confirmed against the pinned container (`axllent/mailpit:v1.32.0`) before the helper was written: the list carries `ID` and `To[].Address`, the detail carries `Text`.
+- Status: Decided (owner-approved as the audit's E3 recommendation)
+- Affects: `e2e/support/mailpit.ts`
+
+### D-239: The mentor's second factor is computed with Node's `crypto`
+
+- Date: 2026-11-21
+- Decision: `e2e/support/totp.ts` computes a six-digit code with `crypto.createHmac("sha1", ...)` over the seed's exported `DEMO_TOTP_SECRET`, checked against the RFC 6238 vectors in `e2e/test/totp.test.ts`. No authenticator library is added. The helper mirrors the library exactly: better-auth passes the decrypted secret to `createOTP(secret)`, which uses the string's UTF-8 bytes as the key and only decodes a `base32:` prefix, so no base32 decoding happens.
+- Reason: the demo mentor's factor is enforced (its row is marked two-factor enabled), so sign-in cannot avoid the challenge; twenty lines of standard arithmetic beat a dependency.
+- What would change this decision: the challenge flow using a code other than a six-digit TOTP.
+- Status: Decided (a proposal-time decision, beyond the audit's list)
+- Affects: `e2e/support/totp.ts`, `e2e/test/totp.test.ts`

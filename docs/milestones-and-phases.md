@@ -159,7 +159,7 @@ Cut from the top. Items below the line are never cut.
 - [ ] Consent records and audit log entries are written for the required events.
 - [ ] Data export (with download) and deletion requests can be created and tracked.
 - [ ] The whole system runs from `docker compose up` locally, and CI builds the images.
-- [ ] CI green: lint, type-check, unit tests, API contract tests, one end-to-end test of the happy path.
+- [x] CI green: lint, type-check, unit tests, API contract tests, one end-to-end test of the happy path. `e2e/happy-path.spec.ts` (chromium: sign-up, verification, profile, request, accept behind the mentor's second factor, thread, outcome, confirmation, counted impact) passes in the `e2e` job - run 44872068986 on 2026-11-21, 1m25s; `pnpm e2e` locally 1 passed in 29.0s.
 - [ ] No open decision blocks the above.
 
 Passing Gate 1 means **MVP code complete for internal and test use**. It does **not** mean real pilot users may be onboarded. That requires Gate 2.

@@ -162,7 +162,7 @@ OpenTelemetry tracing is Later (multi-service need).
 | Step | Rule |
 |---|---|
 | Branching | Trunk-based with short-lived feature branches; mandatory pull request review |
-| CI gates | Lint, type-check, unit tests (pure domain rules), contract tests (OpenAPI), build, dependency scan, one end-to-end happy path (Playwright) |
+| CI gates | Lint, type-check, unit tests (pure domain rules), contract tests (OpenAPI), build, dependency scan, one end-to-end happy path in its own `e2e` job (Playwright, chromium) |
 | Staging | Auto-deploy from `main`; smoke tests |
 | Production | Manual promote of the tested image; announce to pilot partner for planned changes |
 | Rollback | Redeploy previous image; migrations are forward-compatible; target under 30 minutes |

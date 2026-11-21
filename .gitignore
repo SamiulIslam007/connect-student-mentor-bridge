@@ -29,3 +29,10 @@ opencode.json
 
 # Browser automation artifacts (Playwright MCP)
 /.playwright-mcp/
+
+# Playwright run artifacts (the e2e suite)
+/test-results/
+/playwright-report/
+
+# Next 16 writes this on every build; it is generated, not authored
+/apps/web/AGENTS.md

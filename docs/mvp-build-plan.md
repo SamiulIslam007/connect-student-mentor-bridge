@@ -77,7 +77,7 @@ A work item is ready when:
 A work item is done when:
 
 1. The spec and tests were written before the implementation.
-2. Lint, type-check, unit tests, contract tests, and build pass locally and in CI.
+2. Lint, type-check, unit tests, contract tests, and build pass locally and in CI, and the browser path is green in CI.
 3. Pure domain rules have unit tests; state transitions and ledger invariants have tests.
 4. The API contract (`packages/contracts/openapi.yaml`) is updated and the client regenerated.
 5. It runs from `docker compose up` on a clean machine.
