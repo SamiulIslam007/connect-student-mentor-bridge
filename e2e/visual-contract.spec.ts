@@ -46,7 +46,7 @@ test("every core surface fits 360 px without sideways scrolling", async ({ page 
       () => document.documentElement.scrollWidth - window.innerWidth,
     );
     expect(overflow, `${surface} overflows at 360 px by ${overflow} px`).toBeLessThanOrEqual(1);
-    const name = surface.replace(/\//g, "-").replace(/^-/, "");
+    const name = surface === "/" ? "home" : surface.replace(/\//g, "-").replace(/^-/, "");
     await page.screenshot({ path: path.join(SHOTS, `${PREFIX}-${name}.png`), fullPage: true });
   }
 });
