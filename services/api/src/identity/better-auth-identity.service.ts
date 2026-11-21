@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, isNotNull, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull } from "drizzle-orm";
 import { hashPassword } from "better-auth/crypto";
 
 import {
@@ -41,7 +41,7 @@ import {
   type VerifyMfaResult,
 } from "@connect/domain";
 
-import { CONSENT_DOCUMENT_VERSION } from "@connect/config";
+import { ADMIN_SESSION_ABSOLUTE_MS, ADMIN_SESSION_IDLE_MS, CONSENT_DOCUMENT_VERSION } from "@connect/config";
 
 import type { Database } from "../db/database.js";
 import {
@@ -1094,7 +1094,13 @@ export class BetterAuthIdentityService implements IdentityService {
   ): Promise<{ sessionId: string; account: AccountSummary } | null> {
     try {
       const result = await this.auth.api.getSession({ headers: bearerHeaders(sessionToken) });
-      return result ? { sessionId: result.session.id, account: toAccount(result.user) } : null;
+      if (!result) {
+        return null;
+      }
+      if (!(await this.adminSessionAllowed(result.session.id, result.session.userId))) {
+        return null;
+      }
+      return { sessionId: result.session.id, account: toAccount(result.user) };
     } catch (error) {
       // A rejected token is an authentication outcome; anything else is a real
       // fault and must not be reported as "signed out".
@@ -1103,6 +1109,52 @@ export class BetterAuthIdentityService implements IdentityService {
       }
       return null;
     }
+  }
+
+  /**
+   * The privileged-session policy (SEC-AUDIT-013, D-256): a platform or
+   * institution admin expires after thirty idle minutes or twelve hours from
+   * creation, and the row is deleted. A student or mentor session is untouched.
+   * The idle clock is refreshed on every successful read for an admin only.
+   */
+  private async adminSessionAllowed(sessionId: string, userId: string): Promise<boolean> {
+    const [row] = await this.database
+      .select({ createdAt: sessions.createdAt, updatedAt: sessions.updatedAt })
+      .from(sessions)
+      .where(eq(sessions.id, sessionId))
+      .limit(1);
+    if (!row) {
+      return false;
+    }
+
+    const [admin] = await this.database
+      .select({ id: roleAssignments.id })
+      .from(roleAssignments)
+      .where(
+        and(
+          eq(roleAssignments.userId, userId),
+          inArray(roleAssignments.role, ["PLATFORM_ADMIN", "INSTITUTION_ADMIN"]),
+          isNull(roleAssignments.revokedAt),
+        ),
+      )
+      .limit(1);
+    if (!admin) {
+      return true;
+    }
+
+    const now = this.now().getTime();
+    if (
+      now - row.createdAt.getTime() > ADMIN_SESSION_ABSOLUTE_MS ||
+      now - row.updatedAt.getTime() > ADMIN_SESSION_IDLE_MS
+    ) {
+      await this.database.delete(sessions).where(eq(sessions.id, sessionId));
+      return false;
+    }
+    await this.database
+      .update(sessions)
+      .set({ updatedAt: new Date(now) })
+      .where(eq(sessions.id, sessionId));
+    return true;
   }
 
   private async requireSession(

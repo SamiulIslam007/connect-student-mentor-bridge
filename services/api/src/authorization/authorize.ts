@@ -1,4 +1,10 @@
-import { IdentityError, type AccountSummary, type IdentityService, type Role } from "@connect/domain";
+import {
+  IdentityError,
+  requiresMfa,
+  type AccountSummary,
+  type IdentityService,
+  type Role,
+} from "@connect/domain";
 
 import { bearerToken } from "../http/bearer.js";
 import type { RequestWithId } from "../http/request-id.middleware.js";
@@ -13,15 +19,27 @@ export interface ActingAccount {
   roles: Role[];
 }
 
+export interface ActingAccountOptions {
+  /**
+   * Require an enrolled second factor when the account holds a role that needs
+   * one (D-256). A student on a participant route is not blocked; a mentor is.
+   */
+  requiresMfa?: boolean;
+}
+
 export async function actingAccountWithRoles(
   identity: IdentityService,
   request: RequestWithId,
+  options: ActingAccountOptions = {},
 ): Promise<ActingAccount> {
   const account = await identity.getSession({ sessionToken: bearerToken(request) });
   if (!account) {
     throw new IdentityError("SESSION_INVALID", "the session is not valid");
   }
   const roles = await identity.listRoles(account.id);
+  if (options.requiresMfa && roles.some(requiresMfa) && !account.mfaEnabled) {
+    throw new IdentityError("MFA_REQUIRED", "this action requires an enrolled second factor");
+  }
   // The refusal is answered by the exception filter, which needs to know who was
   // refused; nothing is written here (D-152).
   request.actingAccount = { userId: account.id, roles };

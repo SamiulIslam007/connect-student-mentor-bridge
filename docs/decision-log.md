@@ -2003,3 +2003,11 @@ date: 2026-10-29
 - Reason: the audit's original sentence that `review()` never reads the participants is wrong at this HEAD; the missing check is the comparison. The role-grant and recent-proof gaps are the other "the acting admin is not a normal user" controls, and the session creation instant is the password or second-factor time without a new column.
 - Status: Proposed (owner review required at the phase 3 PR)
 - Affects: `services/api/src/outcomes/drizzle-outcome.service.ts`, `services/api/src/identity/better-auth-identity.service.ts`, `services/api/src/institutions/attestation.controller.ts`, `services/api/src/privacy/privacy.controller.ts`, `mentorship/platform-review`, `identity/role-authorization`, `trust/privacy-export-and-erasure`
+
+### D-256: Mentor MFA is a route policy, and admin sessions use 30 minutes idle and 12 hours absolute
+
+- Date: 2026-11-22
+- Decision: every mentor-only state-changing route declares the second-factor requirement through `actingAccountWithRoles(..., { requiresMfa: true })` or `requireRole(..., { requiresMfa: true })`: agreement save and acknowledge, message post, session create/confirm-held/cancel, outcome confirm and dispute, and request accept/decline. A platform or institution admin session is deleted after 30 idle minutes or 12 hours from creation; student and mentor sessions keep the 30-day policy. The values live in `@connect/config`.
+- Reason: the pure policy already answers per role, but no mentor route consumed it; the flag is the smallest complete change and keeps the existing `MFA_REQUIRED` refusal. The session limits close DEBT-74 without a new column: the existing `created_at` and `updated_at` are the absolute and idle clocks.
+- Status: Proposed (owner review required at the phase 4 PR)
+- Affects: `services/api/src/authorization/authorize.ts`, `services/api/src/mentorships/mentorships.controller.ts`, `services/api/src/requests/requests.controller.ts`, `services/api/src/outcomes/outcomes.controller.ts`, `services/api/src/identity/better-auth-identity.service.ts`, `packages/config/src/index.ts`, `identity/role-authorization`, `identity/session-management`

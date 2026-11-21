@@ -135,6 +135,14 @@ export const SIGNUP_MIN_SUBMIT_SECONDS = 2;
 export const SIGNUP_INTENT_MAX_AGE_SECONDS = 3600;
 
 /**
+ * Privileged sessions (SEC-AUDIT-013, D-256): a platform or institution admin
+ * expires after thirty idle minutes and never lives longer than twelve hours.
+ * Student and mentor sessions keep the thirty-day policy.
+ */
+export const ADMIN_SESSION_IDLE_MS = 30 * 60 * 1000;
+export const ADMIN_SESSION_ABSOLUTE_MS = 12 * 60 * 60 * 1000;
+
+/**
  * Rate-limit starting values, **placeholders pending pilot traffic**
  * (`docs/api-contracts.md` §9 keeps the concrete values Open as SEC-O2). They
  * are configuration, so tuning needs no code change. `ttl` is milliseconds,

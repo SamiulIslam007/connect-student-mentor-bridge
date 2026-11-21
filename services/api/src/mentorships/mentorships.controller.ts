@@ -118,7 +118,7 @@ export class MentorshipsController {
     @Body() body: unknown,
     @Req() request: RequestWithId,
   ): Promise<Record<string, unknown>> {
-    const acting = await actingAccountWithRoles(this.identity, request);
+    const acting = await actingAccountWithRoles(this.identity, request, { requiresMfa: true });
     const saved = await this.mentorships.setAgreement({
       userId: acting.account.id,
       mentorshipId: id,
@@ -135,7 +135,7 @@ export class MentorshipsController {
     @Param("id") id: string,
     @Req() request: RequestWithId,
   ): Promise<Record<string, unknown>> {
-    const acting = await actingAccountWithRoles(this.identity, request);
+    const acting = await actingAccountWithRoles(this.identity, request, { requiresMfa: true });
     return mentorshipPayload(await this.mentorships.acknowledge(acting.account.id, id));
   }
 
@@ -165,7 +165,7 @@ export class MentorshipsController {
     @Body() body: unknown,
     @Req() request: RequestWithId,
   ): Promise<Record<string, unknown>> {
-    const acting = await actingAccountWithRoles(this.identity, request);
+    const acting = await actingAccountWithRoles(this.identity, request, { requiresMfa: true });
     const created = await this.mentorships.postMessage(
       acting.account.id,
       id,
@@ -181,7 +181,7 @@ export class MentorshipsController {
     @Body() body: unknown,
     @Req() request: RequestWithId,
   ): Promise<Record<string, unknown>> {
-    const acting = await actingAccountWithRoles(this.identity, request);
+    const acting = await actingAccountWithRoles(this.identity, request, { requiresMfa: true });
     const created = await this.mentorships.createSession({
       userId: acting.account.id,
       mentorshipId: id,
@@ -198,7 +198,7 @@ export class MentorshipsController {
     @Param("id") id: string,
     @Req() request: RequestWithId,
   ): Promise<Record<string, unknown>> {
-    const acting = await actingAccountWithRoles(this.identity, request);
+    const acting = await actingAccountWithRoles(this.identity, request, { requiresMfa: true });
     return mentorshipPayload(await this.mentorships.complete(acting.account.id, id));
   }
 }
@@ -217,7 +217,7 @@ export class SessionsController {
     @Param("id") id: string,
     @Req() request: RequestWithId,
   ): Promise<Record<string, unknown>> {
-    const acting = await actingAccountWithRoles(this.identity, request);
+    const acting = await actingAccountWithRoles(this.identity, request, { requiresMfa: true });
     return sessionPayload(await this.mentorships.confirmHeld(acting.account.id, id));
   }
 
@@ -228,7 +228,7 @@ export class SessionsController {
     @Body() body: unknown,
     @Req() request: RequestWithId,
   ): Promise<Record<string, unknown>> {
-    const acting = await actingAccountWithRoles(this.identity, request);
+    const acting = await actingAccountWithRoles(this.identity, request, { requiresMfa: true });
     const cancelled = await this.mentorships.cancelSession({
       userId: acting.account.id,
       sessionId: id,

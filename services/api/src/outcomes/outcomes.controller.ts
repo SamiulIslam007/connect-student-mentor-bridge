@@ -119,7 +119,7 @@ export class OutcomesController {
     @Body() body: unknown,
     @Req() request: RequestWithId,
   ): Promise<Record<string, unknown>> {
-    const acting = await actingAccountWithRoles(this.identity, request);
+    const acting = await actingAccountWithRoles(this.identity, request, { requiresMfa: true });
     const confirmed = await this.outcomes.confirm({
       userId: acting.account.id,
       outcomeId: id,
@@ -138,7 +138,7 @@ export class OutcomesController {
     @Body() body: unknown,
     @Req() request: RequestWithId,
   ): Promise<Record<string, unknown>> {
-    const acting = await actingAccountWithRoles(this.identity, request);
+    const acting = await actingAccountWithRoles(this.identity, request, { requiresMfa: true });
     const disputed = await this.outcomes.dispute({
       userId: acting.account.id,
       outcomeId: id,
