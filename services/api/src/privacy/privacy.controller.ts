@@ -82,7 +82,10 @@ export class PrivacyController {
   @Throttle({ default: RATE_LIMITS.write })
   @Post("delete")
   @HttpCode(200)
-  async delete(@Body() body: unknown, @Req() request: RequestWithId): Promise<{ status: string }> {
+  async delete(
+    @Body() body: unknown,
+    @Req() request: RequestWithId,
+  ): Promise<{ status: string; pending_storage_cleanup: number }> {
     const account = await this.identity.getSession({ sessionToken: bearerToken(request) });
     if (!account) {
       throw new IdentityError("SESSION_INVALID", "the session is not valid");
@@ -94,6 +97,9 @@ export class PrivacyController {
       confirmEmail: confirmEmailField(body),
       requestId: request.requestId,
     });
-    return { status: result.status };
+    return {
+      status: result.status,
+      pending_storage_cleanup: result.pending_storage_cleanup,
+    };
   }
 }

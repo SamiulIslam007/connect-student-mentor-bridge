@@ -64,6 +64,7 @@ const PROBLEMS: Record<IdentityErrorCode, ProblemMapping> = {
   REAUTH_REQUIRED: { status: 403, code: "REAUTH_REQUIRED", title: "Confirm your password or second factor again" },
   OUTCOME_REPORTING_CLOSED: { status: 409, code: "OUTCOME_REPORTING_CLOSED", title: "This mentorship can no longer take an outcome report" },
   OCCURRED_ON_OUT_OF_RANGE: { status: 422, code: "OCCURRED_ON_OUT_OF_RANGE", title: "occurred_on must fall between the mentorship start and today" },
+  EVIDENCE_ACCESS_DENIED: { status: 403, code: "EVIDENCE_ACCESS_DENIED", title: "An admin evidence read needs an open review case and a written reason" },
 };
 
 const PROBLEM_BASE = "https://docs.connect.example/problems/";

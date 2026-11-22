@@ -2031,3 +2031,13 @@ date: 2026-10-29
 - What would change this decision: pilot evidence that 90 days is too short; the constant is then tuned in a one-line change and this row records the date.
 - Status: Proposed (owner review required at the phase 6 PR)
 - Affects: `services/api/src/outcomes/drizzle-outcome.service.ts`, `packages/domain/src/outcome.ts`, `packages/config/src/index.ts`, `docs/functional-requirements.md`, `docs/reputation-and-verification-policy.md`, `mentorship/outcome-verification`
+
+### D-259: Erase the non-ledger subset, keep the ledger untouched, and bound unsettled evidence
+
+- Date: 2026-11-22
+- Decision: `deleteAccount` deletes the user's evidence rows and their objects, affiliations, reports they filed, old-address `verifications`, `outbox_events` addressed to the old email and their `idempotency_keys`, and leaves every ledger row byte-identical. An object-store failure keeps the evidence row, counts it in the returned `pending_storage_cleanup`, and the hourly retention sweep retries it. `sweepExpiredEvidence` deletes a never-settled outcome's file 90 days after upload. An admin evidence read requires an open `IN_PLATFORM_REVIEW` case and a 3-to-500-character `x-access-reason`, else `403 EVIDENCE_ACCESS_DENIED`. An operator script (`pnpm --filter api privacy:sweep`, default dry run) prints the candidate count and a real run needs `--confirm-backup=YYYY-MM-DD`.
+- Reason: `docs/data-model.md` section 8 and `AGENTS.local.md` section 1.1 reserve the erasure-versus-ledger decision to counsel, so deleting the non-ledger rows satisfies the concrete gaps without deciding the reserved question (SEC-AUDIT-008, SEC-AUDIT-009, SEC-AUDIT-010). The 90-day unsettled maximum is the same privacy promise the settled rule already makes, and the review-case gate stops a bare admin lookup.
+- Alternatives rejected: redacting outcome text now (decides the ledger question before counsel); deleting the whole outcome (breaks reputation audit); a query-string reason (it would land in every access log).
+- What would change this decision: counsel's written answer on ledger exceptions; a stored object the store refuses permanently, which needs an operator alert rather than a silent retry.
+- Status: Proposed (owner review required at the phase 7 PR)
+- Affects: `services/api/src/privacy/drizzle-privacy.service.ts`, `services/api/src/privacy/erasure-sweep.ts`, `services/api/src/evidence/retention.ts`, `services/api/src/evidence/drizzle-evidence.service.ts`, `packages/domain/src/evidence-retention.ts`, `docs/data-model.md`, `docs/data-privacy-and-retention.md`, `trust/privacy-export-and-erasure`, `trust/evidence-retention`, `mentorship/outcome-evidence`

@@ -679,7 +679,7 @@ All periods are **Proposed defaults** unless marked, to be confirmed with counse
 
 1. Authentication data is removed by `IdentityService`.
 2. `users` becomes a **tombstone**: `email`, `display_name`, and profile text are cleared or replaced with a pseudonym; `status = ANONYMIZED`; `anonymized_at` is set. The row id persists so foreign keys in the ledger still resolve.
-3. Evidence files are deleted; thread bodies are deleted per the table above.
+3. Evidence files are deleted; thread bodies are deleted per the table above. The tombstone also deletes the user's own `affiliations`, `reports` they filed, `verifications` rows for the old address, `outbox_events` addressed to it and `idempotency_keys`; an object delete that fails keeps its `outcome_evidence` row (and reports `pending_storage_cleanup`) so the hourly retention sweep retries it (D-259, 2026-11-22).
 4. Counted outcomes remain in the ledger with pseudonymous actors so institution aggregates and mentor reputation stay auditable.
 5. Institution aggregates keep only aggregated metrics.
 

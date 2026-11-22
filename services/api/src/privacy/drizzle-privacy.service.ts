@@ -10,14 +10,18 @@ import {
   auditLogs,
   availabilityWindows,
   consentRecords,
+  idempotencyKeys,
   mentorFields,
   mentorProfiles,
   mentorshipRequests,
   mentorshipSessions,
   mentorships,
+  outboxEvents,
   outcomeEvents,
+  outcomeEvidence,
   outcomes,
   privacyRequests,
+  reports,
   roleAssignments,
   sessions,
   studentFieldInterests,
@@ -26,7 +30,9 @@ import {
   twoFactors,
   users,
   verificationRecords,
+  verifications as authVerifications,
 } from "../db/schema/index.js";
+import { createEvidenceStorage, type EvidenceStorage } from "../evidence/storage.js";
 import { appendAuditEntry, type AuditEntry } from "../identity/audit-log.js";
 import { hashEmail } from "../identity/email-hash.js";
 import {
@@ -49,6 +55,8 @@ interface PrivacyOptions {
   now?: () => Date;
   /** Fault-injection seam, as the identity service has (design R2, D-151). */
   auditWriter?: AuditWriter;
+  /** `null` when the deployment carries no object store (design R8). */
+  storage?: EvidenceStorage | null;
 }
 
 /**
@@ -61,12 +69,14 @@ export class DrizzlePrivacyService implements PrivacyService {
   private readonly secret: string;
   private readonly now: () => Date;
   private readonly auditWriter: AuditWriter;
+  private readonly storage: EvidenceStorage | null;
 
   constructor(options: PrivacyOptions) {
     this.database = options.database;
     this.secret = options.secret;
     this.now = options.now ?? (() => new Date());
     this.auditWriter = options.auditWriter ?? appendAuditEntry;
+    this.storage = options.storage === undefined ? createEvidenceStorage() : options.storage;
   }
 
   async exportAccount(input: ExportAccountInput): Promise<PrivacyExportDocument> {
@@ -268,7 +278,9 @@ export class DrizzlePrivacyService implements PrivacyService {
     });
   }
 
-  async deleteAccount(input: DeleteAccountInput): Promise<{ status: "deleted" }> {
+  async deleteAccount(
+    input: DeleteAccountInput,
+  ): Promise<{ status: "deleted"; pending_storage_cleanup: number }> {
     return this.database.transaction(async (tx) => {
       // The row lock serializes two concurrent deletions of one account.
       const [account] = await tx
@@ -282,7 +294,7 @@ export class DrizzlePrivacyService implements PrivacyService {
       }
       // Idempotent: a second request changes nothing and appends no second audit row.
       if (account.status === "ANONYMIZED") {
-        return { status: "deleted" };
+        return { status: "deleted", pending_storage_cleanup: 0 };
       }
       if (account.email.trim().toLowerCase() !== input.confirmEmail.trim().toLowerCase()) {
         throw new IdentityError("VALIDATION_ERROR", "confirm_email must match the account email");
@@ -346,6 +358,46 @@ export class DrizzlePrivacyService implements PrivacyService {
         .set({ body: DELETED_MESSAGE_BODY })
         .where(eq(threadMessages.senderUserId, input.userId));
 
+      // The non-ledger PII subset (D-259, SEC-AUDIT-008). Each statement touches
+      // the user's own rows; no outcome, ledger, reputation or audit row moves.
+      await tx.delete(affiliations).where(eq(affiliations.userId, input.userId));
+      // Reports the user filed go; a report about them stays as moderation history.
+      await tx.delete(reports).where(eq(reports.reporterUserId, input.userId));
+      await tx
+        .delete(authVerifications)
+        .where(eq(authVerifications.identifier, account.email.trim().toLowerCase()));
+      await tx
+        .delete(outboxEvents)
+        .where(sql`${outboxEvents.payload}->>'to' = ${account.email}`);
+      await tx.delete(idempotencyKeys).where(eq(idempotencyKeys.actorUserId, input.userId));
+
+      // Evidence rows and their objects. A failed object delete keeps the row so
+      // the retention sweep retries it, and the answer must not claim full
+      // erasure (SEC-AUDIT-008, design R2).
+      const evidenceRows = await tx
+        .select({
+          id: outcomeEvidence.id,
+          objectKey: outcomeEvidence.objectKey,
+          deletedAt: outcomeEvidence.deletedAt,
+        })
+        .from(outcomeEvidence)
+        .where(eq(outcomeEvidence.uploadedByUserId, input.userId));
+      let pendingStorageCleanup = 0;
+      for (const evidence of evidenceRows) {
+        if (!evidence.deletedAt) {
+          try {
+            if (!this.storage) {
+              throw new Error("no object store is configured");
+            }
+            await this.storage.delete(evidence.objectKey);
+          } catch {
+            pendingStorageCleanup += 1;
+            continue;
+          }
+        }
+        await tx.delete(outcomeEvidence).where(eq(outcomeEvidence.id, evidence.id));
+      }
+
       await tx.insert(privacyRequests).values({
         userId: input.userId,
         kind: "DELETE",
@@ -363,7 +415,7 @@ export class DrizzlePrivacyService implements PrivacyService {
         requestId: input.requestId,
       });
 
-      return { status: "deleted" };
+      return { status: "deleted", pending_storage_cleanup: pendingStorageCleanup };
     });
   }
 }

@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, notInArray, or, sql } from "drizzle-orm";
 
 import { evidenceRetentionDue } from "@connect/domain";
 
@@ -85,15 +85,23 @@ export async function sweepExpiredEvidence(
         isNull(outcomeEvidence.deletedAt),
         // An intent whose bytes never landed has no file to delete.
         isNotNull(outcomeEvidence.uploadedAt),
-        inArray(outcomes.status, ["COUNTED", "REJECTED", "REVERSED", "WITHDRAWN"]),
-        // The origin mirrors `evidenceRetentionDue`: each state's own instant, and
-        // the reporting student's earliest institution-sharing withdrawal when it
-        // is earlier. `least` ignores nulls, so the null guard is explicit.
-        sql`${ownInstant()} is not null`,
-        sql`least(${ownInstant()}, coalesce(${consentInstant()}, ${ownInstant()})) <= ${clock} - (${options.windowDays}::int * interval '1 day')`,
+        or(
+          and(
+            // A settled outcome reads its own clock (and the consent withdrawal
+            // when that is earlier), as before.
+            inArray(outcomes.status, ["COUNTED", "REJECTED", "REVERSED", "WITHDRAWN"]),
+            sql`${ownInstant()} is not null`,
+            sql`least(${ownInstant()}, coalesce(${consentInstant()}, ${ownInstant()})) <= ${clock} - (${options.windowDays}::int * interval '1 day')`,
+          ),
+          // A never-settled outcome is bounded by 90 days from upload (D-259).
+          and(
+            notInArray(outcomes.status, ["COUNTED", "REJECTED", "REVERSED", "WITHDRAWN"]),
+            sql`${outcomeEvidence.uploadedAt} <= ${clock} - (${options.windowDays}::int * interval '1 day')`,
+          ),
+        ),
       ),
     )
-    .orderBy(asc(sql`least(${ownInstant()}, coalesce(${consentInstant()}, ${ownInstant()}))`))
+    .orderBy(asc(sql`least(coalesce(${ownInstant()}, ${outcomeEvidence.uploadedAt}), ${outcomeEvidence.uploadedAt})`))
     .limit(options.batch ?? 100);
 
   for (const candidate of candidates) {
@@ -132,6 +140,7 @@ export async function sweepExpiredEvidence(
         consentWithdrawnAt: row.consentWithdrawnAt
           ? new Date(row.consentWithdrawnAt as unknown as string)
           : null,
+        uploadedAt: row.uploadedAt,
         now: decisionAt,
         windowDays: options.windowDays,
       });

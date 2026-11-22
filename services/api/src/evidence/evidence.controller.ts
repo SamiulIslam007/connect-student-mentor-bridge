@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, Post, Req } from "@nestjs/common";
+import { Body, Controller, Get, Headers, HttpCode, Inject, Param, Post, Req } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
 
 import { RATE_LIMITS } from "@connect/config";
@@ -87,6 +87,7 @@ export class EvidenceController {
   async read(
     @Param("id") id: string,
     @Param("evidence_id") evidenceId: string,
+    @Headers("x-access-reason") accessReason: string | undefined,
     @Req() request: RequestWithId,
   ): Promise<Record<string, unknown>> {
     const acting = await actingAccountWithRoles(this.identity, request);
@@ -96,6 +97,7 @@ export class EvidenceController {
       adminWithMfa: acting.account.mfaEnabled,
       outcomeId: id,
       evidenceId,
+      reason: accessReason,
       requestId: request.requestId,
     });
     return evidencePayload(link);

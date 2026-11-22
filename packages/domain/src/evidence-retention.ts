@@ -1,6 +1,3 @@
-/** The four states whose evidence clock has started (FR-PRIV-03, D-230). */
-const RETENTION_TRIGGERS = ["COUNTED", "REJECTED", "REVERSED", "WITHDRAWN"] as const;
-
 export interface EvidenceRetentionInput {
   outcomeStatus: string;
   countedAt: Date | null;
@@ -10,6 +7,8 @@ export interface EvidenceRetentionInput {
   withdrawnAt: Date | null;
   /** The reporting student's earliest institution-sharing withdrawal, if any. */
   consentWithdrawnAt?: Date | null;
+  /** When the bytes landed: the maximum clock for an outcome that never settles. */
+  uploadedAt?: Date | null;
   now: Date;
   windowDays: number;
 }
@@ -37,20 +36,24 @@ function ownInstant(input: EvidenceRetentionInput): Date | null {
 /**
  * True when an outcome's evidence file is past its retention window. The four
  * settled states start their own clock; an `INSTITUTION_DATA_SHARING` withdrawal
- * can only move that origin earlier, never later (D-231); and a terminal row
- * whose own instant is missing is never due, because a missing instant is a
- * projection bug, not a licence to delete.
+ * can only move that origin earlier, never later (D-231); and an outcome that
+ * never settles is bounded by 90 days from upload (D-259). A settled row whose
+ * own instant is missing is never due, because a missing instant is a projection
+ * bug, not a licence to delete.
  */
 export function evidenceRetentionDue(input: EvidenceRetentionInput): boolean {
-  if (!(RETENTION_TRIGGERS as readonly string[]).includes(input.outcomeStatus)) {
-    return false;
-  }
+  const windowMs = input.windowDays * 24 * 60 * 60 * 1000;
   const instant = ownInstant(input);
   if (!instant) {
-    return false;
+    // The maximum: a file whose outcome never settles is deleted 90 days after
+    // upload, so a pending case cannot keep private evidence indefinitely (D-259).
+    return (
+      input.uploadedAt !== null &&
+      input.uploadedAt !== undefined &&
+      input.now.getTime() - input.uploadedAt.getTime() >= windowMs
+    );
   }
   const consent = input.consentWithdrawnAt;
   const origin = consent && consent.getTime() < instant.getTime() ? consent : instant;
-  const windowMs = input.windowDays * 24 * 60 * 60 * 1000;
   return input.now.getTime() - origin.getTime() >= windowMs;
 }

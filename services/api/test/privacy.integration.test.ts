@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { after, before, beforeEach, test, type TestContext } from "node:test";
 
 import type { Database } from "../src/db/database.js";
+import type { EvidenceStorage } from "../src/evidence/storage.js";
 import { AuthController } from "../src/identity/auth.controller.js";
 import {
   DELETED_DISPLAY_NAME,
@@ -25,6 +26,22 @@ import { truncateAll } from "./support/database.js";
 
 const CONTROLLERS = [AuthController, PrivacyController];
 
+const storageDeletes: string[] = [];
+let storageFailing = false;
+
+/** The object store seam: the pruner must call `delete` and must survive its failure. */
+const fakeStorage: EvidenceStorage = {
+  put: async () => undefined,
+  get: async () => Buffer.from(""),
+  delete: async (key) => {
+    if (storageFailing) {
+      throw new Error("storage unavailable");
+    }
+    storageDeletes.push(key);
+  },
+  presignGet: async () => "https://storage.test/signed",
+};
+
 let stack: TestApiStack | undefined;
 let skipReason = "connect_test is not reachable";
 
@@ -35,7 +52,11 @@ before(async () => {
     providers: (database) => [
       {
         provide: PRIVACY_SERVICE,
-        useValue: new DrizzlePrivacyService({ database, secret: TEST_AUTH_SECRET }),
+        useValue: new DrizzlePrivacyService({
+          database,
+          secret: TEST_AUTH_SECRET,
+          storage: fakeStorage,
+        }),
       },
     ],
   });
@@ -360,7 +381,7 @@ test("a deleted account cannot sign in, and a second deletion is a no-op", async
     confirmEmail: "student@example.com",
     requestId: "second-delete",
   });
-  assert.deepEqual(second, { status: "deleted" });
+  assert.deepEqual(second, { status: "deleted", pending_storage_cleanup: 0 });
 
   const audits = await current.client.query("SELECT id FROM audit_logs WHERE action = 'ACCOUNT_DELETED'");
   assert.equal(audits.rowCount, 1, "no second audit entry");
@@ -540,4 +561,131 @@ test("a suspended, anonymized, or deactivated account cannot export", async (con
 
   const tracking = await current.client.query("SELECT id FROM privacy_requests");
   assert.equal(tracking.rowCount, 0, "a refused request writes no tracking row");
+});
+
+/**
+ * SEC-AUDIT-008 (D-259): the non-ledger PII rows go, the ledger stays
+ * byte-identical, and a storage failure keeps the evidence row for the next sweep.
+ */
+test("deletion removes the non-ledger rows and leaves every ledger row byte-identical", async (context) => {
+  const current = requireStack(context);
+  if (!current) {
+    return;
+  }
+  const token = await signInToken(current, "student@example.com");
+  await signInToken(current, "mentor@example.com");
+  const seeded = await seedCountedOutcome(current, "student@example.com", "mentor@example.com");
+
+  await current.client.query(
+    `INSERT INTO affiliations (user_id, organization_name, kind, level, method, status)
+     VALUES ($1, 'Example University', 'STUDENT', 'LEVEL_1', 'INSTITUTIONAL_EMAIL', 'VERIFIED')`,
+    [seeded.studentId],
+  );
+  await current.client.query(
+    `INSERT INTO reports (reporter_user_id, target_kind, target_id, reason, details)
+     VALUES ($1, 'USER', 'some-target', 'SPAM', 'unsolicited messages')`,
+    [seeded.studentId],
+  );
+  await current.client.query(
+    `INSERT INTO verifications (id, identifier, value, expires_at)
+     VALUES ('erasure-verification', 'student@example.com', 'a-token', now() + interval '1 day')`,
+  );
+  await current.client.query(
+    `INSERT INTO outbox_events (aggregate_type, aggregate_id, event_type, dedupe_key, payload)
+     VALUES ('USER', $1, 'EmailRequested', 'email:erasure-test', jsonb_build_object('to', 'student@example.com'))`,
+    [seeded.studentId],
+  );
+  await current.client.query(
+    `INSERT INTO idempotency_keys (actor_user_id, operation, key, request_digest, expires_at)
+     VALUES ($1, 'request.create', 'erasure-key-1', 'digest', now() + interval '1 day')`,
+    [seeded.studentId],
+  );
+  await current.client.query(
+    `INSERT INTO outcome_evidence
+       (outcome_id, uploaded_by_user_id, object_key, sha256, size_bytes, content_type, status, uploaded_at)
+     VALUES ($1, $2, 'erasure/object-1', repeat('a', 64), 10, 'application/pdf', 'CLEAN', now())`,
+    [seeded.outcomeId, seeded.studentId],
+  );
+
+  const ledgerTables = [
+    "outcomes",
+    "outcome_events",
+    "reputation_events",
+    "consent_records",
+  ];
+  const before = new Map<string, string>();
+  for (const table of ledgerTables) {
+    before.set(table, await snapshot(current, table));
+  }
+
+  const deleted = await apiRequest(
+    current,
+    "POST",
+    "/v1/privacy/delete",
+    { confirm_email: "student@example.com" },
+    token,
+  );
+  assert.equal(deleted.status, 200, deleted.text);
+  assert.equal(deleted.body?.status, "deleted");
+  assert.equal(deleted.body?.pending_storage_cleanup, 0, "the object went with the row");
+
+  for (const table of ledgerTables) {
+    assert.equal(await snapshot(current, table), before.get(table), `${table} must be unchanged`);
+  }
+
+  const gone = [
+    "SELECT count(*) FROM affiliations WHERE user_id = $1",
+    "SELECT count(*) FROM reports WHERE reporter_user_id = $1",
+    "SELECT count(*) FROM idempotency_keys WHERE actor_user_id = $1",
+    "SELECT count(*) FROM outcome_evidence WHERE uploaded_by_user_id = $1",
+  ];
+  for (const statement of gone) {
+    const counted: { rows: { count: string }[] } = await current.client.query(statement, [
+      seeded.studentId,
+    ]);
+    assert.equal(counted.rows[0].count, "0", statement);
+  }
+  const verification = await current.client.query(
+    "SELECT id FROM verifications WHERE identifier = 'student@example.com'",
+  );
+  assert.equal(verification.rowCount, 0, "the old-email verification row is gone");
+  const outbox = await current.client.query(
+    "SELECT id FROM outbox_events WHERE payload->>'to' = 'student@example.com'",
+  );
+  assert.equal(outbox.rowCount, 0, "the queued mail addressed to the old email is gone");
+  assert.ok(storageDeletes.includes("erasure/object-1"), "the object was deleted");
+});
+
+test("a storage failure keeps the evidence row and reports the account as not fully erased", async (context) => {
+  const current = requireStack(context);
+  if (!current) {
+    return;
+  }
+  const token = await signInToken(current, "student@example.com");
+  await signInToken(current, "mentor@example.com");
+  const seeded = await seedCountedOutcome(current, "student@example.com", "mentor@example.com");
+  await current.client.query(
+    `INSERT INTO outcome_evidence
+       (outcome_id, uploaded_by_user_id, object_key, sha256, size_bytes, content_type, status, uploaded_at)
+     VALUES ($1, $2, 'erasure/object-2', repeat('b', 64), 10, 'application/pdf', 'CLEAN', now())`,
+    [seeded.outcomeId, seeded.studentId],
+  );
+  storageFailing = true;
+
+  const deleted = await apiRequest(
+    current,
+    "POST",
+    "/v1/privacy/delete",
+    { confirm_email: "student@example.com" },
+    token,
+  );
+  assert.equal(deleted.status, 200, deleted.text);
+  assert.equal(deleted.body?.pending_storage_cleanup, 1, "the account is not claimed fully erased");
+
+  const kept = await current.client.query<{ id: string; deleted_at: string | null }>(
+    "SELECT id, deleted_at FROM outcome_evidence WHERE uploaded_by_user_id = $1",
+    [seeded.studentId],
+  );
+  assert.equal(kept.rowCount, 1, "the row stays so the retention sweep can retry");
+  assert.equal(kept.rows[0].deleted_at, null);
 });

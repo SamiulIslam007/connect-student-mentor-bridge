@@ -14,7 +14,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "node --import tsx src/db/seed/run.ts",
     "outbox:test-event": "node --import tsx src/platform/outbox/test-event.ts",
-    "db:seed:demo": "node --import tsx src/db/seed/run-demo.ts"
+    "db:seed:demo": "node --import tsx src/db/seed/run-demo.ts",
+    "privacy:sweep": "node --import tsx src/privacy/erasure-sweep.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1161.0",
