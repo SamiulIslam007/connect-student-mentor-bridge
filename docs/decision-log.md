@@ -2041,3 +2041,13 @@ date: 2026-10-29
 - What would change this decision: counsel's written answer on ledger exceptions; a stored object the store refuses permanently, which needs an operator alert rather than a silent retry.
 - Status: Proposed (owner review required at the phase 7 PR)
 - Affects: `services/api/src/privacy/drizzle-privacy.service.ts`, `services/api/src/privacy/erasure-sweep.ts`, `services/api/src/evidence/retention.ts`, `services/api/src/evidence/drizzle-evidence.service.ts`, `packages/domain/src/evidence-retention.ts`, `docs/data-model.md`, `docs/data-privacy-and-retention.md`, `trust/privacy-export-and-erasure`, `trust/evidence-retention`, `mentorship/outcome-evidence`
+
+### D-260: Log a bounded error class, scrub the report itself, and make the runbook tell the truth
+
+- Date: 2026-11-22
+- Decision: the API's 500 log line carries the method, the route without its query string, the request id and the error class only; every problem response's `instance` is the route, not `originalUrl`; the raw exception is no longer the log's second argument. The web `callApi` failure logs the route without its query and the error class. The shared scrubber covers exception values (the type stays), stack-frame variables, contexts, tags, the username and the token/email key names. `reports.details` is bounded at 2,000 characters in the controller with `422 VALIDATION_FAILED` naming the field. `docs/runbook.md` §5 now states the real log behaviour and carries breach/containment, key-rotation, break-glass-review and audit-review procedures.
+- Reason: the audit's test log showed a Drizzle failure carrying the full SQL and its `params` array, and a verification token travels in a URL (SEC-AUDIT-011, SEC-AUDIT-023, SEC-AUDIT-025). The scrubber's type had no `exception` field, so it could not remove the most likely carrier. The runbook claimed logs never carry tokens while the code logged the whole exception.
+- Alternatives rejected: a log-shipper redaction rule only (the local log and Sentry still carry the data); turning off error reporting (loses the pilot's only visibility); logging nothing (makes an incident blind).
+- What would change this decision: a log platform with a tested redaction pipeline that proves the same result; the code-level scrub stays as the first boundary.
+- Status: Proposed (owner review required at the phase 8 PR)
+- Affects: `services/api/src/http/problem-details.filter.ts`, `apps/web/lib/api.ts`, `packages/domain/src/observability-scrub.ts`, `services/api/src/platform/observability.ts`, `services/api/src/reports/reports.controller.ts`, `docs/runbook.md`, `platform/observability`

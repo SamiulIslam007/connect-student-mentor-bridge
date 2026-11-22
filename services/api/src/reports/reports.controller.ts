@@ -76,6 +76,11 @@ export class ReportsController {
       typeof bodyRecord(body).details === "string" && String(bodyRecord(body).details).trim()
         ? String(bodyRecord(body).details).trim()
         : undefined;
+    // The DB check enforces the same bound; refusing here keeps a 2,001-character
+    // report from becoming a 500 whose log would carry the text (SEC-AUDIT-023).
+    if (details !== undefined && details.length > 2000) {
+      throw new IdentityError("VALIDATION_ERROR", "details must be at most 2000 characters");
+    }
 
     const report = await this.reports.create({
       reporterUserId: acting.account.id,

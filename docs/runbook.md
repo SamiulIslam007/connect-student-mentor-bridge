@@ -177,16 +177,52 @@ dry run**: it reports what it would delete and deletes nothing.
    `outbox_events` means mail and the hourly jobs have stopped.
 
 **Where the logs are**: `docker compose logs <service>` per container. The API
-logs one JSON object per line; errors carry `event` fields and never tokens,
-message bodies or evidence content.
+logs one JSON object per line. A 500 line names the method, the route (never the
+query string), the request id and the error class only — never the exception
+message, which is where a driver puts its SQL and params
+(`failureLog` in `services/api/src/http/problem-details.filter.ts`). The web BFF
+logs `web.api_unreachable` with the route and the error class, never the query
+string or the upstream detail (`apps/web/lib/api.ts`). Error reports are scrubbed
+before they leave the process (`packages/domain/src/observability-scrub.ts`:
+headers, cookies, request data, query string, exception values, stack-frame
+variables, contexts, tags and the username). The 500 response body is a fixed
+problem document.
 
 **Rolling back a bad deploy**: bring up the previous image tag for the affected
 service only, after confirming the schema is compatible — a migration is not
 rolled back. Binding the tag is a `<deployment value>`:
 `docker compose up -d --no-deps api` after pinning the tag.
 
+### 5.1 Breach and containment
 
-### 5.1 Error tracking, uptime and the one alert
+1. **Contain in the first hour.** Rotate `BETTER_AUTH_SECRET` and `BFF_TRUST_SECRET` on the host, redeploy the API and web images, and revoke every admin session (`DELETE FROM sessions WHERE user_id IN (SELECT user_id FROM role_assignments WHERE role IN ('PLATFORM_ADMIN','INSTITUTION_ADMIN'))`). A rotated `BETTER_AUTH_SECRET` invalidates every existing session and every verification link, which is the point.
+2. **Scope from the audit log.** `GET /v1/admin/audit` filtered by action and time; `ACCOUNT_DELETED`, `PERMISSION_DENIED`, `EVIDENCE_VIEWED` and `THREAD_BREAK_GLASS_READ` are the four rows that answer "who reached what".
+3. **Notify.** The pilot has no legal entity yet (settled decision); the owner records the affected accounts, the data classes and the containment time, and takes legal advice before any external notice.
+4. **Fix and record.** The fix lands through the normal PR path; the incident's facts go in `docs/audit/` with the date, the detection point, the containment commands and what the audit log showed. Never rewrite the audit log.
+
+### 5.2 Key rotation
+
+- `BETTER_AUTH_SECRET`: rotate on a suspected compromise, or yearly. Rotation signs everyone out and invalidates outstanding verification and reset links; schedule it outside a pilot cohort's active window.
+- `BFF_TRUST_SECRET`: rotate with the API and web deployed together. A mismatch makes every BFF write fail the client-key check with a refusal, not a silent downgrade; deploy both images in one `docker compose up -d`.
+- `S3_*` credentials: rotate the key pair on the object store, then restart the API and worker. Evidence links are minted per request, so nothing cached outlives the rotation.
+- SMTP credentials: rotate with the provider, restart the worker. Queued mail retries; a failed send is visible in the worker's outbox log.
+- `SENTRY_DSN`: rotate by replacing the value; the old DSN only receives events until the next restart.
+- Never write a value into a file, an issue, a PR or a chat. The only accepted form is the host's environment store, and `pnpm build` must keep passing with `grep -c '\\*\\*\\*' .env.example` at 0.
+
+### 5.3 Break-glass review
+
+1. Every admin thread read writes one `THREAD_BREAK_GLASS_READ` row with the stated reason **before** the content is returned; every admin evidence read needs an open review case and a `x-access-reason` header, else `403 EVIDENCE_ACCESS_DENIED` (`services/api/src/evidence/drizzle-evidence.service.ts`).
+2. Weekly, in the pilot: `GET /v1/admin/audit?action=THREAD_BREAK_GLASS_READ` and `?action=EVIDENCE_VIEWED`. For each row, check that a matching open case exists and that the reason describes it. A read with no case, or a reason that does not match, is an incident under 5.1.
+3. Record the review date and the row count in the operator log. A week with zero rows is a valid result and worth recording.
+
+### 5.4 Audit review
+
+1. Monthly: read `GET /v1/admin/audit` for `ROLE_GRANTED`, `ACCOUNT_SUSPENDED`, `REPORT_RESOLVED` and every `PERMISSION_DENIED`. A `ROLE_GRANTED` with `actor_role = USER` for an institution scope is a defect; the grant route records the real acting role (D-255).
+2. Confirm the retention sweep's `EVIDENCE_RETENTION_DELETED` rows match the operator's recorded dry run (`pnpm --filter api privacy:sweep` prints the candidate count; a real run needs `--confirm-backup=YYYY-MM-DD`).
+3. Any gap between what the audit log shows and what the operator expected is an incident under 5.1, not a documentation note.
+
+
+### 5.5 Error tracking, uptime and the one alert
 
 | Piece | What is in the repository | What is not |
 |---|---|---|

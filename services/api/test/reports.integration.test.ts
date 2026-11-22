@@ -881,3 +881,45 @@ test("a suspension set again after the job's instant is not lifted", async (cont
   );
   assert.equal(user.rows[0].status, "SUSPENDED");
 });
+
+test("a report body over 2,000 characters is a 422 naming the field, not a 500", async (context) => {
+  const current = requireStack(context);
+  if (!current) {
+    return;
+  }
+  const token = await signInToken(current, "student@example.com");
+  await signInToken(current, "mentor@example.com");
+  const seeded = await seedThread(current);
+
+  const overLong = await apiRequest(
+    current,
+    "POST",
+    "/v1/reports",
+    {
+      target_kind: "message",
+      target_id: seeded.messageId,
+      reason: "spam",
+      details: "x".repeat(2_001),
+    },
+    token,
+  );
+  assert.equal(overLong.status, 422, overLong.text);
+  assert.equal(overLong.body?.code, "VALIDATION_FAILED");
+  assert.match(String(overLong.body?.detail), /details/);
+  const rows = await current.client.query("SELECT id FROM reports");
+  assert.equal(rows.rowCount, 0, "nothing is written");
+
+  const atLimit = await apiRequest(
+    current,
+    "POST",
+    "/v1/reports",
+    {
+      target_kind: "message",
+      target_id: seeded.messageId,
+      reason: "spam",
+      details: "x".repeat(2_000),
+    },
+    token,
+  );
+  assert.equal(atLimit.status, 201, atLimit.text);
+});

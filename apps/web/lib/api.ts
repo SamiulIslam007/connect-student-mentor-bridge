@@ -61,11 +61,13 @@ export async function callApi(path: string, init: RequestInit = {}): Promise<Res
       signal: AbortSignal.timeout(API_TIMEOUT_MS),
     });
   } catch (error) {
+    // The route only, never the query: a verification token travels in a URL
+    // (SEC-AUDIT-023, D-260). The class names the failure; the message can carry it.
     console.error(
       JSON.stringify({
         event: "web.api_unreachable",
-        path,
-        message: error instanceof Error ? error.message : "unknown error",
+        route: path.split("?")[0].slice(0, 200),
+        error_class: error instanceof Error ? error.constructor.name.slice(0, 64) : "UnknownError",
       }),
     );
     return new Response(
