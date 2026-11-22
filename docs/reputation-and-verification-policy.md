@@ -97,6 +97,8 @@ Each rule has a trigger, actor, evidence, resulting state, and time limit.
 
 Reminder timings (days 3, 5, 7) are README **Proposed defaults**. Review and cooling timings are drafts, **not validated**, and are Open (P6).
 
+Reporting window (built 2026-11-22, D-258, SEC-AUDIT-007): a report is accepted only while the mentorship is `ACTIVE` or `COMPLETED`, and for a completed mentorship only within 90 days of its ending instant (`OUTCOME_REPORTING_WINDOW_DAYS` in `@connect/config`). `occurred_on` must fall between the mentorship start date and today; anything else is `422 OCCURRED_ON_OUT_OF_RANGE`, and a closed mentorship is `409 OUTCOME_REPORTING_CLOSED`. Proof: `packages/domain/test/outcome.test.ts` (pure window cases) and `services/api/test/outcomes.integration.test.ts` ("a report is bounded by the mentorship's status and its 90-day window").
+
 ---
 
 ## 4. Evidence tiers

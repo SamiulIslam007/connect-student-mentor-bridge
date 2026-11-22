@@ -3,11 +3,13 @@ import { test } from "node:test";
 
 import {
   CONTRIBUTION_LEVELS,
+  OUTCOME_REPORTING_WINDOW_DAYS,
   OUTCOME_STATUSES,
   canWithdraw,
   coolingEndsAt,
   earnsMentorReputation,
   isContributionLevel,
+  outcomeReportRefusal,
   reviewDecisionIsLegal,
   reviewTarget,
   transition,
@@ -127,4 +129,86 @@ test("valid on a counted outcome and every other pair are illegal", () => {
 test("a reversed outcome cannot be reviewed again in this release", () => {
   assert.equal(reviewDecisionIsLegal("REVERSED", "valid"), false);
   assert.equal(reviewDecisionIsLegal("REVERSED", "invalid"), false);
+});
+
+/**
+ * The reporting window (SEC-AUDIT-007, D-258): a live or completed mentorship,
+ * 90 days from the ending instant, and `occurred_on` bounded to the mentorship.
+ */
+const DAY = 24 * 60 * 60 * 1000;
+const NOW = new Date("2026-11-22T12:00:00.000Z");
+
+function windowInput(overrides: Partial<Parameters<typeof outcomeReportRefusal>[0]> = {}) {
+  return {
+    status: "ACTIVE",
+    startedAt: new Date("2026-09-01T00:00:00.000Z"),
+    endedAt: null,
+    occurredOn: "2026-11-20",
+    now: NOW,
+    ...overrides,
+  };
+}
+
+test("a live mentorship takes a report dated today or inside its span", () => {
+  assert.equal(outcomeReportRefusal(windowInput()), null);
+  assert.equal(outcomeReportRefusal(windowInput({ occurredOn: "2026-09-01" })), null);
+  assert.equal(outcomeReportRefusal(windowInput({ occurredOn: "2026-11-22" })), null);
+});
+
+test("occurred_on before the start or after today is refused", () => {
+  assert.equal(
+    outcomeReportRefusal(windowInput({ occurredOn: "2026-08-31" })),
+    "OCCURRED_ON_OUT_OF_RANGE",
+  );
+  assert.equal(
+    outcomeReportRefusal(windowInput({ occurredOn: "2026-11-23" })),
+    "OCCURRED_ON_OUT_OF_RANGE",
+  );
+  assert.equal(
+    outcomeReportRefusal(windowInput({ occurredOn: "not-a-date" })),
+    "OCCURRED_ON_OUT_OF_RANGE",
+  );
+});
+
+test("a completed mentorship keeps its window for 90 days from the ending instant", () => {
+  const onTheBoundary = new Date(NOW.getTime() - 90 * DAY);
+  assert.equal(outcomeReportRefusal(windowInput({ status: "COMPLETED", endedAt: onTheBoundary })), null);
+
+  const oneMillisecondLate = new Date(NOW.getTime() - 90 * DAY - 1);
+  assert.equal(
+    outcomeReportRefusal(windowInput({ status: "COMPLETED", endedAt: oneMillisecondLate })),
+    "OUTCOME_REPORTING_CLOSED",
+  );
+
+  assert.equal(
+    outcomeReportRefusal(
+      windowInput({ status: "COMPLETED", endedAt: new Date(NOW.getTime() - 89 * DAY) }),
+    ),
+    null,
+    "a recent completion still reports",
+  );
+});
+
+test("a completed mentorship with no ending instant keeps its window open", () => {
+  assert.equal(outcomeReportRefusal(windowInput({ status: "COMPLETED", endedAt: null })), null);
+});
+
+test("a mentorship that ended early takes no report", () => {
+  assert.equal(
+    outcomeReportRefusal(windowInput({ status: "ENDED_EARLY", endedAt: NOW })),
+    "OUTCOME_REPORTING_CLOSED",
+  );
+});
+
+test("the window length comes from config unless a caller overrides it", () => {
+  assert.equal(OUTCOME_REPORTING_WINDOW_DAYS, 90);
+  const ended = new Date(NOW.getTime() - 30 * DAY);
+  assert.equal(
+    outcomeReportRefusal(windowInput({ status: "COMPLETED", endedAt: ended, windowDays: 29 })),
+    "OUTCOME_REPORTING_CLOSED",
+  );
+  assert.equal(
+    outcomeReportRefusal(windowInput({ status: "COMPLETED", endedAt: ended, windowDays: 30 })),
+    null,
+  );
 });

@@ -4,6 +4,12 @@
  * or HTTP import, so the service, the sweeper, and the web app cannot disagree.
  */
 
+import { OUTCOME_REPORTING_WINDOW_DAYS } from "@connect/config";
+
+export { OUTCOME_REPORTING_WINDOW_DAYS };
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 export const OUTCOME_STATUSES = [
   "PENDING_CONFIRMATION",
   "CONFIRMED",
@@ -142,4 +148,53 @@ export function coolingEndsAt(confirmedAt: Date, days: number): Date {
     throw new Error("cooling days must be a non-negative number");
   }
   return new Date(confirmedAt.getTime() + days * 24 * 60 * 60 * 1000);
+}
+
+/**
+ * D-258: only a live or a completed mentorship may take a report. `ENDED_EARLY`
+ * has no route in this release, so it is named for completeness rather than
+ * admitted.
+ */
+export const REPORTABLE_MENTORSHIP_STATUSES = ["ACTIVE", "COMPLETED"] as const;
+
+export type OutcomeReportRefusal = "OUTCOME_REPORTING_CLOSED" | "OCCURRED_ON_OUT_OF_RANGE";
+
+export interface OutcomeReportWindowInput {
+  status: string;
+  startedAt: Date;
+  endedAt: Date | null;
+  /** `YYYY-MM-DD`, already normalised by the service. */
+  occurredOn: string;
+  now: Date;
+  windowDays?: number;
+}
+
+/**
+ * The reporting window (SEC-AUDIT-007, FR-MEN-02, FR-OUT-01). `null` means the
+ * report may proceed. The 90 days run from the ending instant, and a completed
+ * mentorship with no ending instant stays open rather than guessing one.
+ */
+export function outcomeReportRefusal(input: OutcomeReportWindowInput): OutcomeReportRefusal | null {
+  if (!(REPORTABLE_MENTORSHIP_STATUSES as readonly string[]).includes(input.status)) {
+    return "OUTCOME_REPORTING_CLOSED";
+  }
+
+  const windowDays = input.windowDays ?? OUTCOME_REPORTING_WINDOW_DAYS;
+  if (input.status === "COMPLETED" && input.endedAt !== null) {
+    const closesAt = input.endedAt.getTime() + windowDays * DAY_MS;
+    if (input.now.getTime() > closesAt) {
+      return "OUTCOME_REPORTING_CLOSED";
+    }
+  }
+
+  const occurredAt = Date.parse(`${input.occurredOn}T00:00:00.000Z`);
+  if (Number.isNaN(occurredAt)) {
+    return "OCCURRED_ON_OUT_OF_RANGE";
+  }
+  const startedOn = input.startedAt.toISOString().slice(0, 10);
+  const today = input.now.toISOString().slice(0, 10);
+  if (input.occurredOn < startedOn || input.occurredOn > today) {
+    return "OCCURRED_ON_OUT_OF_RANGE";
+  }
+  return null;
 }

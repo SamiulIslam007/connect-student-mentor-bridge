@@ -37,6 +37,13 @@ export function evidenceRetentionDays(): number {
 }
 
 /**
+ * How long after a mentorship's ending instant an outcome may still be reported
+ * (FR-MEN-02, FR-OUT-01; D-258). A product constant, not a configuration
+ * version: pilot data tunes it in one line.
+ */
+export const OUTCOME_REPORTING_WINDOW_DAYS = 90;
+
+/**
  * Audit sampling (`FR-ADM-03`, D-178): a `CONFIRMED` outcome is held for review
  * before it counts. 25% is a working value the owner can lower before the pilot;
  * the three always-sampled types are named because every difficulty weight is

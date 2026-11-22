@@ -259,7 +259,11 @@ export type IdentityErrorCode =
   /** A platform admin tried to grant institution scope to their own account (D-255). */
   | "SELF_GRANT_FORBIDDEN"
   /** Export or delete needs a password or second factor within ten minutes (D-255). */
-  | "REAUTH_REQUIRED";
+  | "REAUTH_REQUIRED"
+  /** The mentorship is not ACTIVE or COMPLETED, or its 90-day window closed (D-258). */
+  | "OUTCOME_REPORTING_CLOSED"
+  /** `occurred_on` falls before the mentorship start or after today (D-258, SEC-AUDIT-007). */
+  | "OCCURRED_ON_OUT_OF_RANGE";
 
 /** A failure a feature module may map to a response, with no library detail. */
 export class IdentityError extends Error {

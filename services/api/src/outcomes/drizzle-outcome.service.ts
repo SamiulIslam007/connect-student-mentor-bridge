@@ -9,6 +9,7 @@ import {
   coolingEndsAt,
   isContributionLevel,
   isReviewDecision,
+  outcomeReportRefusal,
   reversalPoints,
   reviewTarget,
   transition,
@@ -211,6 +212,9 @@ async function readMentorshipParticipants(executor: Executor, mentorshipId: stri
       id: mentorships.id,
       fieldId: mentorships.fieldId,
       isPaid: mentorships.isPaid,
+      status: mentorships.status,
+      startedAt: mentorships.startedAt,
+      endedAt: mentorships.endedAt,
       studentProfileId: mentorships.studentProfileId,
       mentorProfileId: mentorships.mentorProfileId,
       studentUserId: studentProfiles.userId,
@@ -344,7 +348,29 @@ export class DrizzleOutcomeService implements OutcomeService {
         throw new IdentityError("SESSION_NOT_FOUND", "the mentorship does not exist");
       }
 
+      // The status and window check runs inside the transaction, over the
+      // mentorship row this report will be attached to (D-258).
       const now = new Date();
+      const refusal = outcomeReportRefusal({
+        status: participants.status,
+        startedAt: participants.startedAt,
+        endedAt: participants.endedAt,
+        occurredOn,
+        now,
+      });
+      if (refusal === "OCCURRED_ON_OUT_OF_RANGE") {
+        throw new IdentityError(
+          "OCCURRED_ON_OUT_OF_RANGE",
+          "occurred_on must fall between the mentorship start and today",
+        );
+      }
+      if (refusal === "OUTCOME_REPORTING_CLOSED") {
+        throw new IdentityError(
+          "OUTCOME_REPORTING_CLOSED",
+          "this mentorship can no longer take an outcome report",
+        );
+      }
+
       const dueAt = new Date(now.getTime() + MENTOR_DECISION_DAYS * DAY_MS);
       const [inserted] = await tx
         .insert(outcomes)
