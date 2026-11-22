@@ -1,8 +1,13 @@
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { test } from "node:test";
+import { afterEach, test } from "node:test";
 
+import {
+  POST as postMentorship,
+  PUT as putMentorship,
+} from "../app/api/mentorships/[[...path]]/route.js";
+import { POST as postSession } from "../app/api/sessions/[[...path]]/route.js";
 import { CSRF_EXEMPT_ROUTES } from "../lib/csrf.js";
 
 const APP = path.join(import.meta.dirname, "..", "app");
@@ -134,3 +139,93 @@ test("the client helper lives in its own module and adds the header once", () =>
   assert.match(helper, /export async function csrfFetch/);
   assert.equal(/next\/server/.test(helper), false, "the client half must not import a server module");
 });
+
+/**
+ * SEC-AUDIT-021: the mentorship page drove six writes through a local `post()`
+ * with a bare `fetch`, so all six answered 403 under enforcement.
+ */
+const MENTORSHIP_WRITES = [
+  { name: "complete", route: "mentorships", handler: postMentorship, method: "POST", segments: ["m1", "complete"] },
+  { name: "agreement save", route: "mentorships", handler: putMentorship, method: "PUT", segments: ["m1", "agreement"] },
+  {
+    name: "agreement acknowledge",
+    route: "mentorships",
+    handler: postMentorship,
+    method: "POST",
+    segments: ["m1", "agreement", "acknowledge"],
+  },
+  { name: "session create", route: "mentorships", handler: postMentorship, method: "POST", segments: ["m1", "sessions"] },
+  { name: "confirm-held", route: "sessions", handler: postSession, method: "POST", segments: ["s1", "confirm-held"] },
+  { name: "cancel", route: "sessions", handler: postSession, method: "POST", segments: ["s1", "cancel"] },
+] as const;
+
+type Write = (typeof MENTORSHIP_WRITES)[number];
+
+const originalFetch = globalThis.fetch;
+
+afterEach(() => {
+  globalThis.fetch = originalFetch;
+});
+
+function stubUpstream(): string[] {
+  const calls: string[] = [];
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    calls.push(String(input));
+    return new Response(JSON.stringify({ status: "accepted" }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  }) as typeof fetch;
+  return calls;
+}
+
+function writeRequest(write: Write, csrf: boolean): Request {
+  const path = write.segments.join("/");
+  return new Request(`http://localhost:3000/api/${write.route}/${path}`, {
+    method: write.method,
+    headers: {
+      "content-type": "application/json",
+      cookie: `connect_session=opaque-session-token${csrf ? "; connect_csrf=a-token" : ""}`,
+      ...(csrf ? { "x-csrf-token": "a-token" } : {}),
+    },
+    body: JSON.stringify({}),
+  });
+}
+
+for (const write of MENTORSHIP_WRITES) {
+  test(`${write.name} answers 403 CSRF_INVALID without a token`, async () => {
+    const calls = stubUpstream();
+
+    const response = await write.handler(writeRequest(write, false), {
+      params: Promise.resolve({ path: [...write.segments] }),
+    });
+    const payload = (await response.json()) as { code?: string };
+
+    assert.equal(response.status, 403);
+    assert.equal(payload.code, "CSRF_INVALID");
+    assert.deepEqual(calls, [], "a refused write never reaches the API");
+  });
+
+  test(`${write.name} reaches the API with a token`, async () => {
+    const calls = stubUpstream();
+
+    const response = await write.handler(writeRequest(write, true), {
+      params: Promise.resolve({ path: [...write.segments] }),
+    });
+
+    assert.equal(response.status, 200);
+    assert.equal(calls.length, 1);
+  });
+}
+
+test("the mentorship page's post helper sends every action through csrfFetch", () => {
+  const page = source(path.join(APP, "mentorship", "[id]", "page.tsx"));
+  const start = page.indexOf("async function post(");
+  const end = page.indexOf("async function send(");
+  assert.ok(start > 0 && end > start, "the post helper exists");
+
+  const helper = page.slice(start, end);
+  assert.match(helper, /\bcsrfFetch\(/, "post must use the client helper");
+  assert.equal(/\bfetch\(/.test(helper), false, "post must not build a bare fetch");
+});
+

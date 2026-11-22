@@ -32,7 +32,7 @@ sources: README.md (sections 5, 7, 9, 14); connect-research-report.md (Doc 7, Do
 | Header | Direction | Meaning |
 |---|---|---|
 | `X-Request-Id` | Response (and optional request) | Correlates logs, errors, and audit entries. The server generates one if absent |
-| `Idempotency-Key` | Request | Required on every retryable `POST` (section 3) |
+| `Idempotency-Key` | Request | Optional at the API (section 3); the BFF mints one per browser action on the three idempotent writes |
 | `RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset` | Response | Current limit window |
 | `Retry-After` | Response | Seconds to wait on `429` and `503` |
 | `ETag` / `If-Match` | Response / Request | Optimistic concurrency for a future multi-writer resource. **Not used by the profile saves**, which are last write wins (D-39) |
@@ -187,6 +187,8 @@ In the request record (section 2, `GET /v1/requests` and the single read), `expi
 - Same key while the first call is unfinished: `409 IDEMPOTENCY_IN_PROGRESS` (the earlier draft called this `REQUEST_IN_PROGRESS`).
 - Retention is **24 hours** for a completed record and **five minutes** for an unfinished one; the hourly `idempotency-sweep` queue deletes past either, so a crashed request frees its key and a swept key performs a fresh write.
 - State-machine actions are idempotent by nature: repeating `confirm` on an already confirmed outcome returns the current resource with `200` if the same actor made the same decision, otherwise `409`.
+
+**Browser carrier (built 2026-11-22, SEC-AUDIT-015, D-257).** `apps/web/lib/csrf-client.ts` (`csrfFetch`) mints one UUID key per write action, reuses it when the same method, path and body are submitted again within 1.5 seconds, and keeps it across the internal CSRF re-mint retry. `apps/web/lib/bff.ts` (`upstreamHeaders`) forwards the inbound `Idempotency-Key` only when `idempotencyKeyViolation` accepts it; a malformed or oversized key is dropped, never passed through. The OpenAPI document is unchanged: the header stays optional and the API's four registries do not move. Proving tests: `apps/web/test/idempotency-wiring.test.ts`.
 
 ## 4. Shared types and enums
 
@@ -668,7 +670,7 @@ Two buckets apply (`per-account-rate-limit`, 2026-11-12, D-118, D-119). The addr
 - [ ] Every Phase 1 functional requirement in `docs/functional-requirements.md` maps to at least one endpoint here.
 - [ ] Every endpoint lists its roles, and these agree with the permission matrix in `docs/auth-and-access-control.md`.
 - [ ] Every state machine here matches the status enums in `docs/data-model.md` and the glossary.
-- [ ] Every retryable `POST` requires `Idempotency-Key`.
+- [ ] Every retryable `POST` that the browser triggers carries a BFF-minted `Idempotency-Key` (the header stays optional in this contract; `apps/web/test/idempotency-wiring.test.ts`).
 - [ ] No endpoint can edit an outcome record, a ledger row, or reputation directly.
 - [ ] The WebSocket, webhook, and GraphQL sections are marked **Later**, and no Phase 1 requirement depends on them.
 - [ ] The OpenAPI file builds, the client generates, and the contract tests pass in CI.

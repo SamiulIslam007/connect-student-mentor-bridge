@@ -24,7 +24,7 @@ export async function POST(
   }
 
   const { id } = await context.params;
-  return proxyJson(`/v1/admin/institutions/${id}/admins`, request, {
+  return proxyJson(`/v1/admin/institutions/${encodeURIComponent(id)}/admins`, request, {
     sessionToken: token,
     method: "POST",
   });

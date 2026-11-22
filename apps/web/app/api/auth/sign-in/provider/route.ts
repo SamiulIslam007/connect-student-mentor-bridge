@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { appOrigin } from "../../../../../lib/api";
-import { forwardUpstream, readJsonBody } from "../../../../../lib/bff";
+import { forwardUpstream, readJsonBody, requireJsonContentType } from "../../../../../lib/bff";
 import { OAUTH_STATE_COOKIE_NAME, mfaCookieOptions } from "../../../../../lib/mfa-cookie";
 
 /**
@@ -9,6 +9,11 @@ import { OAUTH_STATE_COOKIE_NAME, mfaCookieOptions } from "../../../../../lib/mf
  * URL, keeps the opaque state in a cookie, and hands the URL to the page.
  */
 export async function POST(request: Request): Promise<NextResponse> {
+  const mediaType = requireJsonContentType(request);
+  if (mediaType) {
+    return mediaType;
+  }
+
   const parsed = await readJsonBody(request);
   if (!parsed.ok) {
     return parsed.response;

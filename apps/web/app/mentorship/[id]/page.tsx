@@ -152,10 +152,12 @@ export default function MentorshipPage({ params }: { params: Promise<{ id: strin
     setProblem(null);
     setNotice(null);
     try {
-      const response = await fetch(path, {
+      // Always JSON: the BFF hands `proxyJson` a parsed body, and a bodyless
+      // write used to reach it as an unparseable empty stream.
+      const response = await csrfFetch(path, {
         method,
-        headers: body === undefined ? undefined : { "content-type": "application/json" },
-        body: body === undefined ? undefined : JSON.stringify(body),
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body ?? {}),
       });
       if (!response.ok) {
         setProblem(strings.mentorship.actionError);
