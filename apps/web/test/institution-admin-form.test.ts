@@ -50,7 +50,10 @@ test("the page offers a per-row add-admin control that posts to the row's instit
 });
 
 test("the BFF route forwards to the API grant path and owns the header", () => {
-  assert.ok(route.includes("`/v1/admin/institutions/${id}/admins`"), "the upstream path is the grant route");
+  assert.ok(
+    route.includes("`/v1/admin/institutions/${encodeURIComponent(id)}/admins`"),
+    "the upstream path is the grant route, with the id encoded (SEC-AUDIT-020)",
+  );
   assert.ok(route.includes("proxyJson"), "the body and header go through proxyJson");
   assert.ok(!route.includes('"Authorization"'), "the route never hand-writes the header");
 });

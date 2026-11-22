@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { proxyJson, readJsonBody } from "../../../../lib/bff";
+import { proxyJson, readJsonBody, requireJsonContentType } from "../../../../lib/bff";
 import {
   honeypotFilled,
   intentCookieFrom,
@@ -16,6 +16,11 @@ import { strings } from "../../../../lib/strings";
  * A valid submission proxies the body it already parsed and clears the marker.
  */
 export async function POST(request: Request): Promise<NextResponse> {
+  const mediaType = requireJsonContentType(request);
+  if (mediaType) {
+    return mediaType;
+  }
+
   const parsed = await readJsonBody(request);
   if (!parsed.ok) {
     return parsed.response;

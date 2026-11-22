@@ -3,6 +3,18 @@ import { NextResponse } from "next/server";
 import { callApi } from "./api";
 import { signedClientHeaders } from "./client-key";
 
+/** The one header the API's idempotency interceptor reads. */
+export const IDEMPOTENCY_HEADER_NAME = "idempotency-key";
+
+/**
+ * The shape the API accepts (8 to 128 letters, digits, dot, underscore or
+ * hyphen). Copied rather than imported: `@connect/domain`'s `.js` source
+ * specifiers do not resolve in the Next build, so a web module cannot import it.
+ */
+function idempotencyKeyInvalid(key: string): boolean {
+  return key.length < 8 || key.length > 128 || !/^[A-Za-z0-9._-]+$/.test(key);
+}
+
 /**
  * The BFF caps the body before it parses it (design D8). It is larger than the
  * API's own 100 KiB limit, so the API still owns the field-level rules; this cap
@@ -162,8 +174,32 @@ function nonJsonProblem(status: number): UpstreamOutcome {
 }
 
 /**
+ * The five pre-session writes are CSRF-exempt, so a cross-site `fetch` with
+ * `Content-Type: text/plain` would otherwise be a simple request that carries
+ * valid JSON (SEC-AUDIT-004). Requiring JSON forces a preflight the BFF never
+ * answers. Runs before the body is read.
+ */
+export function requireJsonContentType(request: Request): NextResponse | null {
+  const declared = (request.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
+  if (declared === "application/json" || (declared.startsWith("application/") && declared.endsWith("+json"))) {
+    return null;
+  }
+  return NextResponse.json(
+    {
+      type: "https://docs.connect.example/problems/unsupported-media-type",
+      title: "The request body must be JSON",
+      status: 415,
+      code: "UNSUPPORTED_MEDIA_TYPE",
+    },
+    { status: 415 },
+  );
+}
+
+/**
  * The BFF builds every upstream header itself. Inbound forwarding headers are
  * never copied, so a client cannot choose the API's bucket or the bearer token.
+ * An `Idempotency-Key` is the one caller header that is forwarded, and only when
+ * it is a well-formed key the API would accept (SEC-AUDIT-015).
  */
 export function upstreamHeaders(request: Request, sessionToken?: string): Record<string, string> {
   const headers: Record<string, string> = {
@@ -172,6 +208,10 @@ export function upstreamHeaders(request: Request, sessionToken?: string): Record
   };
   if (sessionToken) {
     headers.authorization = `Bearer ${sessionToken}`;
+  }
+  const idempotencyKey = request.headers.get(IDEMPOTENCY_HEADER_NAME);
+  if (idempotencyKey !== null && !idempotencyKeyInvalid(idempotencyKey)) {
+    headers[IDEMPOTENCY_HEADER_NAME] = idempotencyKey;
   }
   return headers;
 }

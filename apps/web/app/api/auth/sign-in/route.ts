@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
 
-import { forwardUpstream, readJsonBody } from "../../../../lib/bff";
+import { forwardUpstream, readJsonBody, requireJsonContentType } from "../../../../lib/bff";
 import { MFA_COOKIE_NAME, mfaCookieOptions } from "../../../../lib/mfa-cookie";
 import { SESSION_COOKIE_NAME, sessionCookieOptions } from "../../../../lib/session-cookie";
 
 export async function POST(request: Request): Promise<NextResponse> {
+  const mediaType = requireJsonContentType(request);
+  if (mediaType) {
+    return mediaType;
+  }
+
   const parsed = await readJsonBody(request);
   if (!parsed.ok) {
     return parsed.response;

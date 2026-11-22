@@ -63,13 +63,13 @@ Each phase is independently applicable and mergeable. The two shared-file cases 
 
 **Out:** no CSRF token in `openapi.yaml`, no API cookie session, no broad CSRF exemption, no new client dependency.
 
-- [ ] 5.1 Require `application/json` on the five pre-session BFF writes and answer `415` for `text/plain` before any upstream call. Verify: `pnpm --filter web exec node --import tsx --test test/auth-routes.test.ts test/bff-content-type.test.ts` passes the five-route matrix.
-- [ ] 5.2 Add a per-action idempotency key in the browser helper, forward it in `proxyJson`, and keep it stable across a retry. Verify: `pnpm --filter web exec node --import tsx --test test/idempotency-wiring.test.ts` proves the header reaches the API and a double submit replays.
-- [ ] 5.3 Replace the six mentorship bare `fetch` calls with `csrfFetch`: complete, agreement save, agreement acknowledge, session create, confirm-held and cancel. Verify: `pnpm --filter web exec node --import tsx --test test/csrf-wiring.test.ts test/mentorship-page.test.ts` passes a source scan and the six action names.
-- [ ] 5.4 Encode the institution id with `encodeURIComponent` in `apps/web/app/api/institutions/[id]/admins/route.ts`. Verify: `pnpm --filter web exec node --import tsx --test test/bff-path-encoding.test.ts` passes an encoded traversal-shaped segment.
-- [ ] 5.5 Add the BFF route test that each of the six routes answers `403 CSRF_INVALID` without a token and reaches upstream with one. Verify: `pnpm --filter web exec node --import tsx --test test/csrf-wiring.test.ts` passes.
-- [ ] 5.6 Update `docs/api-contracts.md` (BFF-only CSRF and idempotency behavior), `docs/auth-and-access-control.md` (the five exempt writes) and `docs/decision-log.md` (D-257). Verify: no OpenAPI header is added and `pnpm --filter contracts test` still passes.
-- [ ] 5.7 Run the targeted web tests from 5.1 to 5.5 and `pnpm --filter contracts test`; record each exit code.
+- [x] 5.1 Require `application/json` on the five pre-session BFF writes and answer `415` for `text/plain` before any upstream call. Verify: `pnpm --filter web exec node --import tsx --test test/auth-routes.test.ts test/bff-content-type.test.ts` passes the five-route matrix.
+- [x] 5.2 Add a per-action idempotency key in the browser helper, forward it in `proxyJson`, and keep it stable across a retry. Verify: `pnpm --filter web exec node --import tsx --test test/idempotency-wiring.test.ts` proves the header reaches the API and a double submit replays.
+- [x] 5.3 Replace the six mentorship bare `fetch` calls with `csrfFetch`: complete, agreement save, agreement acknowledge, session create, confirm-held and cancel. Verify: `pnpm --filter web exec node --import tsx --test test/csrf-wiring.test.ts test/mentorship-page.test.ts` passes a source scan and the six action names.
+- [x] 5.4 Encode the institution id with `encodeURIComponent` in `apps/web/app/api/institutions/[id]/admins/route.ts`. Verify: `pnpm --filter web exec node --import tsx --test test/bff-path-encoding.test.ts` passes an encoded traversal-shaped segment.
+- [x] 5.5 Add the BFF route test that each of the six routes answers `403 CSRF_INVALID` without a token and reaches upstream with one. Verify: `pnpm --filter web exec node --import tsx --test test/csrf-wiring.test.ts` passes.
+- [x] 5.6 Update `docs/api-contracts.md` (BFF-only CSRF and idempotency behavior), `docs/auth-and-access-control.md` (the five exempt writes) and `docs/decision-log.md` (D-257). Verify: no OpenAPI header is added and `pnpm --filter contracts test` still passes.
+- [x] 5.7 Run the targeted web tests from 5.1 to 5.5 and `pnpm --filter contracts test`; record each exit code.
 
 ## Phase 6 — outcome-reporting-window
 

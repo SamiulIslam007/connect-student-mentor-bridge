@@ -130,6 +130,8 @@ Five writes are exempt because no session exists to abuse yet: `POST /api/auth/s
 
 A write that carries no session cookie is passed through by the guard rather than refused: there is nothing authenticated to protect, the route's own `401` owns the answer, and this is what keeps the challenged sign-in step working, since `/api/auth/mfa/verify` carries only the opaque challenge cookie at that point. `WEB_CSRF_MODE=off` disables the guard for one deploy (D-161).
 
+Because those five routes are exempt, they require `application/json` (or an `application/*+json` type) before the body is read: `requireJsonContentType` in `apps/web/lib/bff.ts` answers `415 UNSUPPORTED_MEDIA_TYPE` first. A cross-site `fetch` with `Content-Type: text/plain` is a simple request with no preflight and would otherwise carry valid JSON into a route that sets a session cookie (SEC-AUDIT-004, D-257). `apps/web/test/bff-content-type.test.ts` proves the `415` and that no upstream call happens for all five.
+
 The NestJS API is unchanged and needs no CSRF check: it authenticates by bearer token only, and no `/v1` route parses a session cookie.
 
 ## 6. The `IdentityService` seam
