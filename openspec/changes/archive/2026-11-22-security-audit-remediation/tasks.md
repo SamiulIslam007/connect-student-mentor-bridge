@@ -144,11 +144,11 @@ Each phase is independently applicable and mergeable. The two shared-file cases 
 
 This group runs after every phase that is being handed off. It adds no finding and changes no code.
 
-- [ ] 11.1 Confirm the checkout on a clean checkout of the phase branch: `git log --oneline -1`, `git status --short`, and that only the change directory plus the pre-existing audit files are untracked. Verify: the commit is the intended HEAD and no application file is staged.
-- [ ] 11.2 Run `pnpm lint`; record the exit code.
-- [ ] 11.3 Run `pnpm typecheck`; record the exit code.
-- [ ] 11.4 Run `CI=true pnpm test` once, sequentially; record the per-package tests, pass, fail and skipped totals. Verify: no `ELIFECYCLE` or `ERR_PNPM`; do not run a second heavy suite concurrently.
-- [ ] 11.5 Run `pnpm build` twice on a clean `.next`; record both exit codes. Verify: a first-run Next security nudge that clears on the retry is reported as such, not hidden.
-- [ ] 11.6 Run `openspec validate --all --strict`; record the result. Verify: zero errors, and this change is valid.
-- [ ] 11.7 Run `openspec list --json`; confirm the active changes are exactly `first-deployment-restore-drill-and-observability` and `security-audit-remediation`. Verify: no third active change and no archived duplicate.
-- [ ] 11.8 Write the handoff: phase commits, exit codes, any `PARTIAL` finding, the Open Questions from `design.md`, and the files that still need a host or an owner decision. Verify: every claim in the handoff has the command output beside it.
+- [x] 11.1 Confirm the checkout on a clean checkout of the phase branch: `git log --oneline -1`, `git status --short`, and that only the change directory plus the pre-existing audit files are untracked. Verify: the commit is the intended HEAD and no application file is staged.
+- [x] 11.2 Run `pnpm lint`; record the exit code.
+- [x] 11.3 Run `pnpm typecheck`; record the exit code.
+- [x] 11.4 Run `CI=true pnpm test` once, sequentially; record the per-package tests, pass, fail and skipped totals. Verify: no `ELIFECYCLE` or `ERR_PNPM`; do not run a second heavy suite concurrently.
+- [x] 11.5 Run `pnpm build` twice on a clean `.next`; record both exit codes. Verify: a first-run Next security nudge that clears on the retry is reported as such, not hidden.
+- [x] 11.6 Run `openspec validate --all --strict`; record the result. Verify: zero errors, and this change is valid.
+- [x] 11.7 Run `openspec list --json`; confirm the active changes are exactly `first-deployment-restore-drill-and-observability` and `security-audit-remediation`. Verify: no third active change and no archived duplicate.
+- [x] 11.8 Write the handoff: phase commits, exit codes, any `PARTIAL` finding, the Open Questions from `design.md`, and the files that still need a host or an owner decision. Verify: every claim in the handoff has the command output beside it.

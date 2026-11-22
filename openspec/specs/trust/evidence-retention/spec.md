@@ -7,7 +7,7 @@ Keeps the privacy notice's retention promise: an outcome's evidence file is dele
 
 ### Requirement: An evidence file is deleted after its outcome settles
 
-The system SHALL delete the stored object of every evidence file whose outcome is `COUNTED`, `REJECTED`, `REVERSED` or `WITHDRAWN` once the configured retention window has passed since that state's own transition instant, SHALL keep the evidence row with its SHA-256, size, content type and a deletion instant, and SHALL NOT touch a file whose outcome is in any other state.
+The system SHALL delete the stored object of every evidence file whose outcome is `COUNTED`, `REJECTED`, `REVERSED` or `WITHDRAWN` once the configured retention window has passed since that state's own transition instant, SHALL also delete a file whose outcome remains unsettled longer than the maximum unsettled window, SHALL keep the evidence row with its SHA-256, size, content type and a deletion instant, and SHALL NOT touch a file whose outcome is in any other state before that maximum window.
 
 #### Scenario: A counted outcome's file is deleted after the window
 
@@ -21,8 +21,8 @@ The system SHALL delete the stored object of every evidence file whose outcome i
 
 #### Scenario: A live outcome keeps its file
 
-- **WHEN** an outcome is `PENDING_CONFIRMATION`, `CONFIRMED` or `IN_PLATFORM_REVIEW`
-- **THEN** its evidence object is never deleted, however old it is
+- **WHEN** an outcome is `PENDING_CONFIRMATION`, `CONFIRMED` or `IN_PLATFORM_REVIEW` and the upload is inside the maximum unsettled window
+- **THEN** its evidence object is not deleted
 
 #### Scenario: The window is measured from the terminal transition
 
@@ -105,3 +105,27 @@ Withdrawing `INSTITUTION_DATA_SHARING` consent SHALL start the retention window 
 
 - **WHEN** the mentor of the same mentorship withdraws their own institution-sharing consent
 - **THEN** the student's evidence clock is unchanged
+
+### Requirement: An unsettled evidence file has a maximum retention
+
+The system SHALL delete an evidence object whose outcome has never settled once 90 days have passed since upload, SHALL keep the evidence row and its metadata, SHALL write one `EVIDENCE_RETENTION_DELETED` audit entry per object, and SHALL keep the existing dry-run switch as the deployment gate.
+
+#### Scenario: An old pending file becomes due
+
+- **WHEN** an outcome is still `PENDING_CONFIRMATION`, `CONFIRMED`, `DISPUTED` or `IN_PLATFORM_REVIEW` and its upload is older than 90 days
+- **THEN** the object is deleted, the row keeps its metadata and `deleted_at`, and one audit row names the outcome and the evidence
+
+#### Scenario: A young pending file is untouched
+
+- **WHEN** the same outcome is inside 90 days from upload
+- **THEN** the object is not deleted and the row is unchanged
+
+#### Scenario: The dry run reports without deleting
+
+- **WHEN** the enabling setting is not exactly the value that turns deletion on
+- **THEN** no object is deleted, no audit row is written, and the result reports the count that a real run would delete
+
+#### Scenario: The settled rule still wins when earlier
+
+- **WHEN** an outcome settles before the 90-day upload clock and its own window is already due
+- **THEN** the existing settled-state clock applies, not the maximum
