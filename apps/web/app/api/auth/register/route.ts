@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { proxyJson, readJsonBody, requireJsonContentType } from "../../../../lib/bff";
 import {
+  consumeIntentNonce,
   honeypotFilled,
   intentCookieFrom,
   intentRefusal,
@@ -26,15 +27,30 @@ export async function POST(request: Request): Promise<NextResponse> {
     return parsed.response;
   }
 
+  const marker = intentCookieFrom(request.headers.get("cookie"));
+  const secret = process.env.BFF_TRUST_SECRET?.trim() ?? "";
   const check = honeypotFilled(parsed.value)
     ? "honeypot"
-    : intentRefusal({
-        cookieValue: intentCookieFrom(request.headers.get("cookie")),
-        now: Date.now(),
-      });
+    : secret.length === 0
+      ? "unsigned"
+      : intentRefusal({ cookieValue: marker, now: Date.now(), secret });
   if (check !== null) {
     // The check name stays server-side and carries no personal data (D-224).
     console.info(JSON.stringify({ event: "registration.refused", check }));
+    return NextResponse.json(
+      {
+        type: "https://docs.connect.example/problems/registration-refused",
+        title: "Registration refused",
+        status: 422,
+        code: "REGISTRATION_REFUSED",
+        detail: strings.signUp.refused,
+      },
+      { status: 422 },
+    );
+  }
+  // A signed marker is single-use: a replay of the same nonce is refused (D-261).
+  if (!consumeIntentNonce(marker)) {
+    console.info(JSON.stringify({ event: "registration.refused", check: "replayed" }));
     return NextResponse.json(
       {
         type: "https://docs.connect.example/problems/registration-refused",

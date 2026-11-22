@@ -5,6 +5,7 @@ import type { NestExpressApplication } from "@nestjs/platform-express";
 import type { IdentityService } from "@connect/domain";
 
 import { AppModule } from "./app.module.js";
+import { assertProductionSecrets } from "./config/production-guard.js";
 import { createEvidenceBodyAuth } from "./http/evidence-body-auth.js";
 import {
   API_MAX_BODY_BYTES,
@@ -16,6 +17,8 @@ import { IDENTITY_SERVICE } from "./identity/identity.tokens.js";
 import { initObservability } from "./platform/observability.js";
 
 async function bootstrap(): Promise<void> {
+  // A deployed API must not boot on a development placeholder (SEC-AUDIT-012).
+  assertProductionSecrets();
   // Inert without a DSN; reports are scrubbed before they leave (D-251).
   const observability = await initObservability({
     dsn: process.env.SENTRY_DSN,

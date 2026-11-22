@@ -22,6 +22,9 @@ export function testDatabaseUrl(): string {
 /** A fixed secret for the two processes the suite starts; it is never a real one. */
 export const E2E_BETTER_AUTH_SECRET = "e2e-browser-path-secret-0123456789abcdef";
 
+/** The BFF's shared secret: signs the client key and the sign-up intent (D-253, D-261). */
+export const E2E_BFF_TRUST_SECRET = "e2e-bff-trust-secret-0123456789abcdef";
+
 export const WEB_ORIGIN = process.env.E2E_WEB_ORIGIN ?? "http://127.0.0.1:3100";
 export const API_ORIGIN = process.env.E2E_API_ORIGIN ?? "http://127.0.0.1:3101";
 export const MAILPIT_HTTP_URL = process.env.MAILPIT_HTTP_URL ?? "http://127.0.0.1:8025";

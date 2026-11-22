@@ -25,10 +25,12 @@ async function waitOutTheIntentFloor(context: BrowserContext, page: Page): Promi
     const marker = (await context.cookies(WEB_ORIGIN)).find(
       (cookie) => cookie.name === SIGNUP_INTENT_COOKIE,
     );
-    // Next may percent-encode the ISO instant, and Playwright returns it as stored.
-    const issuedAt = marker
-      ? Date.parse(decodeURIComponent(marker.value).replace(/"/g, ""))
-      : Number.NaN;
+    // Next may percent-encode the marker, and Playwright returns it as stored. A
+    // signed marker is `<epochMillis>.<nonce>.<signature>` (D-261); an older one
+    // is a bare ISO instant.
+    const raw = marker ? decodeURIComponent(marker.value).replace(/"/g, "") : "";
+    const stamp = raw.split(".")[0] ?? "";
+    const issuedAt = /^\d+$/.test(stamp) ? Number(stamp) : Date.parse(raw);
     const ageMs = Number.isNaN(issuedAt) ? -1 : Date.now() - issuedAt;
     if (ageMs >= floorMs) {
       return;

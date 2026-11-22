@@ -3,6 +3,10 @@ import { createHash } from "node:crypto";
 import { after, before, beforeEach, test, type TestContext } from "node:test";
 
 import { AdminConfigController } from "../src/admin-config/config.controller.js";
+import {
+  assertProductionSecrets,
+  productionSecretViolations,
+} from "../src/config/production-guard.js";
 import { CONFIG_SERVICE } from "../src/admin-config/config.tokens.js";
 import { DrizzleConfigService } from "../src/admin-config/drizzle-config.service.js";
 import { AuthController } from "../src/identity/auth.controller.js";
@@ -275,4 +279,78 @@ test("the application role can insert a version but never edit one", async (cont
   } finally {
     await current.client.query("ROLLBACK");
   }
+});
+
+/**
+ * SEC-AUDIT-012 (D-261): a production boot refuses an empty or development
+ * placeholder secret, names it, and never prints its value.
+ */
+const PRODUCTION_ENV = {
+  NODE_ENV: "production",
+  BETTER_AUTH_SECRET: "a-real-generated-secret-value-0123456789",
+  BFF_TRUST_SECRET: "another-real-generated-secret-0123456789",
+  DATABASE_URL: "postgresql://app:a-real-db-password@db:5432/connect",
+};
+
+test("a clean production environment passes the secret guard", () => {
+  assert.deepEqual(productionSecretViolations(PRODUCTION_ENV), []);
+  assert.doesNotThrow(() => assertProductionSecrets(PRODUCTION_ENV));
+});
+
+test("development is never refused", () => {
+  assert.deepEqual(
+    productionSecretViolations({ NODE_ENV: "development", BETTER_AUTH_SECRET: "" }),
+    [],
+  );
+});
+
+test("an empty required secret fails with its name and no value", () => {
+  for (const name of ["BETTER_AUTH_SECRET", "BFF_TRUST_SECRET", "DATABASE_URL"] as const) {
+    const environment = { ...PRODUCTION_ENV, [name]: "" };
+    assert.deepEqual(productionSecretViolations(environment), [name]);
+    assert.throws(
+      () => assertProductionSecrets(environment),
+      (error: Error) => error.message.includes(name) && !error.message.includes("postgresql://"),
+    );
+  }
+});
+
+test("the documented development placeholders are refused", () => {
+  const cases: [string, string][] = [
+    ["BETTER_AUTH_SECRET", "local-dev-only"],
+    ["BFF_TRUST_SECRET", "test-bff-secret"],
+    ["DATABASE_URL", "postgresql://connect:local-dev-only@localhost:55432/connect"],
+  ];
+  for (const [name, value] of cases) {
+    assert.deepEqual(
+      productionSecretViolations({ ...PRODUCTION_ENV, [name]: value }),
+      [name],
+      `${name} must be refused`,
+    );
+  }
+});
+
+test("an optional provider secret set to a placeholder, or without its partner, is refused", () => {
+  assert.deepEqual(
+    productionSecretViolations({ ...PRODUCTION_ENV, S3_SECRET_ACCESS_KEY: "local-dev-only" }),
+    ["S3_SECRET_ACCESS_KEY"],
+  );
+  assert.deepEqual(
+    productionSecretViolations({
+      ...PRODUCTION_ENV,
+      GOOGLE_CLIENT_SECRET: "a-real-google-secret",
+      GOOGLE_CLIENT_ID: "",
+    }),
+    ["GOOGLE_CLIENT_SECRET"],
+  );
+  assert.deepEqual(
+    productionSecretViolations({
+      ...PRODUCTION_ENV,
+      SMTP_USER: "mailer",
+      SMTP_PASSWORD: "a-real-smtp-password",
+      S3_ACCESS_KEY_ID: "key",
+      S3_SECRET_ACCESS_KEY: "a-real-s3-secret",
+    }),
+    [],
+  );
 });

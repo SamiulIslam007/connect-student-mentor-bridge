@@ -45,3 +45,17 @@ test("the intent route sets an httpOnly marker from the options helper", () => {
   assert.match(route, /cookies\.set\(/);
   assert.match(route, /status: 204/);
 });
+
+test("the register route verifies the signature and consumes the nonce once", () => {
+  const route = read("app", "api", "auth", "register", "route.ts");
+  assert.match(route, /process\.env\.BFF_TRUST_SECRET/);
+  assert.match(route, /intentRefusal\(\{ cookieValue: marker, now: Date\.now\(\), secret \}\)/);
+  assert.match(route, /consumeIntentNonce\(marker\)/);
+});
+
+test("the intent route signs the marker with a nonce and refuses to mint without the secret", () => {
+  const route = read("app", "api", "auth", "register-intent", "route.ts");
+  assert.match(route, /signIntent\(\{ issuedAt: new Date\(\), secret \}\)/);
+  assert.match(route, /BFF_TRUST_SECRET/);
+  assert.match(route, /SIGNUP_UNAVAILABLE/);
+});
