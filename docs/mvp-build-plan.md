@@ -84,7 +84,8 @@ A work item is done when:
 6. No secret, real user data, or production data is in code, logs, or fixtures.
 7. The acceptance test passes.
 8. Relevant docs are updated; a changed decision has a `decision-log.md` entry.
-9. The diff is the smallest change that satisfies the requirement.
+9. A status claim is true as written: a row moved to `DONE` names the command, test or commit that proves it in the same row, and a claim that only partly holds is `PARTIAL` with the gap named. This gate exists because the 2026-11-22 audit found four `DONE` rows describing behaviour the code did not have (`security-audit-remediation` phase 10, D-262).
+10. The diff is the smallest change that satisfies the requirement.
 
 ## 5. Ordered OpenSpec change proposals
 
