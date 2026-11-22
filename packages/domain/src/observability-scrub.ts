@@ -23,7 +23,14 @@ const SCRUB_KEYS = [
   "token",
   "access_token",
   "refresh_token",
+  "session_token",
+  "verification_token",
+  "reset_token",
+  "mfa_challenge",
   "secret",
+  "email",
+  "user_email",
+  "username",
   "content",
   "message",
   "body",
@@ -46,6 +53,15 @@ export interface ScrubbableEvent {
   breadcrumbs?: { data?: Record<string, unknown> }[];
   extra?: Record<string, unknown>;
   contexts?: Record<string, unknown>;
+  tags?: Record<string, unknown>;
+  /** The error report itself: the type stays, the value never does (SEC-AUDIT-023). */
+  exception?: {
+    values?: {
+      type?: unknown;
+      value?: unknown;
+      stacktrace?: { frames?: { vars?: unknown }[] };
+    }[];
+  };
   user?: { email?: string; ip_address?: string; username?: string };
 }
 
@@ -93,10 +109,34 @@ export function scrubEvent<T extends ScrubbableEvent>(event: T): T {
   if (event.extra) {
     event.extra = scrubValue(event.extra) as Record<string, unknown>;
   }
+  if (event.contexts) {
+    event.contexts = scrubValue(event.contexts) as Record<string, unknown>;
+  }
+  if (event.tags) {
+    event.tags = scrubValue(event.tags) as Record<string, unknown>;
+  }
+  // An exception message is where a driver puts its SQL and params, so only the
+  // class name survives; frame variables are scrubbed like any other payload.
+  if (event.exception?.values) {
+    event.exception.values = event.exception.values.map((value) => ({
+      ...value,
+      value: value.value === undefined ? value.value : "[scrubbed]",
+      stacktrace: value.stacktrace
+        ? {
+            ...value.stacktrace,
+            frames: value.stacktrace.frames?.map((frame) => ({
+              ...frame,
+              vars: scrubValue(frame.vars),
+            })),
+          }
+        : value.stacktrace,
+    }));
+  }
   // An email address is a direct identifier; the id is enough to find the account.
   if (event.user) {
     delete event.user.email;
     delete event.user.ip_address;
+    delete event.user.username;
   }
   return event;
 }

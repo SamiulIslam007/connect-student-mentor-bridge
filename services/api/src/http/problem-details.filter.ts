@@ -69,6 +69,38 @@ const PROBLEMS: Record<IdentityErrorCode, ProblemMapping> = {
 
 const PROBLEM_BASE = "https://docs.connect.example/problems/";
 
+/** The route without its query string, bounded: a caller controls the query (SEC-AUDIT-011). */
+export function routeOf(request: { path?: unknown }): string {
+  return String(request.path ?? "/").slice(0, 200);
+}
+
+/** The class name only: a driver's message carries the SQL and its params. */
+export function errorClassOf(exception: unknown): string {
+  if (exception instanceof Error) {
+    return exception.constructor.name.slice(0, 64);
+  }
+  return "UnknownError";
+}
+
+/**
+ * The one 500 log line. It names the route, the method, the request id and the
+ * error class, and never the message, a SQL fragment, a param or a token; the
+ * scrubbed Sentry event is where the stack lives (SEC-AUDIT-011, D-260).
+ */
+export function failureLog(
+  exception: unknown,
+  request: { method?: unknown; path?: unknown },
+  requestId: string,
+): Record<string, unknown> {
+  return {
+    event: "api.request_failed",
+    request_id: requestId,
+    method: String(request.method ?? "GET").slice(0, 16),
+    route: routeOf(request),
+    error_class: errorClassOf(exception),
+  };
+}
+
 /**
  * RFC 9457 problem details (docs/api-contracts.md section 1.3). Internal faults
  * return a fixed body; the detail stays in the log (SEC-API-6).
@@ -100,7 +132,7 @@ export class ProblemDetailsFilter implements ExceptionFilter {
           title: problem.title,
           status: problem.status,
           detail: exception.message,
-          instance: request.originalUrl,
+          instance: routeOf(request),
           code: problem.code,
           request_id: requestId,
         });
@@ -131,7 +163,7 @@ export class ProblemDetailsFilter implements ExceptionFilter {
           title: "Too many requests",
           status: 429,
           detail: "try again later",
-          instance: request.originalUrl,
+          instance: routeOf(request),
           code: "RATE_LIMITED",
           request_id: requestId,
         });
@@ -149,7 +181,7 @@ export class ProblemDetailsFilter implements ExceptionFilter {
           title: "Request body is too large",
           status: 413,
           detail: "the request body is larger than the API accepts",
-          instance: request.originalUrl,
+          instance: routeOf(request),
           code: "PAYLOAD_TOO_LARGE",
           request_id: requestId,
         });
@@ -165,23 +197,14 @@ export class ProblemDetailsFilter implements ExceptionFilter {
           type: `${PROBLEM_BASE}${status === 404 ? "not-found" : "request-rejected"}`,
           title: status === 404 ? "Not found" : "Request rejected",
           status,
-          instance: request.originalUrl,
+          instance: routeOf(request),
           code: status === 404 ? "NOT_FOUND" : "VALIDATION_FAILED",
           request_id: requestId,
         });
       return;
     }
 
-    console.error(
-      JSON.stringify({
-        event: "api.request_failed",
-        request_id: requestId,
-        method: request.method,
-        path: request.originalUrl,
-        message: exception instanceof Error ? exception.message : "unknown error",
-      }),
-      exception,
-    );
+    console.error(JSON.stringify(failureLog(exception, request, requestId)));
     response
       .status(500)
       .type("application/problem+json")
@@ -189,7 +212,7 @@ export class ProblemDetailsFilter implements ExceptionFilter {
         type: `${PROBLEM_BASE}internal-error`,
         title: "Unexpected error",
         status: 500,
-        instance: request.originalUrl,
+        instance: routeOf(request),
         code: "INTERNAL_ERROR",
         request_id: requestId,
       });
