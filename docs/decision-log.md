@@ -2021,3 +2021,13 @@ date: 2026-10-29
 - What would change this decision: a browser client calling the API directly, which would need its own CSRF decision and a CORS allowlist, both out of scope.
 - Status: Proposed (owner review required at the phase 5 PR)
 - Affects: `apps/web/lib/bff.ts`, `apps/web/lib/csrf-client.ts`, `apps/web/app/mentorship/[id]/page.tsx`, `apps/web/app/api/institutions/[id]/admins/route.ts`, `apps/web/app/api/auth/*`, `platform/http-security-controls`, `platform/idempotency`
+
+### D-258: The outcome reporting window is 90 days from mentorship end, with dates bounded to the mentorship
+
+- Date: 2026-11-22
+- Decision: `DrizzleOutcomeService.report` admits a report only while the mentorship is `ACTIVE` or `COMPLETED`, and for a completed mentorship only within 90 days of its ending instant. `occurred_on` must fall between the mentorship start date and today. The window is `OUTCOME_REPORTING_WINDOW_DAYS = 90` in `@connect/config`, read through the pure `outcomeReportRefusal` in `@connect/domain`; the two refusals are `409 OUTCOME_REPORTING_CLOSED` and `422 OCCURRED_ON_OUT_OF_RANGE`. `ENDED_EARLY` takes no report because no route writes it in this release.
+- Reason: FR-MEN-02 left the window Open and FR-OUT-01's Given clause already said "Active or recently ended", so the code was the mismatch (SEC-AUDIT-007). A constant is the smallest complete answer and adds no schema or configuration surface.
+- Alternatives rejected: a database-backed policy (a new config surface for a product constant); allowing any `occurred_on` and relying on review (the review path can be self-dealt, which is why D-255 exists).
+- What would change this decision: pilot evidence that 90 days is too short; the constant is then tuned in a one-line change and this row records the date.
+- Status: Proposed (owner review required at the phase 6 PR)
+- Affects: `services/api/src/outcomes/drizzle-outcome.service.ts`, `packages/domain/src/outcome.ts`, `packages/config/src/index.ts`, `docs/functional-requirements.md`, `docs/reputation-and-verification-policy.md`, `mentorship/outcome-verification`

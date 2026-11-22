@@ -62,6 +62,8 @@ const PROBLEMS: Record<IdentityErrorCode, ProblemMapping> = {
   OUTCOME_REVIEW_CONFLICT: { status: 403, code: "OUTCOME_REVIEW_CONFLICT", title: "A participant cannot review this outcome" },
   SELF_GRANT_FORBIDDEN: { status: 403, code: "SELF_GRANT_FORBIDDEN", title: "You cannot grant this scope to your own account" },
   REAUTH_REQUIRED: { status: 403, code: "REAUTH_REQUIRED", title: "Confirm your password or second factor again" },
+  OUTCOME_REPORTING_CLOSED: { status: 409, code: "OUTCOME_REPORTING_CLOSED", title: "This mentorship can no longer take an outcome report" },
+  OCCURRED_ON_OUT_OF_RANGE: { status: 422, code: "OCCURRED_ON_OUT_OF_RANGE", title: "occurred_on must fall between the mentorship start and today" },
 };
 
 const PROBLEM_BASE = "https://docs.connect.example/problems/";

@@ -77,11 +77,11 @@ Each phase is independently applicable and mergeable. The two shared-file cases 
 
 **Out:** no config-table migration, no rewrite of existing outcomes, no change to the review state machine, no new outcome status.
 
-- [ ] 6.1 Add the named 90-day ending window and the date bounds to `@connect/config` and the outcome report path. Verify: `pnpm --filter @connect/domain exec node --import tsx --test test/outcome.test.ts` passes the pure window cases.
-- [ ] 6.2 Enforce the mentorship status and ending instant inside the report transaction. Verify: `pnpm --filter api exec node --import tsx --test --test-concurrency=1 test/outcomes.integration.test.ts` proves active, recent, old and no-write cases.
-- [ ] 6.3 Refuse `occurred_on` before the mentorship start or after today with `422 OCCURRED_ON_OUT_OF_RANGE`, and keep the boundary dates valid. Verify: the same targeted test file passes before-start, today, tomorrow and exact-boundary cases.
-- [ ] 6.4 Update `docs/functional-requirements.md` (FR-OUT-01 and FR-MEN-02), `docs/reputation-and-verification-policy.md` (the window) and `docs/decision-log.md` (D-258). Verify: the changed status names the test and the 90-day constant; no claim is ticked without the citation.
-- [ ] 6.5 Run `pnpm --filter api exec node --import tsx --test --test-concurrency=1 test/outcomes.integration.test.ts` and record the exit code.
+- [x] 6.1 Add the named 90-day ending window and the date bounds to `@connect/config` and the outcome report path. Verify: `pnpm --filter @connect/domain exec node --import tsx --test test/outcome.test.ts` passes the pure window cases.
+- [x] 6.2 Enforce the mentorship status and ending instant inside the report transaction. Verify: `pnpm --filter api exec node --import tsx --test --test-concurrency=1 test/outcomes.integration.test.ts` proves active, recent, old and no-write cases.
+- [x] 6.3 Refuse `occurred_on` before the mentorship start or after today with `422 OCCURRED_ON_OUT_OF_RANGE`, and keep the boundary dates valid. Verify: the same targeted test file passes before-start, today, tomorrow and exact-boundary cases.
+- [x] 6.4 Update `docs/functional-requirements.md` (FR-OUT-01 and FR-MEN-02), `docs/reputation-and-verification-policy.md` (the window) and `docs/decision-log.md` (D-258). Verify: the changed status names the test and the 90-day constant; no claim is ticked without the citation.
+- [x] 6.5 Run `pnpm --filter api exec node --import tsx --test --test-concurrency=1 test/outcomes.integration.test.ts` and record the exit code.
 
 ## Phase 7 — erasure-and-evidence-retention-complete
 

@@ -1526,3 +1526,52 @@ test("the review queue reports audit_hold and filters by kind", async (context) 
   assert.equal(refused.status, 403, refused.text);
   assert.equal(refused.body?.code, "ROLE_REQUIRED");
 });
+
+test("a report is bounded by the mentorship's status and its 90-day window", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const { student, mentorshipId } = await acceptedPair(current, ".window");
+
+  const today = new Date().toISOString().slice(0, 10);
+  const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+
+  const beforeStart = await report(
+    current,
+    student,
+    reportBody(mentorshipId, { occurred_on: "2000-01-01" }),
+  );
+  assert.equal(beforeStart.status, 422, beforeStart.text);
+  assert.equal(beforeStart.body?.code, "OCCURRED_ON_OUT_OF_RANGE");
+
+  const future = await report(current, student, reportBody(mentorshipId, { occurred_on: tomorrow }));
+  assert.equal(future.status, 422, future.text);
+  assert.equal(future.body?.code, "OCCURRED_ON_OUT_OF_RANGE");
+
+  const inside = await report(current, student, reportBody(mentorshipId, { occurred_on: today }));
+  assert.equal(inside.status, 201, inside.text);
+
+  await current.client.query(
+    "UPDATE mentorships SET started_at = now() - interval '120 days', status = 'COMPLETED', ended_at = now() - interval '10 days' WHERE id = $1",
+    [mentorshipId],
+  );
+  const recent = await report(current, student, reportBody(mentorshipId));
+  assert.equal(recent.status, 201, recent.text);
+
+  await current.client.query(
+    "UPDATE mentorships SET ended_at = now() - interval '91 days' WHERE id = $1",
+    [mentorshipId],
+  );
+  const old = await report(current, student, reportBody(mentorshipId));
+  assert.equal(old.status, 409, old.text);
+  assert.equal(old.body?.code, "OUTCOME_REPORTING_CLOSED");
+
+  await current.client.query(
+    "UPDATE mentorships SET status = 'ENDED_EARLY', ended_at = now() WHERE id = $1",
+    [mentorshipId],
+  );
+  const endedEarly = await report(current, student, reportBody(mentorshipId));
+  assert.equal(endedEarly.status, 409, endedEarly.text);
+  assert.equal(endedEarly.body?.code, "OUTCOME_REPORTING_CLOSED");
+
+  assert.equal(await countRows(current, "outcomes"), 2, "only the two in-window reports wrote a row");
+});
