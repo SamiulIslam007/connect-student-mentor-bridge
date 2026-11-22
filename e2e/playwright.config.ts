@@ -5,6 +5,7 @@ import { defineConfig, devices } from "@playwright/test";
 import {
   API_ORIGIN,
   E2E_BETTER_AUTH_SECRET,
+  E2E_BFF_TRUST_SECRET,
   MAILPIT_HTTP_URL,
   SMTP_PORT,
   WEB_ORIGIN,
@@ -25,6 +26,8 @@ const apiEnvironment = {
   DATABASE_URL,
   BETTER_AUTH_URL: WEB_ORIGIN,
   BETTER_AUTH_SECRET: E2E_BETTER_AUTH_SECRET,
+  // The API verifies the BFF's signed client key with this (D-253).
+  BFF_TRUST_SECRET: E2E_BFF_TRUST_SECRET,
   // Mailpit, which Compose already runs; the suite needs the sink, not a service.
   SMTP_HOST: new URL(MAILPIT_HTTP_URL).hostname,
   SMTP_PORT,
@@ -37,6 +40,8 @@ const webEnvironment = {
   API_INTERNAL_URL: API_ORIGIN,
   NEXT_PUBLIC_API_BASE_URL: API_ORIGIN,
   BETTER_AUTH_URL: WEB_ORIGIN,
+  // Signs the client key and the sign-up intent the browser flows depend on.
+  BFF_TRUST_SECRET: E2E_BFF_TRUST_SECRET,
 };
 
 export default defineConfig({

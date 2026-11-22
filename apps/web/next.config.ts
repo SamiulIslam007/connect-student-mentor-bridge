@@ -6,6 +6,8 @@ import { WEB_SECURITY_HEADERS_SOURCE, webSecurityHeaders } from "./lib/security-
 const nextConfig: NextConfig = {
   // The container image builds a standalone server; local `pnpm start` uses `next start`.
   output: process.env.NEXT_OUTPUT === "standalone" ? "standalone" : undefined,
+  // The framework header is a free fingerprint (SEC-AUDIT-017, D-261).
+  poweredByHeader: false,
   // better-auth's OAuth redirect_uri is <baseURL>/api/auth/callback/<provider>
   // (verified live); the app's handler lives at /callback/google.
   async rewrites() {

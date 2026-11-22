@@ -223,7 +223,7 @@ test("each refusal answers its status and writes nothing", async (context) => {
       {
         purpose: "INSTITUTION_DATA_SHARING",
         action: "GRANTED",
-        document_version: "1",
+        document_version: CONSENT_DOCUMENT_VERSION,
         institution_id: strangerInstitution,
       },
       404,
@@ -349,4 +349,43 @@ test("accepting both documents is what lets a verified, MFA-enrolled mentor beco
   );
   assert.equal(profileAfter.rows[0].status, "ACTIVE", "both documents plus the orientation activate");
   assert.ok(profileAfter.rows[0].activated_at, "activation sets activated_at");
+});
+
+test("only the published consent document version is accepted", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const token = await tokenFor(current, "version@example.com");
+  const userId = await userIdFor(current, "version@example.com");
+
+  const currentVersion = await apiRequest(
+    current,
+    "POST",
+    "/v1/me/consents",
+    { purpose: "TERMS", action: "GRANTED", document_version: CONSENT_DOCUMENT_VERSION },
+    token,
+  );
+  assert.equal(currentVersion.status, 200, currentVersion.text);
+  const countTerms = async (): Promise<string> => {
+    const rows = await current.client.query<{ count: string }>(
+      "SELECT count(*)::text AS count FROM consent_records WHERE user_id = $1 AND purpose = 'TERMS' AND action = 'GRANTED'",
+      [userId],
+    );
+    return String(rows.rows[0]?.count);
+  };
+  const before = await countTerms();
+
+  for (const version of ["2099-01-01", "1999-01", "1"]) {
+    const refused = await apiRequest(
+      current,
+      "POST",
+      "/v1/me/consents",
+      { purpose: "TERMS", action: "GRANTED", document_version: version },
+      token,
+    );
+    assert.equal(refused.status, 422, `${version} → ${refused.text}`);
+    assert.equal(refused.body?.code, "VALIDATION_FAILED");
+    assert.match(String(refused.body?.detail), /document_version/);
+  }
+
+  assert.equal(await countTerms(), before, "the refusals wrote no row");
 });

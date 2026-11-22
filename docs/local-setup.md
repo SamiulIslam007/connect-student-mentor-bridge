@@ -42,8 +42,14 @@ Every service must report `healthy`:
 
 `.env.example` lists every variable with local-only placeholder values. The
 committed file contains no real credential and no value is usable against a
-deployed system. Postgres is published on `${POSTGRES_PORT}` (55432 in that
-file) so it does not collide with a PostgreSQL already running on 5432.
+deployed system. Every published port binds to `127.0.0.1`, so the stack is not
+reachable from the LAN; Mailpit in particular shows verification and reset
+tokens to whoever can reach it (SEC-AUDIT-017, D-261). A LAN demo is an explicit
+opt-in: change the binding for the one service you need
+(`127.0.0.1:${WEB_PORT:-3000}:3000` to `${WEB_PORT:-3000}:3000`) in a local,
+uncommitted Compose override, never in `compose.yaml`. Postgres is published on
+`${POSTGRES_PORT}` (55432 in that file) so it does not collide with a PostgreSQL
+already running on 5432.
 
 Windows can reserve a TCP port range that contains the published port, and then
 the container cannot bind it: `docker compose ps` still shows the container up,

@@ -7,6 +7,7 @@ import { POST as signOutEverywhere } from "../app/api/auth/sign-out-everywhere/r
 import { GET as verify } from "../app/api/auth/verify/route.js";
 import { GET as getMe } from "../app/api/me/route.js";
 import { BFF_MAX_BODY_BYTES } from "../lib/bff.js";
+import { signIntent } from "../lib/sign-up-intent.js";
 import { readSessionCookie, sessionCookieOptions } from "../lib/session-cookie.js";
 
 const originalFetch = globalThis.fetch;
@@ -72,9 +73,18 @@ test("a failed sign-in passes the problem through and sets no cookie", async () 
   assert.equal(response.headers.get("set-cookie"), null);
 });
 
-/** A marker old enough to pass the two-second floor (SEC-ABUSE-1, D-223). */
+/**
+ * A signed marker old enough to pass the two-second floor (SEC-ABUSE-1, D-223;
+ * signing added by D-261).
+ */
+const INTENT_SECRET = "test-intent-signing-secret";
+process.env.BFF_TRUST_SECRET = INTENT_SECRET;
+
 function intentCookie(secondsAgo = 10): string {
-  const value = new Date(Date.now() - secondsAgo * 1000).toISOString();
+  const value = signIntent({
+    issuedAt: new Date(Date.now() - secondsAgo * 1000),
+    secret: INTENT_SECRET,
+  });
   return `connect_signup_intent=${encodeURIComponent(value)}`;
 }
 

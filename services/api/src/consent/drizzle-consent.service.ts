@@ -153,6 +153,14 @@ export class DrizzleConsentService implements ConsentService {
         `document_version must be at most ${CONSENT_VERSION_MAX_LENGTH} characters`,
       );
     }
+    // Only the published version is acceptable: a future or invented version
+    // would record consent to text nobody was shown (SEC-AUDIT-022, D-261).
+    if (value !== CONSENT_DOCUMENT_VERSION) {
+      throw new IdentityError(
+        "VALIDATION_ERROR",
+        `document_version must be the published version ${CONSENT_DOCUMENT_VERSION}`,
+      );
+    }
     return value;
   }
 
