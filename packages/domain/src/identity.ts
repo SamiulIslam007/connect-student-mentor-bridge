@@ -263,7 +263,9 @@ export type IdentityErrorCode =
   /** The mentorship is not ACTIVE or COMPLETED, or its 90-day window closed (D-258). */
   | "OUTCOME_REPORTING_CLOSED"
   /** `occurred_on` falls before the mentorship start or after today (D-258, SEC-AUDIT-007). */
-  | "OCCURRED_ON_OUT_OF_RANGE";
+  | "OCCURRED_ON_OUT_OF_RANGE"
+  /** An admin evidence read has no open review case or no written reason (D-259). */
+  | "EVIDENCE_ACCESS_DENIED";
 
 /** A failure a feature module may map to a response, with no library detail. */
 export class IdentityError extends Error {

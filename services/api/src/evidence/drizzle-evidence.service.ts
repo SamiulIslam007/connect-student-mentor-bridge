@@ -55,6 +55,7 @@ async function readParticipants(executor: Executor, outcomeId: string) {
   const [row] = await executor
     .select({
       id: outcomes.id,
+      status: outcomes.status,
       studentUserId: studentProfiles.userId,
       mentorUserId: mentorProfiles.userId,
     })
@@ -281,6 +282,17 @@ export class DrizzleEvidenceService implements EvidenceService {
     }
     if (isAdmin && !isStudent && !input.adminWithMfa) {
       throw new IdentityError("MFA_REQUIRED", "this action requires an enrolled second factor");
+    }
+    // An admin who is not a participant reads under review only: an open case and
+    // a written reason, never a bare lookup (SEC-AUDIT-010, D-259).
+    if (isAdmin && !isStudent) {
+      const reason = (input.reason ?? "").trim();
+      if (reason.length < 3 || reason.length > 500 || participants.status !== "IN_PLATFORM_REVIEW") {
+        throw new IdentityError(
+          "EVIDENCE_ACCESS_DENIED",
+          "an admin evidence read needs an open review case and a written reason",
+        );
+      }
     }
 
     const [row] = await this.db

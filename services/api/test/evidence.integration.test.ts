@@ -712,6 +712,10 @@ test("a platform admin read writes exactly one EVIDENCE_VIEWED row before the li
   if (!current) return;
   const { student, outcomeId } = await reportedOutcome(current, ".admin");
   const evidenceId = await attachedClean(current, outcomeId, student);
+  // An admin read needs an open review case (SEC-AUDIT-010, D-259).
+  await current.client.query("UPDATE outcomes SET status = 'IN_PLATFORM_REVIEW' WHERE id = $1", [
+    outcomeId,
+  ]);
 
   const adminEmail = "evidence.admin@example.com";
   const adminToken = await tokenFor(current, adminEmail);
@@ -731,6 +735,7 @@ test("a platform admin read writes exactly one EVIDENCE_VIEWED row before the li
     `/v1/outcomes/${outcomeId}/evidence/${evidenceId}`,
     undefined,
     adminToken,
+    { "x-access-reason": "reviewing the open outcome case" },
   );
   assert.equal(read.status, 200, read.text);
   assert.ok(read.body?.url);
@@ -762,6 +767,7 @@ test("a platform admin read writes exactly one EVIDENCE_VIEWED row before the li
     `/v1/outcomes/${outcomeId}/evidence/${evidenceId}`,
     undefined,
     adminToken,
+    { "x-access-reason": "reviewing the open outcome case" },
   );
   assert.equal(noMfa.status, 403, noMfa.text);
   assert.equal(noMfa.body?.code, "MFA_REQUIRED");
@@ -1177,4 +1183,87 @@ test("the dry run reports the new eligible rows and deletes nothing", async (con
   assert.deepEqual(result, { examined: 2, eligible: 2, deleted: 0, failed: 0, dryRun: true });
   assert.equal(storage.objects.size, 2);
   assert.deepEqual(await retentionAudit(current), []);
+});
+
+test("an admin read without an open case or a written reason is refused", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const { student, outcomeId } = await reportedOutcome(current, ".admin-denied");
+  const evidenceId = await attachedClean(current, outcomeId, student);
+
+  const adminEmail = "evidence.denied@example.com";
+  const adminToken = await tokenFor(current, adminEmail);
+  const admin = await current.client.query<{ id: string }>("SELECT id FROM users WHERE email = $1", [
+    adminEmail,
+  ]);
+  await current.client.query(
+    "INSERT INTO role_assignments (user_id, role) VALUES ($1, 'PLATFORM_ADMIN')",
+    [String(admin.rows[0]?.id)],
+  );
+  await current.client.query("UPDATE users SET two_factor_enabled = true WHERE id = $1", [
+    String(admin.rows[0]?.id),
+  ]);
+
+  // A pending outcome is not an open review case, even with a reason.
+  const pending = await apiRequest(
+    current,
+    "GET",
+    `/v1/outcomes/${outcomeId}/evidence/${evidenceId}`,
+    undefined,
+    adminToken,
+    { "x-access-reason": "please let me look" },
+  );
+  assert.equal(pending.status, 403, pending.text);
+  assert.equal(pending.body?.code, "EVIDENCE_ACCESS_DENIED");
+
+  // An open case with no reason is refused too.
+  await current.client.query("UPDATE outcomes SET status = 'IN_PLATFORM_REVIEW' WHERE id = $1", [
+    outcomeId,
+  ]);
+  const noReason = await apiRequest(
+    current,
+    "GET",
+    `/v1/outcomes/${outcomeId}/evidence/${evidenceId}`,
+    undefined,
+    adminToken,
+  );
+  assert.equal(noReason.status, 403, noReason.text);
+  assert.equal(noReason.body?.code, "EVIDENCE_ACCESS_DENIED");
+
+  assert.deepEqual(await auditRows(current, "EVIDENCE_VIEWED"), [], "a refusal writes no read row");
+});
+
+test("a never-settled outcome's file is deleted 90 days after upload", async (context) => {
+  const current = requireStack(context);
+  if (!current) return;
+  const { student, outcomeId } = await reportedOutcome(current, ".retain.pending");
+  const evidenceId = await attachedClean(current, outcomeId, student);
+  await current.client.query(
+    "UPDATE outcome_evidence SET uploaded_at = now() - make_interval(days => $2) WHERE id = $1",
+    [evidenceId, 91],
+  );
+
+  const young = await reportedOutcome(current, ".retain.pending.young");
+  const youngEvidence = await attachedClean(current, young.outcomeId, young.student);
+  await current.client.query(
+    "UPDATE outcome_evidence SET uploaded_at = now() - make_interval(days => $2) WHERE id = $1",
+    [youngEvidence, 89],
+  );
+
+  const dryRun = await sweep(current, { dryRun: true });
+  assert.equal(dryRun.eligible, 1, "only the older unsettled file is a candidate");
+  assert.equal(dryRun.deleted, 0);
+
+  const real = await sweep(current, { dryRun: false });
+  assert.equal(real.deleted, 1);
+  assert.equal(storage.objects.size, 1, "the young file survives");
+
+  const kept = await current.client.query<{ id: string; deleted_at: string | null }>(
+    "SELECT id, deleted_at FROM outcome_evidence WHERE id = $1",
+    [evidenceId],
+  );
+  assert.ok(kept.rows[0]?.deleted_at, "the row keeps its metadata and the deletion instant");
+  const audit = await retentionAudit(current);
+  assert.equal(audit.length, 1);
+  assert.equal(audit[0].object_id, evidenceId);
 });

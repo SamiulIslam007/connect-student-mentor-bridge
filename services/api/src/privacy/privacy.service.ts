@@ -36,7 +36,9 @@ export interface PrivacyService {
   /** The caller's own rows from the fixed allowlist (design D3). */
   exportAccount(input: ExportAccountInput): Promise<PrivacyExportDocument>;
   /** One transaction; the ledger, verification, reputation, and audit rows stay (D-85). */
-  deleteAccount(input: DeleteAccountInput): Promise<{ status: "deleted" }>;
+  deleteAccount(
+    input: DeleteAccountInput,
+  ): Promise<{ status: "deleted"; pending_storage_cleanup: number }>;
 }
 
 export type PrivacyDatabase = Database;

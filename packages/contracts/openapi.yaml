@@ -1141,12 +1141,17 @@ paths:
         stored email with the application's keyed hash, replaces the display
         name and personal profile text with neutral placeholders, replaces the
         caller's own message bodies with a tombstone string, removes every
-        session, second-factor row, and availability window, sets a deleted
-        mentor's profile to `REMOVED`, appends one `ACCOUNT_DELETED` audit entry
-        and one `privacy_requests` row, and never updates or deletes an outcome,
-        ledger, verification, reputation, or audit row (D-85). Deletion is
-        immediate and irreversible. A second request finds the account already
-        anonymized and changes nothing.
+        session, second-factor row, availability window, affiliation, report the
+        caller filed, verification row for the old address, queued outbox email
+        addressed to it and idempotency key, deletes the caller's evidence rows
+        and their stored objects, sets a deleted mentor's profile to `REMOVED`,
+        appends one `ACCOUNT_DELETED` audit entry and one `privacy_requests` row,
+        and never updates or deletes an outcome, ledger, verification,
+        reputation, or audit row (D-85, D-259). An object the store refuses keeps
+        its evidence row and is counted in `pending_storage_cleanup`, which the
+        hourly retention sweep retries. Deletion is immediate and irreversible.
+        A second request finds the account already anonymized and changes
+        nothing.
       security:
         - bearerAuth: []
       requestBody:
@@ -1161,7 +1166,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/StatusResponse"
+                $ref: "#/components/schemas/DeleteAccountResponse"
         "401":
           $ref: "#/components/responses/Problem"
         "403":
@@ -2711,12 +2716,15 @@ paths:
       summary: Read the evidence metadata and, when clean, a short-lived link
       description: >-
         The reporting student, that mentorship's mentor, and a platform admin
-        with an enrolled second factor may read it; anyone else gets 404. A file
-        that is QUARANTINED, REJECTED or already deleted answers 409
-        EVIDENCE_NOT_READY and no link. An admin's read writes one
-        EVIDENCE_VIEWED audit entry before the link is returned; a student's and
-        a mentor's read are not audited. The link expires five minutes after it
-        is minted.
+        with an enrolled second factor may read it; anyone else gets 404. An
+        admin who is not a participant reads only under review: the outcome must
+        be IN_PLATFORM_REVIEW and the request must carry a written reason in the
+        `x-access-reason` header, or the answer is 403 EVIDENCE_ACCESS_DENIED
+        (SEC-AUDIT-010, D-259). A file that is QUARANTINED, REJECTED or already
+        deleted answers 409 EVIDENCE_NOT_READY and no link. An admin's read
+        writes one EVIDENCE_VIEWED audit entry before the link is returned; a
+        student's and a mentor's read are not audited. The link expires five
+        minutes after it is minted.
       security:
         - bearerAuth: []
       parameters:
@@ -2730,6 +2738,16 @@ paths:
           required: true
           schema:
             type: string
+        - name: x-access-reason
+          in: header
+          required: false
+          description: >-
+            Required for a platform admin who is not a participant: 3 to 500
+            characters naming why the evidence is being read.
+          schema:
+            type: string
+            minLength: 3
+            maxLength: 500
       responses:
         "200":
           description: The evidence and, for a clean file, its download link
@@ -2908,6 +2926,21 @@ components:
             - signed_out_everywhere
             - reset_email_sent_if_account_exists
             - password_reset
+    DeleteAccountResponse:
+      type: object
+      additionalProperties: false
+      required: [status, pending_storage_cleanup]
+      properties:
+        status:
+          type: string
+          enum:
+            - deleted
+        pending_storage_cleanup:
+          type: integer
+          minimum: 0
+          description: >-
+            Evidence rows kept because the object store refused the delete; the
+            retention sweep retries them. Zero means the account is fully erased.
     RegisterRequest:
       type: object
       additionalProperties: false

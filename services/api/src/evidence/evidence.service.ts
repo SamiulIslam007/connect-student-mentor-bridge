@@ -44,6 +44,8 @@ export interface ReadEvidenceInput {
   adminWithMfa: boolean;
   outcomeId: string;
   evidenceId: string;
+  /** Required for an admin who is not a participant (SEC-AUDIT-010, D-259). */
+  reason?: string;
   requestId: string;
 }
 
