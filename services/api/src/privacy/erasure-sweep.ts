@@ -72,7 +72,10 @@ async function main(): Promise<void> {
   }
 }
 
-if (process.argv[1]?.includes("erasure-sweep")) {
+// Only the script entry runs it: under `node --test` the argv path is the test
+// file, whose name also contains "erasure-sweep".
+const entry = (process.argv[1] ?? "").replace(/\\/g, "/");
+if (/\/privacy\/erasure-sweep\.ts$/.test(entry)) {
   // No top-level await: this workspace transforms to CJS.
   void main().catch((error: unknown) => {
     console.error(
